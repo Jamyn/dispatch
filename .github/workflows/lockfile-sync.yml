@@ -1,0 +1,63 @@
+name: Lockfile sync
+
+# Fails when a package-lock.json drifts out of sync with its package.json.
+#
+# This is the exact failure that broke the image build in #61: the frontend's
+# package.json ranges moved while its lockfile kept the old resolutions, so
+# `npm ci` refused to install and docker/Dockerfile could not build the UI.
+# `npm install` papers over that state, which is why nothing caught it -- only
+# `npm ci` validates the two files against each other.
+#
+# The command below is deliberately the same one docker/Dockerfile runs, so
+# this gate cannot drift away from what actually breaks the image.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# No `paths:` filter on purpose. This is a required status check, and a
+# path-filtered required check never reports on PRs that miss the filter,
+# which leaves them permanently blocked waiting for a run that never starts.
+# The check takes seconds, so it just runs every time.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Single job, not a matrix: required status checks are matched by name, and a
+  # matrix produces one differently-named check per leg. One job means one
+  # stable name to require.
+  lockfile-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Check every lockfile against its package.json
+        run: |
+          set -u
+          failed=0
+          for dir in . docs src/dispatch/static/dispatch; do
+            echo "::group::$dir"
+            # --dry-run so nothing is written; the sync check runs before any
+            # fetching, so a drifted lockfile fails fast and offline.
+            # --ignore-scripts because the frontend has a preinstall hook.
+            if (cd "$dir" && npm ci --dry-run --ignore-scripts --no-audit --no-fund); then
+              echo "$dir: in sync"
+            else
+              echo "::error file=$dir/package-lock.json::$dir/package-lock.json is out of sync with $dir/package.json. Regenerate it with 'npm install --package-lock-only' in $dir and commit the result."
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$failed"
