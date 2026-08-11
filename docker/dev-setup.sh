@@ -20,14 +20,25 @@ else
     sed_suffix_arg="-i"
 fi
 
-if [ ! -f "$ENV_FILE" ]; then
+# Every write below lands in a temp file that is moved into place only once the
+# whole run succeeds. A half-written .env is worse than none: it carries a
+# couple of real generated values among untouched placeholders, so it reads as
+# finished while the stack it describes cannot start. mktemp lives beside the
+# target so the final move is a same-filesystem rename, and gives the file 0600
+# rather than the example's world-readable mode.
+WORK_FILE="$(mktemp "${SCRIPT_DIR}/.env.tmp.XXXXXX")"
+trap 'rm -f "$WORK_FILE"' EXIT
+
+if [ -f "$ENV_FILE" ]; then
+    cp "$ENV_FILE" "$WORK_FILE"
+else
     echo "Creating ${ENV_FILE} from .env.example..."
-    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    cp "$ENV_EXAMPLE" "$WORK_FILE"
 fi
 
 set -a
 # shellcheck disable=SC1090
-. "$ENV_FILE"
+. "$WORK_FILE"
 set +a
 
 GENERATED=()
@@ -49,7 +60,7 @@ function fill_uninitialised_secret {
     if [ -z "${!secret_name}" ] || [ "${!secret_name}" == "$PLACEHOLDER_SECRET" ]; then
         value="$(openssl rand -hex "$secret_bytes")"
         # shellcheck disable=SC2086  # sed_suffix_arg must word-split for macOS -i ''
-        sed $sed_suffix_arg "s|^${secret_name}=.*|${secret_name}=${value}|" "$ENV_FILE"
+        sed $sed_suffix_arg "s|^${secret_name}=.*|${secret_name}=${value}|" "$WORK_FILE"
         printf -v "$secret_name" '%s' "$value"
         GENERATED+=("${secret_name}=${value}")
         echo "Generating ${secret_name}..."
@@ -103,12 +114,13 @@ fi
 for required in POSTGRES_USER POSTGRES_PASSWORD DISPATCH_ENCRYPTION_KEY; do
     if [ -z "${!required}" ] || [ "${!required}" == "$PLACEHOLDER_SECRET" ]; then
         echo "" >&2
-        echo "ERROR: ${required} is still unset in ${ENV_FILE}." >&2
+        echo "ERROR: ${required} has no value, and one cannot be generated." >&2
         echo "Volume ${PG_VOLUME} already holds a Postgres cluster, so its password" >&2
         echo "cannot be regenerated without locking you out of the existing data." >&2
         echo "" >&2
-        echo "Either copy the existing credentials into ${ENV_FILE} by hand, or" >&2
-        echo "discard the cluster and re-run this script:" >&2
+        echo "Nothing was written -- ${ENV_FILE} is unchanged. Either set the existing" >&2
+        echo "cluster's values there by hand (copy .env.example if it does not exist)," >&2
+        echo "or discard the cluster and re-run this script:" >&2
         echo "    docker compose -f docker/docker-compose.yml down" >&2
         echo "    docker volume rm ${PG_VOLUME}" >&2
         exit 1
@@ -122,7 +134,12 @@ credentials="$(escape_sed_replacement "${POSTGRES_USER}:${POSTGRES_PASSWORD}")"
 # shellcheck disable=SC2086  # sed_suffix_arg must word-split for macOS -i ''
 sed $sed_suffix_arg \
     "s|^DATABASE_CREDENTIALS=.*|DATABASE_CREDENTIALS=${credentials}|" \
-    "$ENV_FILE"
+    "$WORK_FILE"
+
+# Commit point. Everything above either succeeded or exited without touching
+# the real file; a rename within one directory is atomic, so no reader ever
+# sees a partially written .env.
+mv "$WORK_FILE" "$ENV_FILE"
 
 echo ""
 if [ ${#GENERATED[@]} -eq 0 ]; then

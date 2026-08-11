@@ -201,6 +201,9 @@ tags
 
 # exclude docker env files
 docker/.env
+# dev-setup.sh's staging file; removed on exit, but a hard kill can strand one
+# full of real secrets and it is not covered by the `.env` rule above.
+docker/.env.tmp.*
 
 # exclude data dump files
 *.dump
