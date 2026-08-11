@@ -221,3 +221,6 @@ components.d.ts
 
 # Pyright
 pyrightconfig.json
+
+# Local agent memory, deliberately untracked (same convention as dispatch-docker).
+CLAUDE.md

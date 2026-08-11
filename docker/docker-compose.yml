@@ -1,15 +1,25 @@
+# Local development only: a Postgres (and pgadmin) stack for hacking on the
+# application itself. Deployment lives in Jamyn/dispatch-docker, which builds
+# this repository at a pinned commit -- do not deploy from this file.
+#
+# The postgres image and mount path deliberately match the deployed stack:
+# same 18.4 manifest-list digest, and the volume mounted at the *parent*
+# /var/lib/postgresql (the 18+ image keeps data in a major-version
+# subdirectory; mounting the old .../data path makes the container exit).
 services:
   postgres:
-    image: postgres:14.6
+    image: postgres:18.4@sha256:a02db8cac496f15b094798a38254f14d6e00741f709360e5e00bb6668ea31636
     hostname: postgres
     ports:
-      - "5432:5432"
+      # Loopback only: a bare "5432:5432" binds every interface via iptables
+      # rules that sit ahead of ufw.
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: dispatch # Default password, change it
+      POSTGRES_PASSWORD: dispatch # Dev-only default; fine on loopback, never expose it
       POSTGRES_DB: dispatch
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     restart: unless-stopped
 
   pgadmin:
@@ -17,10 +27,10 @@ services:
     depends_on:
       - postgres
     ports:
-      - "5555:80"
+      - "127.0.0.1:5555:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: dispatch@netflix.com
-      PGADMIN_DEFAULT_PASSWORD: admin # Default password, change it
+      PGADMIN_DEFAULT_EMAIL: dispatch@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin # Dev-only default
     restart: unless-stopped
 
 volumes:
