@@ -63,6 +63,41 @@ def test_render_message_template__disable_code_execution():
     assert rendered[0].get("body") == message_template[0].get("body")
 
 
+def test_render_html():
+    """Tests that render_html shells out to the mjml CLI and returns valid HTML.
+
+    None of the other messaging tests exercise the actual mjml binary --
+    this is the only place a bad mjml install/version would surface.
+    """
+    from dispatch.messaging.email.utils import render_html
+
+    template = """
+    <mjml>
+      <mj-body>
+        <mj-section>
+          <mj-column>
+            <mj-text>Hello Dispatch</mj-text>
+          </mj-column>
+        </mj-section>
+      </mj-body>
+    </mjml>
+    """
+
+    html = render_html(template)
+
+    assert "Hello Dispatch" in html
+    assert "<table" in html
+
+
+def test_render_html__malformed_template_raises():
+    """Tests that render_html surfaces mjml compiler errors instead of swallowing them."""
+    import pytest
+    from dispatch.messaging.email.utils import render_html
+
+    with pytest.raises(Exception, match="MJML template processing failed"):
+        render_html("<mjml><mj-body><not-a-real-tag/></mj-body></mjml>")
+
+
 def test_generate_welcome_message__default():
     """Tests the generate_welcome_message function."""
     from dispatch.messaging.strings import generate_welcome_message
