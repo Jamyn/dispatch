@@ -144,16 +144,9 @@ RUN buildDeps="" \
   # a server newer than itself. Client 18 covers servers 14 through 18; client
   # 14 could not dump from the 18.x server this is deployed against.
   pkg-config postgresql-client-18 nodejs \
-  # Apply pending Debian security updates to the base image's own packages.
-  # The pinned base ships openssl 3.5.4-1~deb13u1, which trivy fails on
-  # (CVE-2026-31789 CRITICAL, plus several HIGH) with fixes available up to
-  # 3.5.6-1~deb13u2. Nothing here depends on openssl tightly enough to pull
-  # the fix in on its own, so whether the image was vulnerable depended on
-  # which unrelated package happened to drag libssl forward on a given build
-  # -- images built weeks apart from this same Dockerfile differed. Upgrading
-  # explicitly makes it deterministic rather than incidental, and keeps the
-  # `--severity CRITICAL,HIGH --ignore-unfixed` gate from going red every time
-  # a base-image CVE is published.
+  # The pinned base ships openssl below the fixed 3.5.6-1~deb13u2 and nothing
+  # here pulls it forward on its own, so trivy's CRITICAL/HIGH gate goes red.
+  # Upgrade explicitly, before apt-get clean, so the fix is deterministic.
   && apt-get upgrade -y \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
