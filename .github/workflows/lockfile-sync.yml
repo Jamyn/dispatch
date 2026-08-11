@@ -1,6 +1,7 @@
 name: Lockfile sync
 
-# Fails when a package-lock.json drifts out of sync with its package.json.
+# Fails when a lockfile drifts out of sync with the manifest it was built from,
+# for both the npm lockfiles and the Python requirements-lock.txt.
 #
 # This is the exact failure that broke the image build in #61: the frontend's
 # package.json ranges moved while its lockfile kept the old resolutions, so
@@ -61,3 +62,34 @@ jobs:
             echo "::endgroup::"
           done
           exit "$failed"
+
+  # Separate job so the npm and Python gates report as separately named checks.
+  python-lock-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14'
+
+      # Pinned: uv's resolver output is version-dependent, so an unpinned uv
+      # would make this gate disagree with itself between runs.
+      - run: pip install uv==0.5.9
+
+      - name: Check requirements-lock.txt against pyproject.toml
+        run: |
+          set -eu
+          cp requirements-lock.txt "$RUNNER_TEMP/committed.txt"
+          # uv reads the existing -o file as pins, so this only rewrites what
+          # pyproject.toml no longer allows -- a new release on PyPI does not
+          # make it drift. The argv must match the committed header comment
+          # byte for byte, since uv records the command it was run with.
+          uv pip compile pyproject.toml --python-version 3.14 --generate-hashes --constraint constraints.txt -o requirements-lock.txt
+          if ! diff -u "$RUNNER_TEMP/committed.txt" requirements-lock.txt; then
+            echo "::error file=requirements-lock.txt::requirements-lock.txt does not satisfy pyproject.toml. Regenerate it with the command in its header comment and commit the result."
+            exit 1
+          fi
+          echo "requirements-lock.txt: in sync"
