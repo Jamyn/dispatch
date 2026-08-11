@@ -17,6 +17,8 @@ Creating a release of Dispatch requires the step below.
 
 If the database schema changes, we will need to update the sample data accordingly.
 
+- Run `docker/dev-setup.sh` first if you have not already — it generates the
+  development secrets into `docker/.env`, which the script below reads.
 - Run the Bash script `update-example-data.sh` in the `data` directory.
 - Create a commit with any changes
 - Create a pull request with the change
