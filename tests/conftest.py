@@ -8,13 +8,21 @@ from sqlalchemy_utils import drop_database, database_exists
 from starlette.config import environ
 from fastapi.testclient import TestClient
 
-# Test config. These are defaults, not overrides: a developer running against
-# the generated dev stack exports DATABASE_CREDENTIALS from docker/.env, and
-# that value must win. Values here are deliberately non-secret placeholders.
+# DATABASE_NAME is forced, never taken from the environment. This suite drops
+# its database before and after the run, and docker/.env sets
+# DATABASE_NAME=dispatch -- so honouring the environment here would delete the
+# developer's dev database the moment they exported docker/.env and ran pytest.
+_TEST_OVERRIDES = {
+    "DATABASE_NAME": "dispatch-test",
+}
+
+# Defaults, not overrides: the dev database password is generated, so a
+# developer who exported docker/.env must have their DATABASE_CREDENTIALS win
+# or the suite cannot connect. Values here are deliberately non-secret
+# placeholders. Nothing destructive keys off these -- see _TEST_OVERRIDES.
 _TEST_DEFAULTS = {
     "DATABASE_CREDENTIALS": "postgres:not-a-real-password-tests-only",
     "DATABASE_HOSTNAME": "localhost",
-    "DATABASE_NAME": "dispatch-test",
     "DISPATCH_ENCRYPTION_KEY": "not-a-real-key-tests-only",
     "DISPATCH_JWT_SECRET": "not-a-real-key-tests-only",
     "DISPATCH_UI_URL": "https://example.com",
@@ -29,6 +37,9 @@ _TEST_DEFAULTS = {
 # The wrapper records every key it is asked for and then refuses to let that
 # key be set, so `environ.setdefault(k, v)` and `k in environ` both poison the
 # very key they are checking.
+for _key, _value in _TEST_OVERRIDES.items():
+    environ[_key] = _value
+
 for _key, _value in _TEST_DEFAULTS.items():
     if _key not in os.environ:
         environ[_key] = _value
