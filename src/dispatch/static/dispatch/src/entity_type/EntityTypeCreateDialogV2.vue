@@ -75,7 +75,7 @@
                 variant="plain"
                 target="_blank"
                 size="small"
-                href="https://netflix.github.io/dispatch/docs/administration/settings/signal/entity-type"
+                href="https://jamyn.github.io/dispatch/docs/administration/settings/signal/entity-type"
               />
             </template>
           </DTooltip>
