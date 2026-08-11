@@ -1,4 +1,4 @@
-FROM python:3.11.13-slim-bullseye as sdist
+FROM python:3.11.15-slim-trixie as sdist
 
 LABEL maintainer="oss@netflix.com"
 LABEL org.opencontainers.image.title="Dispatch PyPI Wheel"
@@ -64,7 +64,7 @@ RUN YARN_CACHE_FOLDER="$(mktemp -d)" \
   && mv /usr/src/dispatch/dist /dist
 
 # This is the image to be run
-FROM python:3.11.13-slim-bullseye
+FROM python:3.11.15-slim-trixie
 
 LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch"
@@ -96,8 +96,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -LsSf https://astral.sh/uv/0.4.17/install.sh | sh && \
   mv /root/.cargo/bin/uv /usr/local/bin/
 
-RUN echo "deb http://apt.postgresql.org/pub/repos/apt bullseye-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
-  && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+# apt-key was removed in apt 3.0 (Debian 13), so the pgdg key is installed as a
+# keyring file and bound to the repository with signed-by instead.
+RUN mkdir -p /etc/apt/keyrings \
+  && wget --quiet -O /etc/apt/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+  && echo "deb [signed-by=/etc/apt/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt trixie-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 
 RUN wget --quiet -O - https://deb.nodesource.com/setup_20.x | bash -
 
@@ -107,13 +110,22 @@ RUN buildDeps="" \
   && apt-get install -y --no-install-recommends "$buildDeps" \
   # remove internal index when internal plugins are separated
   && uv pip install --system -U /tmp/dist/*.whl \
+  # setuptools vendors jaraco.context and wheel, and pkg_resources imports
+  # jaraco.text from that tree at runtime -- jira and langcodes both import
+  # pkg_resources, so it cannot simply be removed. 81 is the last release
+  # that still ships pkg_resources and the first whose vendored tree is past
+  # CVE-2026-23949 and CVE-2026-24049; 82 drops pkg_resources entirely.
+  && uv pip install --system -U "setuptools==81.0.0" \
   && apt-get purge -y --auto-remove "$buildDeps" \
   # We install run-time dependencies strictly after
   # build dependencies to prevent accidental collusion.
   # These are also installed last as they are needed
   # during container run and can have the same deps w/
   && apt-get install -y --no-install-recommends \
-  pkg-config postgresql-client-14 nodejs \
+  # `dispatch database dump` shells out to pg_dump, which refuses to dump from
+  # a server newer than itself. Client 18 covers servers 14 through 18; client
+  # 14 could not dump from the 18.x server this is deployed against.
+  pkg-config postgresql-client-18 nodejs \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   # mjml has to be installed differently here because
@@ -127,10 +139,19 @@ RUN buildDeps="" \
   # for the npm install. It still tries to install in /,
   # which npm can't do
   && cd /mjml_install \
-  && npm install --no-cache-dir mjml \
+  # Pinned to the version src/dispatch/static/dispatch/package-lock.json resolves,
+  # so the templates render against the mjml they were authored for.
+  && npm install --no-cache-dir mjml@4.15.3 \
   && mv node_modules / \
   && cd / \
-  && rm -rf /mjml_install
+  && rm -rf /mjml_install \
+  # npm is build-time only; every CRITICAL/HIGH in this image's node tree comes
+  # from its bundled dependencies. The mjml CLI needs node, not npm.
+  && rm -rf /usr/lib/node_modules/npm /usr/bin/npm /usr/bin/npx
+
+# The wheel no longer carries the frontend's node_modules, so the default
+# (a path inside the package) no longer resolves. Point at the tree above.
+ENV MJML_PATH=/node_modules/.bin
 
 EXPOSE 8000
 VOLUME /var/lib/dispatch/files
