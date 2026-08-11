@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from easydict import EasyDict
@@ -6,18 +8,30 @@ from sqlalchemy_utils import drop_database, database_exists
 from starlette.config import environ
 from fastapi.testclient import TestClient
 
-# set test config
-environ["DATABASE_CREDENTIALS"] = "postgres:dispatch"
-environ["DATABASE_HOSTNAME"] = "localhost"
-environ["DATABASE_NAME"] = "dispatch-test"
-environ["DISPATCH_ENCRYPTION_KEY"] = "test123"
-environ["DISPATCH_JWT_SECRET"] = "test123"
-environ["DISPATCH_UI_URL"] = "https://example.com"
-environ["ENV"] = "pytest"
-environ["JWKS_URL"] = "example.com"
-environ["METRIC_PROVIDERS"] = ""  # TODO move this to the default
-environ["SECRET_PROVIDER"] = ""
-environ["STATIC_DIR"] = ""  # we don't need static files for tests
+# Test config. These are defaults, not overrides: a developer running against
+# the generated dev stack exports DATABASE_CREDENTIALS from docker/.env, and
+# that value must win. Values here are deliberately non-secret placeholders.
+_TEST_DEFAULTS = {
+    "DATABASE_CREDENTIALS": "postgres:not-a-real-password-tests-only",
+    "DATABASE_HOSTNAME": "localhost",
+    "DATABASE_NAME": "dispatch-test",
+    "DISPATCH_ENCRYPTION_KEY": "not-a-real-key-tests-only",
+    "DISPATCH_JWT_SECRET": "not-a-real-key-tests-only",
+    "DISPATCH_UI_URL": "https://example.com",
+    "ENV": "pytest",
+    "JWKS_URL": "example.com",
+    "METRIC_PROVIDERS": "",  # TODO move this to the default
+    "SECRET_PROVIDER": "",
+    "STATIC_DIR": "",  # we don't need static files for tests
+}
+
+# Membership is tested against os.environ, not starlette's `environ` wrapper.
+# The wrapper records every key it is asked for and then refuses to let that
+# key be set, so `environ.setdefault(k, v)` and `k in environ` both poison the
+# very key they are checking.
+for _key, _value in _TEST_DEFAULTS.items():
+    if _key not in os.environ:
+        environ[_key] = _value
 
 from dispatch import config
 from dispatch.database.core import engine
