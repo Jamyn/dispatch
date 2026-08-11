@@ -2,11 +2,11 @@
 
 ## Scope
 
-This repository is the independently maintained fork of the Dispatch application — the API, frontend, plugins, and `docker/Dockerfile` that [Jamyn/dispatch-docker](https://github.com/Jamyn/dispatch-docker) builds and runs. Reports in scope here are about the application itself: its code, its dependencies, and the container image it defines.
+This repository is the independently maintained continuation of the Dispatch application — the API, frontend, plugins, and `docker/Dockerfile` that [Jamyn/dispatch-docker](https://github.com/Jamyn/dispatch-docker) builds and runs. Reports in scope here are about the application itself: its code, its dependencies, and the container image it defines.
 
-Vulnerabilities in the deployment tooling — `install.sh` (including secret generation and Postgres credential handling), `docker-compose.yml`, and that repository's CI — belong in [Jamyn/dispatch-docker](https://github.com/Jamyn/dispatch-docker) and are covered by [its security policy](https://github.com/Jamyn/dispatch-docker/blob/master/SECURITY.md).
+Vulnerabilities in the deployment tooling — `install.sh` (including secret generation and Postgres credential handling), `docker-compose.yml`, and that repository's CI — belong in [Jamyn/dispatch-docker](https://github.com/Jamyn/dispatch-docker) and are covered by [its security policy](https://github.com/Jamyn/dispatch-docker/blob/main/SECURITY.md).
 
-[Netflix/dispatch](https://github.com/Netflix/dispatch), the archived upstream, was made read-only on 2025-09-01 and has no security response path; this fork is where application fixes land.
+[Netflix/dispatch](https://github.com/Netflix/dispatch), the archived upstream, was made read-only on 2025-09-01 and has no security response path; this repository is where application fixes land.
 
 ## Reporting a vulnerability
 
