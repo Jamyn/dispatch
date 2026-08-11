@@ -59,7 +59,17 @@ COPY . /usr/src/dispatch/
 RUN YARN_CACHE_FOLDER="$(mktemp -d)" \
   && export YARN_CACHE_FOLDER \
   && pushd /usr/src/dispatch \
-  && uv build \
+  # Nothing on main builds the frontend: hatchling has no build hook and no
+  # dist/ is committed, so the wheel ships no UI unless vite runs here.
+  && pushd src/dispatch/static/dispatch \
+  && npm ci --no-audit --no-fund \
+  && npm run build \
+  && popd \
+  # --wheel, not a bare `uv build`: that builds an sdist first and then the
+  # wheel FROM it, where src/dispatch has been flattened to dispatch/ and the
+  # wheel target's packages=["src/dispatch"] matches nothing, yielding a wheel
+  # with no package in it at all.
+  && uv build --wheel \
   && rm -r "$YARN_CACHE_FOLDER" \
   && mv /usr/src/dispatch/dist /dist
 
@@ -116,6 +126,14 @@ RUN buildDeps="" \
   # that still ships pkg_resources and the first whose vendored tree is past
   # CVE-2026-23949 and CVE-2026-24049; 82 drops pkg_resources entirely.
   && uv pip install --system -U "setuptools==81.0.0" \
+  # uv extracts installed wheels into its cache before linking them into
+  # site-packages, leaving a second copy of the source tree at
+  # /root/.cache/uv/archive-v0/. Unlike site-packages, trivy's secret
+  # scanner walks that path as plain filesystem content and flags
+  # dispatch_google/common.py's `"type": "service_account"` dict literal
+  # as a GCP service-account key -- a false positive, but the underlying
+  # cache copy is also just dead weight in the runtime image.
+  && rm -rf /root/.cache/uv \
   && apt-get purge -y --auto-remove "$buildDeps" \
   # We install run-time dependencies strictly after
   # build dependencies to prevent accidental collusion.
