@@ -705,9 +705,7 @@ dkimpy==1.1.8 \
 dnspython==2.8.0 \
     --hash=sha256:01d9bbc4a2d76bf0db7c1f729812ded6d912bd318d3b1cf81d30c0f845dbf3af \
     --hash=sha256:181d3c6996452cb1189c4046c61599b84a5a86e099562ffde77d26984ff26d0f
-    # via
-    #   dkimpy
-    #   email-validator
+    # via email-validator
 duo-client==5.6.1 \
     --hash=sha256:5b9bfba3bd995178cebf51db605190bdc84fec8e4b6935210e7abde4ae97cef5 \
     --hash=sha256:ec7fa30548b7b8e3b7983948d08d167ada4df7a1b54b4723e7a02ee4635bb513
@@ -2174,6 +2172,10 @@ puremagic==2.2.0 \
     --hash=sha256:c4f7ed7307f056c787199acfda839555921be1df13abba61e8e6db0c787ae1d0 \
     --hash=sha256:eb4bddf07c177c4b434554b92165b67449f5a51e152b976202d6254498810eef
     # via emails
+py3dns==4.0.2 \
+    --hash=sha256:36bffe62b59a72cfa09c03f0bd3473e0126f20ee4285d14c07415dbf6f5fd571 \
+    --hash=sha256:98652e80ecec143c60f78f0e6b341631ca9a7560edd8dddfc864c02902618a39
+    # via dkimpy
 pyarrow==25.0.1 \
     --hash=sha256:0b1edbb2f385a6a65e9711b62ba86ac54a7816a3f8d17bb3e8a5929d65fb2485 \
     --hash=sha256:0b726ad7e7b669be982b0c71c07fe4b037d654354130da79a7902a669e93a66b \

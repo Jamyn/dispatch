@@ -71,25 +71,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.14'
-
-      # Pinned: uv's resolver output is version-dependent, so an unpinned uv
-      # would make this gate disagree with itself between runs.
-      - run: pip install uv==0.5.9
-
       - name: Check requirements-lock.txt against pyproject.toml
         run: |
           set -eu
           cp requirements-lock.txt "$RUNNER_TEMP/committed.txt"
-          # uv reads the existing -o file as pins, so this only rewrites what
-          # pyproject.toml no longer allows -- a new release on PyPI does not
-          # make it drift. The argv must match the committed header comment
-          # byte for byte, since uv records the command it was run with.
-          uv pip compile pyproject.toml --python-version 3.14 --generate-hashes --constraint constraints.txt -o requirements-lock.txt
+          # Compiled inside the runtime base image, not on the runner. dkimpy
+          # ships sdist-only and picks Py3DNS or dnspython by probing whether a
+          # DNS module imports while its metadata is built, so the resolved set
+          # differs between a runner and the image unless both resolve here.
+          # uv is pinned for the same reason, and reads the existing -o file as
+          # pins, so a new release on PyPI does not make this drift.
+          docker run --rm -v "$PWD:/w" -w /w python:3.14.0-slim-trixie bash -c \
+            "pip install -q uv==0.5.9 && uv pip compile pyproject.toml --python-version 3.14 --generate-hashes --constraint constraints.txt -o requirements-lock.txt > /dev/null"
           if ! diff -u "$RUNNER_TEMP/committed.txt" requirements-lock.txt; then
-            echo "::error file=requirements-lock.txt::requirements-lock.txt does not satisfy pyproject.toml. Regenerate it with the command in its header comment and commit the result."
+            echo "::error file=requirements-lock.txt::requirements-lock.txt does not satisfy pyproject.toml. Regenerate it with the command in its header comment, run inside python:3.14.0-slim-trixie, and commit the result."
             exit 1
           fi
           echo "requirements-lock.txt: in sync"
