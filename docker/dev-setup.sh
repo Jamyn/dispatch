@@ -79,12 +79,6 @@ fill_uninitialised_secret "PGADMIN_DEFAULT_PASSWORD" 16
 if [ -z "$EXISTING_PG_DATA" ]; then
     fill_uninitialised_secret "POSTGRES_PASSWORD" 24
     fill_uninitialised_secret "DISPATCH_ENCRYPTION_KEY" 30
-    # The application reads DATABASE_CREDENTIALS; the postgres image reads the
-    # user and password separately. Keep them in step.
-    # shellcheck disable=SC2086  # sed_suffix_arg must word-split for macOS -i ''
-    sed $sed_suffix_arg \
-        "s|^DATABASE_CREDENTIALS=.*|DATABASE_CREDENTIALS=${POSTGRES_USER}:${POSTGRES_PASSWORD}|" \
-        "$ENV_FILE"
 else
     echo "Existing Postgres cluster found in volume ${PG_VOLUME} (PG_VERSION ${EXISTING_PG_DATA})."
     echo "Leaving POSTGRES_PASSWORD and DISPATCH_ENCRYPTION_KEY untouched -- rotating"
@@ -92,6 +86,34 @@ else
     echo "plugin configuration. Delete the volume to start over:"
     echo "    docker volume rm ${PG_VOLUME}"
 fi
+
+# An existing cluster keeps whatever password it was initialised with, so the
+# branch above deliberately generates nothing. If the .env is also fresh, that
+# leaves the shipped placeholder in place -- and compose accepts it, because a
+# sentinel is a perfectly good non-empty string. Fail instead: shipping the
+# placeholder as a live value is the exact bug this script exists to prevent.
+for required in POSTGRES_PASSWORD DISPATCH_ENCRYPTION_KEY; do
+    if [ -z "${!required}" ] || [ "${!required}" == "$PLACEHOLDER_SECRET" ]; then
+        echo "" >&2
+        echo "ERROR: ${required} is still unset in ${ENV_FILE}." >&2
+        echo "Volume ${PG_VOLUME} already holds a Postgres cluster, so its password" >&2
+        echo "cannot be regenerated without locking you out of the existing data." >&2
+        echo "" >&2
+        echo "Either copy the existing credentials into ${ENV_FILE} by hand, or" >&2
+        echo "discard the cluster and re-run this script:" >&2
+        echo "    docker compose -f docker/docker-compose.yml down" >&2
+        echo "    docker volume rm ${PG_VOLUME}" >&2
+        exit 1
+    fi
+done
+
+# The application reads DATABASE_CREDENTIALS; the postgres image reads the user
+# and password separately. Derived unconditionally, outside the branch above, so
+# the two can never drift -- an existing cluster still needs them in step.
+# shellcheck disable=SC2086  # sed_suffix_arg must word-split for macOS -i ''
+sed $sed_suffix_arg \
+    "s|^DATABASE_CREDENTIALS=.*|DATABASE_CREDENTIALS=${POSTGRES_USER}:${POSTGRES_PASSWORD}|" \
+    "$ENV_FILE"
 
 echo ""
 if [ ${#GENERATED[@]} -eq 0 ]; then
