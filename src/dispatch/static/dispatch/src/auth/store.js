@@ -253,7 +253,9 @@ const getters = {
     if (userId) {
       // to use avatar template, store in .env file and
       // put * as a placeholder for the userid
-      const stem = avatarTemplate.replace("*", userId)
+      // Every "*" is a placeholder, and the userid comes from a user-chosen
+      // email local part, so it has to be encoded before it lands in a URL.
+      const stem = avatarTemplate.replace(/\*/g, encodeURIComponent(userId))
       const loc = `${window.location.protocol}//${window.location.host}${stem}`
       return loc
     }
