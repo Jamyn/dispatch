@@ -1,0 +1,20 @@
+# Section mapping for GitHub's generated release notes, driven by the same
+# primary labels used across this fork's repositories.
+changelog:
+  exclude:
+    labels: [duplicate, invalid, wontfix, question]
+  categories:
+    - title: Breaking changes
+      labels: [breaking-change]
+    - title: Security
+      labels: [security]
+    - title: Fixes
+      labels: [bug]
+    - title: Enhancements
+      labels: [enhancement]
+    - title: CI
+      labels: [ci]
+    - title: Maintenance and documentation
+      labels: [maintenance, documentation]
+    - title: Other changes
+      labels: ["*"]

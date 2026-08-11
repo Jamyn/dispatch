@@ -1,0 +1,70 @@
+# Naming `labels` explicitly opts Dependabot out of creating its own default
+# `dependencies` label, and every name here must exist as a repository label --
+# an undefined label is silently ignored, which would leave the PR unlabelled
+# and blocked by the enforce-labels gate that these entries exist to satisfy.
+version: 2
+updates:
+  # Actions are the highest-value ecosystem here: a compromised action runs
+  # with the workflow's token, so keeping SHA pins current matters more than
+  # any application dependency.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels: ["maintenance", "github-actions"]
+
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    labels: ["maintenance", "docker"]
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    labels: ["maintenance"]
+    groups:
+      python-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directory: "/src/dispatch/static/dispatch"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    labels: ["maintenance"]
+    ignore:
+      # apexcharts is held at ^3.44.0; vue3-apexcharts' peer floor moves within
+      # its own 1.x line, so any bump re-selects an unsatisfiable peer. Lifting
+      # this needs an apexcharts 3 -> 5/6 migration in its own PR.
+      - dependency-name: "vue3-apexcharts"
+    groups:
+      frontend-minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    labels: ["maintenance", "documentation"]
+    groups:
+      docs-minor-and-patch:
+        update-types: ["minor", "patch"]
