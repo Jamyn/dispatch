@@ -153,7 +153,7 @@ def init_schema(*, engine: Engine, organization: Organization) -> Organization:
     # put schema under version control
     version_schema(script_location=config.ALEMBIC_TENANT_REVISION_PATH)
 
-    with engine.connect() as connection:
+    with engine.begin() as connection:
         # we need to map this for full text search as it uses sql literal strings
         # and schema translate map does not apply
         for t in tables:
