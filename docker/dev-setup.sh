@@ -25,15 +25,17 @@ fi
 # couple of real generated values among untouched placeholders, so it reads as
 # finished while the stack it describes cannot start. mktemp lives beside the
 # target so the final move is a same-filesystem rename, and gives the file 0600
-# rather than the example's world-readable mode.
+# rather than the example's world-readable mode -- including on re-runs, which
+# re-tighten an existing .env that was created before this script.
 WORK_FILE="$(mktemp "${SCRIPT_DIR}/.env.tmp.XXXXXX")"
 trap 'rm -f "$WORK_FILE"' EXIT
 
 if [ -f "$ENV_FILE" ]; then
     cp "$ENV_FILE" "$WORK_FILE"
+    env_file_existed=1
 else
-    echo "Creating ${ENV_FILE} from .env.example..."
     cp "$ENV_EXAMPLE" "$WORK_FILE"
+    env_file_existed=0
 fi
 
 set -a
@@ -111,7 +113,18 @@ fi
 # leaves the shipped placeholder in place -- and compose accepts it, because a
 # sentinel is a perfectly good non-empty string. Fail instead: shipping the
 # placeholder as a live value is the exact bug this script exists to prevent.
-for required in POSTGRES_USER POSTGRES_PASSWORD DISPATCH_ENCRYPTION_KEY; do
+# POSTGRES_USER is configuration, not a secret -- it is never generated, so it
+# gets its own message rather than the cluster-exists explanation below.
+if [ -z "${POSTGRES_USER:-}" ]; then
+    echo "" >&2
+    echo "ERROR: POSTGRES_USER has no value in ${ENV_FILE}." >&2
+    echo "Nothing was written -- ${ENV_FILE} is unchanged." >&2
+    exit 1
+fi
+
+# Reachable only on the existing-cluster path: the branch above always fills
+# these in when the volume is empty.
+for required in POSTGRES_PASSWORD DISPATCH_ENCRYPTION_KEY; do
     if [ -z "${!required}" ] || [ "${!required}" == "$PLACEHOLDER_SECRET" ]; then
         echo "" >&2
         echo "ERROR: ${required} has no value, and one cannot be generated." >&2
@@ -142,6 +155,9 @@ sed $sed_suffix_arg \
 mv "$WORK_FILE" "$ENV_FILE"
 
 echo ""
+if [ "$env_file_existed" -eq 0 ]; then
+    echo "Created ${ENV_FILE} from .env.example."
+fi
 if [ ${#GENERATED[@]} -eq 0 ]; then
     echo "Nothing generated; ${ENV_FILE} was already populated."
 else
