@@ -173,6 +173,16 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dispatch"]
+# hatchling does not read MANIFEST.in, so the node_modules prune has to be
+# expressed here or the frontend's dev tooling lands in the wheel.
+exclude = ["src/dispatch/static/dispatch/node_modules"]
+# dist/ is built by npm during this same Docker RUN step, so it never exists
+# at commit time and isn't matched by `include` alone when building from a
+# git remote context (a local directory build does pick it up -- reproduced
+# and isolated to context type, but not chased further than that). `artifacts`
+# is hatchling's documented mechanism for force-including generated files
+# regardless of that selection quirk.
+artifacts = ["src/dispatch/static/dispatch/dist/**/*"]
 
 [tool.hatch.build.targets.sdist]
 include = [
