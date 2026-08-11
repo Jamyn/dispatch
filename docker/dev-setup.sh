@@ -35,10 +35,12 @@ GENERATED=()
 # printf -v, not declare: inside a function `declare NAME=` creates a local, so
 # the assignment would not survive the return.
 function fill_uninitialised_secret {
-    secret_name=$1
-    secret_bytes=$2
+    local secret_name=$1
+    local secret_bytes=$2
+    local value
     if [ -z "${!secret_name}" ] || [ "${!secret_name}" == "$PLACEHOLDER_SECRET" ]; then
         value="$(openssl rand -hex "$secret_bytes")"
+        # shellcheck disable=SC2086  # sed_suffix_arg must word-split for macOS -i ''
         sed $sed_suffix_arg "s|^${secret_name}=.*|${secret_name}=${value}|" "$ENV_FILE"
         printf -v "$secret_name" '%s' "$value"
         GENERATED+=("${secret_name}=${value}")
@@ -51,12 +53,25 @@ function fill_uninitialised_secret {
 # Does the volume already hold a cluster? The postgres image applies
 # POSTGRES_PASSWORD only during initdb, and DISPATCH_ENCRYPTION_KEY cannot be
 # rotated without orphaning anything already encrypted -- so both gate on this.
-# `|| true` is load-bearing: on a fresh volume cat exits non-zero and set -e
-# would abort. Since postgres 18 the image keeps PG_VERSION under a
-# major-version subdirectory, so both locations are checked.
+# Since postgres 18 the image keeps PG_VERSION under a major-version
+# subdirectory, so both locations are checked.
+#
+# The trailing `exit 0` is load-bearing: on a fresh volume both cats fail, and
+# without it the probe's own failure would be indistinguishable from the
+# daemon being unreachable. With it, a non-zero status means the probe could
+# not run -- which must never be read as "no cluster", or a live cluster's
+# password gets rotated out from under it.
+#
+# Note this creates the named volume if it does not exist yet, ahead of
+# `docker compose`. Same name, same semantics, so compose adopts it.
 PG_VOLUME="${COMPOSE_PROJECT_NAME}_postgres-data"
-EXISTING_PG_DATA="$(docker run --rm -v "${PG_VOLUME}":/db busybox \
-    sh -c 'cat /db/PG_VERSION 2>/dev/null; cat /db/*/docker/PG_VERSION 2>/dev/null' || true)"
+if ! EXISTING_PG_DATA="$(docker run --rm -v "${PG_VOLUME}":/db busybox \
+    sh -c 'cat /db/PG_VERSION 2>/dev/null; cat /db/*/docker/PG_VERSION 2>/dev/null; exit 0')"; then
+    echo "Could not inspect volume ${PG_VOLUME} -- is the docker daemon running?" >&2
+    echo "Refusing to touch POSTGRES_PASSWORD or DISPATCH_ENCRYPTION_KEY without" >&2
+    echo "knowing whether a cluster already exists there." >&2
+    exit 1
+fi
 
 fill_uninitialised_secret "DISPATCH_JWT_SECRET" 30
 fill_uninitialised_secret "PGADMIN_DEFAULT_PASSWORD" 16
@@ -66,6 +81,7 @@ if [ -z "$EXISTING_PG_DATA" ]; then
     fill_uninitialised_secret "DISPATCH_ENCRYPTION_KEY" 30
     # The application reads DATABASE_CREDENTIALS; the postgres image reads the
     # user and password separately. Keep them in step.
+    # shellcheck disable=SC2086  # sed_suffix_arg must word-split for macOS -i ''
     sed $sed_suffix_arg \
         "s|^DATABASE_CREDENTIALS=.*|DATABASE_CREDENTIALS=${POSTGRES_USER}:${POSTGRES_PASSWORD}|" \
         "$ENV_FILE"
