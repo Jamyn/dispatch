@@ -73,8 +73,8 @@ from .service import (
 logger = logging.getLogger(__name__)
 
 
-@apply(counter, exclude=["__init__"])
-@apply(timer, exclude=["__init__"])
+@apply(counter, exclude=["__init__", "events"])
+@apply(timer, exclude=["__init__", "events"])
 class SlackConversationPlugin(ConversationPlugin):
     title = "Slack Plugin - Conversation Management"
     slug = "slack-conversation"
