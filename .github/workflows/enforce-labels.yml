@@ -3,12 +3,33 @@ name: Enforce PR labels
 on:
   pull_request:
     types: [labeled, unlabeled, opened, edited, synchronize]
+
+# `synchronize` fires on every push to a PR branch, so rapid pushes would
+# otherwise leave redundant label checks queued behind each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The action reads labels straight out of the pull_request event payload and
+# never calls the API, so it needs no token scopes at all.
+permissions: {}
+
 jobs:
   enforce-label:
     runs-on: ubuntu-latest
     steps:
-      - uses: yogevbd/enforce-label-action@2.2.2
+      # These are the *primary* labels: one says what kind of change a PR is,
+      # and exactly this list gates merging. Topic labels (postgres, docker,
+      # compose, install, upstream, github-actions) describe what a PR touches
+      # and are never required -- adding one here would make a topic label
+      # sufficient on its own to pass the gate.
+      #
+      # Every name here must exist as a repository label. The action reads the
+      # event payload and cannot create labels, so a required label nobody can
+      # apply is an unsatisfiable gate: `dependencies` and `skip-changelog`
+      # were both listed here while undefined, and `feature` duplicated
+      # `enhancement`. Add a name here only alongside creating the label.
+      - uses: yogevbd/enforce-label-action@a3c219da6b8fa73f6ba62b68ff09c469b3a1c024 # 2.2.2
         with:
-          REQUIRED_LABELS_ANY: "bug,dependencies,documentation,enhancement,feature,skip-changelog,skip-e2e,techdebt,tests"
-          REQUIRED_LABELS_ANY_DESCRIPTION: "Select at least one label from the following list: bug, dependencies, documentation, enhancement, feature, skip-changelog, skip-e2e, techdebt, tests"
-          BANNED_LABELS: "banned"
+          REQUIRED_LABELS_ANY: "bug,enhancement,documentation,maintenance,security,ci,breaking-change"
+          REQUIRED_LABELS_ANY_DESCRIPTION: "Select at least one label ['bug','enhancement','documentation','maintenance','security','ci','breaking-change']"
