@@ -32,6 +32,14 @@ set +a
 
 GENERATED=()
 
+# In a sed replacement `&` means "the whole match" and `|` closes the
+# expression, so a password containing either corrupts the file silently (with
+# exit 0) or aborts with an opaque sed error. Generated values are hex and
+# safe, but the existing-cluster path asks the developer to paste their own.
+function escape_sed_replacement {
+    printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'
+}
+
 # printf -v, not declare: inside a function `declare NAME=` creates a local, so
 # the assignment would not survive the return.
 function fill_uninitialised_secret {
@@ -92,7 +100,7 @@ fi
 # leaves the shipped placeholder in place -- and compose accepts it, because a
 # sentinel is a perfectly good non-empty string. Fail instead: shipping the
 # placeholder as a live value is the exact bug this script exists to prevent.
-for required in POSTGRES_PASSWORD DISPATCH_ENCRYPTION_KEY; do
+for required in POSTGRES_USER POSTGRES_PASSWORD DISPATCH_ENCRYPTION_KEY; do
     if [ -z "${!required}" ] || [ "${!required}" == "$PLACEHOLDER_SECRET" ]; then
         echo "" >&2
         echo "ERROR: ${required} is still unset in ${ENV_FILE}." >&2
@@ -110,9 +118,10 @@ done
 # The application reads DATABASE_CREDENTIALS; the postgres image reads the user
 # and password separately. Derived unconditionally, outside the branch above, so
 # the two can never drift -- an existing cluster still needs them in step.
+credentials="$(escape_sed_replacement "${POSTGRES_USER}:${POSTGRES_PASSWORD}")"
 # shellcheck disable=SC2086  # sed_suffix_arg must word-split for macOS -i ''
 sed $sed_suffix_arg \
-    "s|^DATABASE_CREDENTIALS=.*|DATABASE_CREDENTIALS=${POSTGRES_USER}:${POSTGRES_PASSWORD}|" \
+    "s|^DATABASE_CREDENTIALS=.*|DATABASE_CREDENTIALS=${credentials}|" \
     "$ENV_FILE"
 
 echo ""
