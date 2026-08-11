@@ -45,7 +45,7 @@ dependencies = [
     "duo-client",
     "email-validator",
     "emails",
-    "fastapi==0.136.3",
+    "fastapi==0.141.1",
     "google-api-python-client",
     "google-auth-oauthlib",
     "h11",
