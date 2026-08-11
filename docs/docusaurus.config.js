@@ -11,14 +11,14 @@ const config = {
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://netflix.github.io/",
+  url: "https://jamyn.github.io/",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/dispatch",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "netflix", // Usually your GitHub org/user name.
+  organizationName: "jamyn", // Usually your GitHub org/user name.
   projectName: "dispatch", // Usually your repo name.
   trailingSlash: false,
 
@@ -50,7 +50,7 @@ const config = {
         docs: {
           sidebarPath: require.resolve("./sidebars.js"),
           editUrl: ({ docPath }) =>
-            `https://github.com/netflix/dispatch/edit/main/docs/docs/${docPath}`,
+            `https://github.com/Jamyn/dispatch/edit/main/docs/docs/${docPath}`,
         },
         theme: {
           customCss: require.resolve("./src/css/custom.css"),
@@ -94,7 +94,7 @@ const config = {
           },
 
           {
-            href: "https://github.com/Netflix/dispatch",
+            href: "https://github.com/Jamyn/dispatch",
             position: "right",
             className: "header-github-link",
             "aria-label": "GitHub repository",
