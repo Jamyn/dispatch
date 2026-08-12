@@ -11,7 +11,7 @@ import json
 import logging
 from typing import Any
 from blockkit import Message
-from blockkit.surfaces import Block
+from blockkit.core import MessageBlock
 from slack_sdk.errors import SlackApiError
 from sqlalchemy.orm import Session
 
@@ -243,7 +243,7 @@ class SlackConversationPlugin(ConversationPlugin):
             client=client, conversation_id=conversation_id, blocks=blocks, ts=thread_id
         )
 
-    def send_message(self, conversation_id: str, blocks: list[Block]):
+    def send_message(self, conversation_id: str, blocks: list[MessageBlock]):
         """Updates an existing threaded conversation."""
         client = create_slack_client(self.configuration)
         return send_message(

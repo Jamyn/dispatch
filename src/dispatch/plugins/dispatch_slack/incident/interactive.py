@@ -15,10 +15,10 @@ from blockkit import (
     Divider,
     Image,
     Input,
-    MarkdownText,
+    Text,
     Message,
     Modal,
-    PlainOption,
+    Option,
     PlainTextInput,
     Section,
     UsersSelect,
@@ -326,7 +326,9 @@ def handle_update_incident_project_select_action(
     incident = incident_service.get(db_session=db_session, incident_id=int(context["subject"].id))
 
     blocks = [
-        Context(elements=[MarkdownText(text="Use this form to update the incident's details.")]),
+        Context(
+            elements=[Text(type="mrkdwn", text="Use this form to update the incident's details.")]
+        ),
         title_input(initial_value=incident.title),
         description_input(initial_value=incident.description),
         resolution_input(initial_value=incident.resolution),
@@ -454,7 +456,10 @@ def handle_list_incidents_command(
                 [
                     Context(
                         elements=[
-                            "💡 There are more than 50 open incidents, which is the max we can display."
+                            Text(
+                                type="mrkdwn",
+                                text="💡 There are more than 50 open incidents, which is the max we can display.",
+                            )
                         ]
                     ),
                     Divider(),
@@ -802,8 +807,9 @@ def create_read_in_summary_blocks(summary: ReadInSummary) -> list:
     blocks.append(
         Context(
             elements=[
-                MarkdownText(
-                    text=":sparkles: *This entire block is AI-generated and may contain errors or inaccuracies. Please verify the information before relying on it.*"
+                Text(
+                    type="mrkdwn",
+                    text=":sparkles: *This entire block is AI-generated and may contain errors or inaccuracies. Please verify the information before relying on it.*",
                 )
             ]
         ).build()
@@ -1327,8 +1333,9 @@ def handle_member_joined_channel(
         blocks.append(
             Context(
                 elements=[
-                    MarkdownText(
-                        text="NOTE: The block above was AI-generated and may contain errors or inaccuracies. Please verify the information before relying on it."
+                    Text(
+                        type="mrkdwn",
+                        text="NOTE: The block above was AI-generated and may contain errors or inaccuracies. Please verify the information before relying on it.",
                     )
                 ]
             ).build()
@@ -1412,7 +1419,9 @@ def handle_add_timeline_event_command(
     blocks = [
         Context(
             elements=[
-                MarkdownText(text="Use this form to add an event to the incident's timeline.")
+                Text(
+                    type="mrkdwn", text="Use this form to add an event to the incident's timeline."
+                )
             ]
         ),
         description_input(initial_value=description),
@@ -1513,8 +1522,9 @@ def handle_update_participant_command(
     blocks = [
         Context(
             elements=[
-                MarkdownText(
-                    text="Use this form to update the reason why the participant was added to the incident."
+                Text(
+                    type="mrkdwn",
+                    text="Use this form to update the reason why the participant was added to the incident.",
                 )
             ]
         ),
@@ -1609,8 +1619,9 @@ def handle_update_notifications_group_command(
     blocks = [
         Context(
             elements=[
-                MarkdownText(
-                    text="Use this form to update the membership of the notifications group."
+                Text(
+                    type="mrkdwn",
+                    text="Use this form to update the membership of the notifications group.",
                 )
             ]
         ),
@@ -1623,7 +1634,7 @@ def handle_update_notifications_group_command(
             ),
             block_id=UpdateNotificationGroupBlockIds.members,
         ),
-        Context(elements=[MarkdownText(text="Separate email addresses with commas")]),
+        Context(elements=[Text(type="mrkdwn", text="Separate email addresses with commas")]),
     ]
 
     modal = Modal(
@@ -1706,8 +1717,9 @@ def handle_assign_role_command(
     blocks = [
         Context(
             elements=[
-                MarkdownText(
-                    text="Assign a role to a participant. Note: The participant will be invited to the incident channel if they are not yet a member."
+                Text(
+                    type="mrkdwn",
+                    text="Assign a role to a participant. Note: The participant will be invited to the incident channel if they are not yet a member.",
                 )
             ]
         ),
@@ -1956,7 +1968,7 @@ def handle_engage_oncall_command(
             block_id=EngageOncallBlockIds.page,
             label="Page",
             element=Checkboxes(
-                options=[PlainOption(text="Page", value="Yes")],
+                options=[Option(text="Page", value="Yes")],
                 action_id=EngageOncallActionIds.page,
             ),
             optional=True,
@@ -2090,8 +2102,9 @@ def tactical_report_modal(
     if genai_loading:
         blocks.append(
             Section(
-                text=MarkdownText(
-                    text=":hourglass_flowing_sand: This may take a moment. Be sure to verify all information before relying on it!"
+                text=Text(
+                    type="mrkdwn",
+                    text=":hourglass_flowing_sand: This may take a moment. Be sure to verify all information before relying on it!",
                 )
             )
         )
@@ -2207,8 +2220,9 @@ def handle_tactical_report_draft_with_genai(
                 title="Tactical Report",
                 blocks=[
                     Section(
-                        text=MarkdownText(
-                            text=f":exclamation: Unable to retrieve incident with id {incident_id}. Please contact your Dispatch admin."
+                        text=Text(
+                            type="mrkdwn",
+                            text=f":exclamation: Unable to retrieve incident with id {incident_id}. Please contact your Dispatch admin.",
                         )
                     )
                 ],
@@ -2238,7 +2252,7 @@ def handle_tactical_report_draft_with_genai(
             view_id=body["view"]["id"],
             view=Modal(
                 title="Tactical Report",
-                blocks=[Section(text=MarkdownText(text=f":exclamation: {error_message}"))],
+                blocks=[Section(text=Text(type="mrkdwn", text=f":exclamation: {error_message}"))],
                 close="Close",
                 private_metadata=context["subject"].json(),
             ).build(),
@@ -2356,8 +2370,9 @@ def handle_report_executive_command(
         ),
         Context(
             elements=[
-                MarkdownText(
-                    text=f"Use {context['config'].slack_command_update_notifications_group} to update the list of recipients of this report."
+                Text(
+                    type="mrkdwn",
+                    text=f"Use {context['config'].slack_command_update_notifications_group} to update the list of recipients of this report.",
                 )
             ]
         ),
@@ -2458,7 +2473,9 @@ def handle_update_incident_command(
     incident = incident_service.get(db_session=db_session, incident_id=int(context["subject"].id))
 
     blocks = [
-        Context(elements=[MarkdownText(text="Use this form to update the incident's details.")]),
+        Context(
+            elements=[Text(type="mrkdwn", text="Use this form to update the incident's details.")]
+        ),
         title_input(initial_value=incident.title),
         description_input(initial_value=incident.description),
         resolution_input(initial_value=incident.resolution),
@@ -2472,7 +2489,7 @@ def handle_update_incident_command(
             project_id=incident.project.id,
         ),
         Section(text=f"*Project*: {incident.project.display_name}"),
-        Context(elements=[MarkdownText(text="Project is read-only")]),
+        Context(elements=[Text(type="mrkdwn", text="Project is read-only")]),
         incident_severity_select(
             db_session=db_session,
             initial_option={
@@ -2622,8 +2639,9 @@ def report_incident(
     blocks = [
         Context(
             elements=[
-                MarkdownText(
-                    text="If you suspect an incident and need help, please fill out this form to the best of your abilities."
+                Text(
+                    type="mrkdwn",
+                    text="If you suspect an incident and need help, please fill out this form to the best of your abilities.",
                 )
             ]
         ),
@@ -2664,8 +2682,9 @@ def handle_report_incident_command(
     blocks = [
         Context(
             elements=[
-                MarkdownText(
-                    text="If you suspect an incident and need help, please fill out this form to the best of your abilities."
+                Text(
+                    type="mrkdwn",
+                    text="If you suspect an incident and need help, please fill out this form to the best of your abilities.",
                 )
             ]
         ),
@@ -2774,12 +2793,13 @@ def handle_report_incident_submission_event(
         Section(text=f"*Description*\n {incident_description}"),
         Section(
             fields=[
-                MarkdownText(
-                    text=f"*Commander*\n<{incident.commander.individual.weblink}|{incident.commander.individual.name}>"
+                Text(
+                    type="mrkdwn",
+                    text=f"*Commander*\n<{incident.commander.individual.weblink}|{incident.commander.individual.name}>",
                 ),
-                MarkdownText(text=f"*Type*\n {incident.incident_type.name}"),
-                MarkdownText(text=f"*Severity*\n {incident.incident_severity.name}"),
-                MarkdownText(text=f"*Priority*\n {incident.incident_priority.name}"),
+                Text(type="mrkdwn", text=f"*Type*\n {incident.incident_type.name}"),
+                Text(type="mrkdwn", text=f"*Severity*\n {incident.incident_severity.name}"),
+                Text(type="mrkdwn", text=f"*Priority*\n {incident.incident_priority.name}"),
             ]
         ),
     ]
@@ -2822,7 +2842,9 @@ def handle_report_incident_project_select_action(
     project = project_service.get(db_session=db_session, project_id=project_id)
 
     blocks = [
-        Context(elements=[MarkdownText(text="Use this form to update the incident's details.")]),
+        Context(
+            elements=[Text(type="mrkdwn", text="Use this form to update the incident's details.")]
+        ),
         title_input(),
         description_input(),
         project_select(
@@ -3256,8 +3278,9 @@ def handle_summary_command(
             blocks.append(
                 Context(
                     elements=[
-                        MarkdownText(
-                            text="NOTE: The block above was AI-generated and may contain errors or inaccuracies. Please verify the information before relying on it."
+                        Text(
+                            type="mrkdwn",
+                            text="NOTE: The block above was AI-generated and may contain errors or inaccuracies. Please verify the information before relying on it.",
                         )
                     ]
                 ).build()

@@ -3,7 +3,7 @@ import uuid
 from http import HTTPStatus
 from typing import Any
 
-from blockkit import Context, MarkdownText, Modal
+from blockkit import Context, Text, Modal
 from slack_bolt.app import App
 from slack_bolt import Ack, BoltContext, BoltRequest, Respond
 from slack_bolt.response import BoltResponse
@@ -54,7 +54,7 @@ def app_error_handler(
         modal = Modal(
             title="Error",
             close="Close",
-            blocks=[Context(elements=[MarkdownText(text=message)])],
+            blocks=[Context(elements=[Text(type="mrkdwn", text=message)])],
         ).build()
 
         client.views_update(
@@ -68,7 +68,7 @@ def app_error_handler(
         modal = Modal(
             title="Error",
             close="Close",
-            blocks=[Context(elements=[MarkdownText(text=message)])],
+            blocks=[Context(elements=[Text(type="mrkdwn", text=message)])],
         ).build()
 
         client.views_update(

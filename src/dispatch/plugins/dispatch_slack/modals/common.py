@@ -1,6 +1,6 @@
 import logging
 from blockkit import Modal, Section
-from pydantic import ValidationError
+from blockkit.core import ComponentValidationError, FieldValidationError
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web.client import WebClient
 
@@ -56,7 +56,9 @@ def send_success_modal(
             close=close_title,
             blocks=[Section(text=message)] if not blocks else blocks,
         ).build()
-    except ValidationError as e:
+    # blockkit 2 dropped pydantic and validates at build() time, raising its own
+    # errors. These share no common base, so both must stay listed here.
+    except (ComponentValidationError, FieldValidationError) as e:
         log.error(
             f"Blockkit raised an exception building success modal, falling back to default: {e}"
         )

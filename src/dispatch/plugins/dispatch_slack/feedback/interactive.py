@@ -5,9 +5,9 @@ from blockkit import (
     Checkboxes,
     Context,
     Input,
-    MarkdownText,
+    Text,
     Modal,
-    PlainOption,
+    Option,
     PlainTextInput,
     Section,
 )
@@ -112,7 +112,7 @@ def anonymous_checkbox(
     label: str = "Check the box if you wish to provide your feedback anonymously",
     **kwargs,
 ):
-    options = [PlainOption(text="Anonymize my feedback", value="anonymous")]
+    options = [Option(text="Anonymize my feedback", value="anonymous")]
     return Input(
         block_id=block_id,
         element=Checkboxes(options=options, action_id=action_id),
@@ -148,7 +148,9 @@ def handle_incident_feedback_direct_message_button_click(
     blocks = [
         Context(
             elements=[
-                MarkdownText(text="Use this form to rate your experience about the incident.")
+                Text(
+                    type="mrkdwn", text="Use this form to rate your experience about the incident."
+                )
             ]
         ),
         rating_select(),
@@ -296,7 +298,7 @@ def oncall_shift_feedback_anonymous_checkbox(
     label: str = "Check this box if you wish to provide your feedback anonymously.",
     **kwargs,
 ):
-    options = [PlainOption(text="Anonymize my feedback", value="anonymous")]
+    options = [Option(text="Anonymize my feedback", value="anonymous")]
     return Input(
         block_id=block_id,
         element=Checkboxes(options=options, action_id=action_id),
@@ -326,8 +328,9 @@ def handle_oncall_shift_feedback_direct_message_button_click(
     blocks = [
         Context(
             elements=[
-                MarkdownText(
-                    text="Help us understand the impact of your on-call shift. Use this form to provide feedback."
+                Text(
+                    type="mrkdwn",
+                    text="Help us understand the impact of your on-call shift. Use this form to provide feedback.",
                 )
             ]
         ),
@@ -496,7 +499,9 @@ def handle_case_feedback_direct_message_button_click(
 
     blocks = [
         Context(
-            elements=[MarkdownText(text="Use this form to rate your experience about the case.")]
+            elements=[
+                Text(type="mrkdwn", text="Use this form to rate your experience about the case.")
+            ]
         ),
         rating_select(
             action_id=CaseFeedbackNotificationActionIds.rating_select,

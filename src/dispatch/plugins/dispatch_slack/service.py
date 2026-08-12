@@ -4,7 +4,7 @@ import logging
 import re
 from datetime import datetime
 
-from blockkit.surfaces import Block
+from blockkit.core import MessageBlock
 from blockkit import Divider, Message, Section
 from requests import Timeout
 from slack_sdk.errors import SlackApiError
@@ -720,17 +720,17 @@ def json_to_slack_format(json_message: dict[str, str]) -> str:
 
 
 def create_genai_message_metadata_blocks(
-    title: str, blocks: list[Block], message: str | dict[str, str]
-) -> list[Block]:
+    title: str, blocks: list[MessageBlock], message: str | dict[str, str]
+) -> list[MessageBlock]:
     """
     Appends a GenAI section to any existing metadata blocks.
 
     Args:
-        blocks (list[Block]): The list of existing  metadata blocks.
+        blocks (list[MessageBlock]): The list of existing  metadata blocks.
         message (str | dict[str, str]): The GenAI message, either as a string or a dictionary.
 
     Returns:
-        list[Block]: The updated list of metadata blocks with the GenAI section appended.
+        list[MessageBlock]: The updated list of metadata blocks with the GenAI section appended.
     """
     if isinstance(message, dict):
         message = json_to_slack_format(message)
