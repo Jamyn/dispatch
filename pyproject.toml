@@ -46,7 +46,7 @@ dependencies = [
     "duo-client",
     "email-validator",
     "emails",
-    "fastapi==0.136.3",
+    "fastapi==0.141.1",
     "google-api-python-client",
     "google-auth-oauthlib",
     "h11",
@@ -86,7 +86,7 @@ dependencies = [
     # declared it reached the lock only as a transitive of the (test-only)
     # schemathesis tree, so removing that tree broke the runtime image.
     "sortedcontainers",
-    "spacy==3.8.13",
+    "spacy==3.8.15",
     "sqlalchemy-filters",
     "sqlalchemy-utils",
     "sqlalchemy==2.0.51",
