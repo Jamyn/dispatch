@@ -8,7 +8,8 @@
       "name": "Server Debug",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceFolder}/bin/run.py"
+      "module": "uvicorn",
+      "args": ["dispatch.main:app", "--port", "8010"]
     },
     {
       "type": "chrome",

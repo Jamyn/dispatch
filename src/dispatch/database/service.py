@@ -280,8 +280,12 @@ def get_query_models(query):
         # Try to get the statement from the query
         stmt = query.statement
 
-        # Extract entities from the statement's forms
-        for from_obj in stmt.forms:
+        # Extract entities from the statement's FROM clause. "froms" is a real
+        # SQLAlchemy identifier, not a typo -- it needs the extend-words entry
+        # in [tool.typos] or the typos hook rewrites it to "forms", which the
+        # except below silently swallows, leaving joined models undiscovered
+        # and model-scoped filter specs failing with BadSpec.
+        for from_obj in stmt.get_final_froms():
             if hasattr(from_obj, "entity"):
                 # For select statements with an entity
                 if from_obj.entity not in models:
