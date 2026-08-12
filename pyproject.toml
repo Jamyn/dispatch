@@ -76,7 +76,6 @@ dependencies = [
     "pytz",
     "requests",
     "schedule",
-    "schemathesis",
     "sentry-asgi",
     "sentry-sdk==1.45.1",
     "sh",
@@ -111,6 +110,10 @@ dev = [
     "pytest==9.1.1",
     "pytest-mock",
     "ruff",
+    # Runs only in tests/api/test_schema.py; keeping it out of the runtime
+    # dependency set keeps pytest and the rest of its tree out of the
+    # production lock and image.
+    "schemathesis",
 ]
 
 [project.scripts]
