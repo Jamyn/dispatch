@@ -152,6 +152,11 @@ def db():
     )
     Session.configure(bind=schema_engine)
     yield
+    # DROP DATABASE fails while any backend is still connected, and an idle
+    # pooled connection counts. sqlalchemy_utils 0.42.0 issues a bare DROP and
+    # never terminates other backends, so release ours before asking.
+    Session.remove()
+    engine.dispose()
     drop_database(str(config.SQLALCHEMY_DATABASE_URI))
 
 
