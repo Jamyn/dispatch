@@ -97,7 +97,7 @@
     "jwt-decode": "^3.1.2",
     "prettier": "^2.8.8",
     "resize-observer-polyfill": "^1.5.1",
-    "sass": "^1.69.5",
+    "sass": "^1.102.0",
     "unplugin-vue-components": "^0.22.12",
     "vite": "^5.0.11",
     "vite-plugin-monaco-editor": "^1.1.0",
