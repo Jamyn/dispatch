@@ -1,12 +1,12 @@
 FROM python:3.14.0-slim-trixie as sdist
 
-LABEL maintainer="oss@netflix.com"
+LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch PyPI Wheel"
 LABEL org.opencontainers.image.description="PyPI Wheel Builder for Dispatch"
-LABEL org.opencontainers.image.url="https://dispatch.io/"
-LABEL org.opencontainers.image.source="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.vendor="Netflix, Inc."
-LABEL org.opencontainers.image.authors="oss@netflix.com"
+LABEL org.opencontainers.image.url="https://jamyn.github.io/dispatch/"
+LABEL org.opencontainers.image.source="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.vendor="Jamyn"
+LABEL org.opencontainers.image.authors="oss@dispatch.io"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-c"]
 
@@ -19,16 +19,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install uv for building
-RUN curl -LsSf https://astral.sh/uv/0.4.17/install.sh | sh && \
-  mv /root/.cargo/bin/uv /usr/local/bin/
+# pip-installed so no remote install script runs; same uv pin as CI's
+# python-lock-sync job -- bump the two together.
+RUN pip install --no-cache-dir uv==0.5.9
 
-RUN wget --quiet -O - https://deb.nodesource.com/setup_20.x | bash - \
+# Still an unpinned remote script; the clean endpoint is a digest-pinned
+# COPY --from=node:22-slim multi-stage step, deferred to its own change.
+RUN wget --quiet -O - https://deb.nodesource.com/setup_22.x | bash - \
   && apt-get install -y nodejs --no-install-recommends
 
 ARG SOURCE_COMMIT
 ENV DISPATCH_BUILD=${SOURCE_COMMIT:-unknown}
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
-LABEL org.opencontainers.image.licenses="https://github.com/netflix/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
+LABEL org.opencontainers.image.licenses="https://github.com/Jamyn/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
 
 ARG DISPATCH_LIGHT_BUILD
 ENV DISPATCH_LIGHT_BUILD=${DISPATCH_LIGHT_BUILD}
@@ -79,11 +82,11 @@ FROM python:3.14.0-slim-trixie
 LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch"
 LABEL org.opencontainers.image.description="Dispatch runtime image"
-LABEL org.opencontainers.image.url="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.documentation="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.source="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.vendor="Netflix, Inc."
-LABEL org.opencontainers.image.authors="oss@netflix.com"
+LABEL org.opencontainers.image.url="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.documentation="https://jamyn.github.io/dispatch/"
+LABEL org.opencontainers.image.source="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.vendor="Jamyn"
+LABEL org.opencontainers.image.authors="oss@dispatch.io"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-c"]
 
@@ -103,8 +106,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install uv
-RUN curl -LsSf https://astral.sh/uv/0.4.17/install.sh | sh && \
-  mv /root/.cargo/bin/uv /usr/local/bin/
+# pip-installed so no remote install script runs; same uv pin as CI's
+# python-lock-sync job -- bump the two together.
+RUN pip install --no-cache-dir uv==0.5.9
 
 # apt-key was removed in apt 3.0 (Debian 13), so the pgdg key is installed as a
 # keyring file and bound to the repository with signed-by instead.
@@ -112,7 +116,7 @@ RUN mkdir -p /etc/apt/keyrings \
   && wget --quiet -O /etc/apt/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
   && echo "deb [signed-by=/etc/apt/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt trixie-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 
-RUN wget --quiet -O - https://deb.nodesource.com/setup_20.x | bash -
+RUN wget --quiet -O - https://deb.nodesource.com/setup_22.x | bash -
 
 COPY --from=sdist /dist/*.whl /tmp/dist/
 COPY requirements-lock.txt /tmp/requirements-lock.txt
@@ -182,4 +186,4 @@ CMD ["server", "start", "dispatch.main:app", "--host=0.0.0.0"]
 
 ARG SOURCE_COMMIT
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
-LABEL org.opencontainers.image.licenses="https://github.com/netflix/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
+LABEL org.opencontainers.image.licenses="https://github.com/Jamyn/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"

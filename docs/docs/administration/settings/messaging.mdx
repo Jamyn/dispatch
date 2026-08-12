@@ -4,10 +4,10 @@ Dispatch supports sending email notifications to participants of, for example, a
 
 ## Notification templates
 
-Templates for emails are [part](https://github.com/Netflix/dispatch/tree/main/src/dispatch/messaging/email/templates) of Dispatch
+Templates for emails are [part](https://github.com/Jamyn/dispatch/tree/main/src/dispatch/messaging/email/templates) of Dispatch
 and are [Jinja](https://jinja.palletsprojects.com/) templates that during runtime are compiled into [MJML](https://mjml.io/) format.
 
-There is a way to customize these templates. To do this, if you run Dispatch with [Docker Compose](https://github.com/Netflix/dispatch-docker/),
+There is a way to customize these templates. To do this, if you run Dispatch with [Docker Compose](https://github.com/Jamyn/dispatch-docker/),
 mount a volume with a customized templates dir as part of the docker compose:
 
 ```
@@ -15,7 +15,7 @@ mount a volume with a customized templates dir as part of the docker compose:
     image: dispatch-local
     ...
     volumes:
-      - "../dispatch-templates/messaging-email-templates:/usr/local/lib/python3.11/site-packages/dispatch/messaging/email/templates"
+      - "../dispatch-templates/messaging-email-templates:/usr/local/lib/python3.14/site-packages/dispatch/messaging/email/templates"
 ```
 
 Such approach allows you to customize the common template for _all projects_.

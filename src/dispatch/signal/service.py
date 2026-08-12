@@ -681,7 +681,7 @@ def create_instance(
         signal=signal,
     )
 
-    # if the signal has an existing uuid we propgate it as our primary key
+    # if the signal has an existing uuid we propagate it as our primary key
     if signal_instance_in.raw:
         if signal_instance_in.raw.get("id"):
             signal_instance.id = signal_instance_in.raw["id"]

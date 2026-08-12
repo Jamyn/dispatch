@@ -640,7 +640,7 @@ def get_channel_activity(
 
     def mention_resolver(user_match):
         """
-        Helper function to extract user informations from @ mentions in messages.
+        Helper function to extract user information from @ mentions in messages.
         """
         user_id = user_match.group(1)
         try:

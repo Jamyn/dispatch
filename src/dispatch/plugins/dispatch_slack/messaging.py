@@ -143,18 +143,18 @@ def get_incident_conversation_command_message(
 
 
 def build_command_error_message(payload: dict, error: Any) -> str:
-    message = f"""Unfortunately we couldn't run `{payload['command']}` due to the following reason: {str(error)}  """
+    message = f"""Unfortunately we couldn't run `{payload["command"]}` due to the following reason: {str(error)}  """
     return message
 
 
 def build_role_error_message(payload: dict) -> str:
-    message = f"""I see you tried to run `{payload['command']}`. This is a sensitive command and cannot be run with the incident role you are currently assigned."""
+    message = f"""I see you tried to run `{payload["command"]}`. This is a sensitive command and cannot be run with the incident role you are currently assigned."""
     return message
 
 
 def build_context_error_message(payload: dict, error: Any) -> str:
     message = (
-        f"""I see you tried to run `{payload['command']}` in an non-incident conversation. Incident-specific commands can only be run in incident conversations."""  # command_context_middleware()
+        f"""I see you tried to run `{payload["command"]}` in an non-incident conversation. Incident-specific commands can only be run in incident conversations."""  # command_context_middleware()
         if payload.get("command")
         else str(error)  # everything else
     )
@@ -199,9 +199,9 @@ def format_default_text(item: dict):
             "📝 Title",
         }
 
-        if item.get('text'):
+        if item.get("text"):
             # Check if this title should be on a single line or text contains → (e.g. a state transition)
-            if item['title'] in single_line_titles or '→' in item['text']:
+            if item["title"] in single_line_titles or "→" in item["text"]:
                 text_part = f": {item['text']}"
             else:
                 text_part = f"\n{item['text']}"

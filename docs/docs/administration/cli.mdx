@@ -121,9 +121,15 @@ Commands:
 
 The `list` command lists all tasks registered with the scheduler. Today the scheduler periods are hardcoded and cannot be adjusted.
 
+The output below is a representative sample, not exhaustive — every subsystem
+under `src/dispatch/*/scheduled.py` (case, case_cost, document, evergreen,
+incident, incident_cost, monitor, report, tag, task, term, workflow)
+registers its own tasks; run the command against your own instance for the
+full, current list.
+
 ```bash
 > dispatch scheduler list
-Task Name                        Period          At Time
+Task Name                       Period          At Time
 -------------------------------  --------------  ---------
 incident-status-report-reminder  1:00:00
 incident-daily-summary           1 day, 0:00:00  18:00:00
@@ -133,6 +139,10 @@ incident-task-sync               0:00:30
 term-sync                        1:00:00
 document-term-sync               1 day, 0:00:00
 application-sync                 1:00:00
+calculate-cases-response-cost    1:00:00
+case-close-reminder              1 day, 0:00:00  18:00:00
+case-triage-reminder             1 day, 0:00:00  18:00:00
+case-stable-reminder             1 day, 0:00:00  18:00:00
 ```
 
 ### Start
@@ -164,15 +174,17 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  downgrade      Downgrades database schema to the next newest version.
-  drop           Drops all data in database.
-  heads          Shows the heads of the database.
-  history        Shows the history of the database.
-  init           Initializes a new database.
-  populate       Populates database with default values.
-  revision       Create new database revision.
-  sync-triggers  Ensures that all database triggers have been installed.
-  upgrade        Upgrades database schema to newest version.
+  downgrade  Downgrades database schema to the next newest version.
+  drop       Drops all data in database.
+  dump       Dumps the database via pg_dump.
+  heads      Shows the heads of the database.
+  history    Shows the history of the database.
+  init       Initializes a new database.
+  merge      Combines two revisions.
+  restore    Restores the database via psql.
+  revision   Create new database revision.
+  stamp      Forces the database to a given revision.
+  upgrade    Upgrades database schema to newest version.
 ```
 
 :::info
@@ -207,7 +219,7 @@ The `upgrade` and `downgrade` commands manage how `alembic` database migrations 
 
 ### Restore/Dump
 
-The `restore` and `dump` commands allow you to quickly backup and restore the Dispatch database. It can also be used to load our [example](https://github.com/Netflix/dispatch/blob/develop/data/dispatch-sample-data.dump) data set into your Dispatch installation.
+The `restore` and `dump` commands allow you to quickly backup and restore the Dispatch database. It can also be used to load our [example](https://github.com/Jamyn/dispatch/blob/main/data/dispatch-sample-data.dump) data set into your Dispatch installation.
 
 Today, the `.dump` file must be located in `$CWD` and must be named `dispatch-backup.dump`.
 
