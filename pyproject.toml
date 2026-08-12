@@ -77,7 +77,7 @@ dependencies = [
     "requests",
     "schedule",
     "sentry-asgi",
-    "sentry-sdk==1.45.1",
+    "sentry-sdk==2.66.1",
     "sh",
     "slack-bolt",
     "slack_sdk",
