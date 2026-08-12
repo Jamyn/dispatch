@@ -1,4 +1,4 @@
-from blockkit import Context, Input, MarkdownText, Modal, PlainTextInput, Section
+from blockkit import Context, Input, Text, Modal, PlainTextInput, Section
 from slack_bolt import Ack, BoltContext
 from slack_sdk.web import WebClient
 from sqlalchemy.orm import Session
@@ -175,7 +175,7 @@ def handle_workflow_run_command(
     ack()
 
     blocks = [
-        Context(elements=[MarkdownText(text="Select a workflow to run.")]),
+        Context(elements=[Text(type="mrkdwn", text="Select a workflow to run.")]),
         workflow_select(
             db_session=db_session,
             dispatch_action=True,
@@ -284,7 +284,7 @@ def handle_run_workflow_select_action(
     selected_workflow = workflow_service.get(db_session=db_session, workflow_id=workflow_id)
 
     blocks = [
-        Context(elements=[MarkdownText(text="Select a workflow to run.")]),
+        Context(elements=[Text(type="mrkdwn", text="Select a workflow to run.")]),
         workflow_select(
             initial_option={"text": selected_workflow.name, "value": selected_workflow.id},
             db_session=db_session,

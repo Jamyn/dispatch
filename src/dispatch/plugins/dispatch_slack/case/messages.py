@@ -6,11 +6,11 @@ from blockkit import (
     Button,
     Context,
     Divider,
-    MarkdownText,
+    Text,
     Message,
     Section,
 )
-from blockkit.surfaces import Block
+from blockkit.core import MessageBlock
 from dispatch.plugins.dispatch_slack.service import create_genai_message_metadata_blocks
 from sqlalchemy.orm import Session
 
@@ -62,7 +62,7 @@ def map_priority_color(color: str) -> str:
     return priority_color_mapping.get(color.lower(), "")
 
 
-def create_case_message(case: Case, channel_id: str) -> list[Block]:
+def create_case_message(case: Case, channel_id: str) -> list[MessageBlock]:
     """
     Creates a Slack message for a given case.
 
@@ -71,7 +71,7 @@ def create_case_message(case: Case, channel_id: str) -> list[Block]:
         channel_id (str): The ID of the Slack channel where the message will be sent.
 
     Returns:
-        list[Block]: A list of Block objects representing the structure of the Slack message.
+        list[MessageBlock]: A list of Block objects representing the structure of the Slack message.
     """
     priority_color = map_priority_color(color=case.case_priority.color)
 
@@ -94,7 +94,7 @@ def create_case_message(case: Case, channel_id: str) -> list[Block]:
     )
 
     blocks = [
-        Context(elements=[MarkdownText(text=f"* {case.name} - Case Details*")]),
+        Context(elements=[Text(type="mrkdwn", text=f"* {case.name} - Case Details*")]),
         Section(
             text=title,
             accessory=Button(
@@ -332,7 +332,7 @@ def create_action_buttons_message(
 def create_genai_signal_analysis_message(
     case: Case,
     db_session: Session,
-) -> tuple[str | dict[str, str], list[Block]]:
+) -> tuple[str | dict[str, str], list[MessageBlock]]:
     """
     Generates a GenAI signal analysis message for a given case.
 
@@ -344,7 +344,7 @@ def create_genai_signal_analysis_message(
         db_session (Session): The database session to use for querying and generating the case signal summary.
 
     Returns:
-        tuple[str | dict[str, str], list[Block]]: A tuple containing the GenAI analysis message (either as a string or a dictionary)
+        tuple[str | dict[str, str], list[MessageBlock]]: A tuple containing the GenAI analysis message (either as a string or a dictionary)
         and the updated list of signal metadata blocks with the GenAI analysis section appended.
     """
     signal_metadata_blocks = []
@@ -380,7 +380,7 @@ def create_signal_engagement_message(
     signal_instance: SignalInstance | None,
     user_email: str,
     engagement_status: SignalEngagementStatus = SignalEngagementStatus.new,
-) -> list[Block]:
+) -> list[MessageBlock]:
     """
     Generate a list of blocks for a signal engagement message.
 
@@ -393,7 +393,7 @@ def create_signal_engagement_message(
         engagement (SignalEngagement): The engagement object.
 
     Returns:
-        list[Block]: A list of blocks representing the message structure for the engagement message.
+        list[MessageBlock]: A list of blocks representing the message structure for the engagement message.
     """
     button_metadata = EngagementMetadata(
         id=case.id,
@@ -464,7 +464,7 @@ def create_manual_engagement_message(
     user_id: str = "",
     engagement: str = "",
     thread_ts: str = None,
-) -> list[Block]:
+) -> list[MessageBlock]:
     """
     Generate a list of blocks for a manual engagement message.
 
@@ -475,7 +475,7 @@ def create_manual_engagement_message(
         user_email (str): The email of the user being engaged.
 
     Returns:
-        list[Block]: A list of blocks representing the message structure for the engagement message.
+        list[MessageBlock]: A list of blocks representing the message structure for the engagement message.
     """
     button_metadata = EngagementMetadata(
         id=case.id,
@@ -537,11 +537,14 @@ def create_manual_engagement_message(
     return Message(blocks=blocks).build()["blocks"]
 
 
-def create_case_thread_migration_message(channel_weblink: str) -> list[Block]:
+def create_case_thread_migration_message(channel_weblink: str) -> list[MessageBlock]:
     blocks = [
         Context(
             elements=[
-                f"This conversation has been migrated to a dedicated Case channel. All future updates and discussions will take place <{channel_weblink}|here>."
+                Text(
+                    type="mrkdwn",
+                    text=f"This conversation has been migrated to a dedicated Case channel. All future updates and discussions will take place <{channel_weblink}|here>.",
+                )
             ]
         ),
         Divider(),
@@ -550,11 +553,14 @@ def create_case_thread_migration_message(channel_weblink: str) -> list[Block]:
     return Message(blocks=blocks).build()["blocks"]
 
 
-def create_case_channel_migration_message(thread_weblink: str) -> list[Block]:
+def create_case_channel_migration_message(thread_weblink: str) -> list[MessageBlock]:
     blocks = [
         Context(
             elements=[
-                f"Migrated Case conversation from the <{thread_weblink}|original Case thread>."
+                Text(
+                    type="mrkdwn",
+                    text=f"Migrated Case conversation from the <{thread_weblink}|original Case thread>.",
+                )
             ]
         ),
         Divider(),
@@ -563,7 +569,7 @@ def create_case_channel_migration_message(thread_weblink: str) -> list[Block]:
     return Message(blocks=blocks).build()["blocks"]
 
 
-def create_case_user_not_in_slack_workspace_message(user_email: str) -> list[Block]:
+def create_case_user_not_in_slack_workspace_message(user_email: str) -> list[MessageBlock]:
     """
     Creates a message indicating that a user identified in an alert is not a member of the Slack workspace.
 
@@ -571,12 +577,15 @@ def create_case_user_not_in_slack_workspace_message(user_email: str) -> list[Blo
         user_email (str): The email of the user who is not in the Slack workspace.
 
     Returns:
-        list[Block]: A list of blocks representing the message structure.
+        list[MessageBlock]: A list of blocks representing the message structure.
     """
     blocks = [
         Context(
             elements=[
-                f"Individual identified in the alert ({user_email}) is not a member of the Slack workspace. Please reach out to them via email or other means to resolve the alert."
+                Text(
+                    type="mrkdwn",
+                    text=f"Individual identified in the alert ({user_email}) is not a member of the Slack workspace. Please reach out to them via email or other means to resolve the alert.",
+                )
             ]
         ),
     ]

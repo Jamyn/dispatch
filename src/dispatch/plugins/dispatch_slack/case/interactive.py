@@ -12,7 +12,7 @@ from blockkit import (
     Context,
     Divider,
     Input,
-    MarkdownText,
+    Text,
     Message,
     Modal,
     Section,
@@ -197,7 +197,7 @@ def handle_escalate_case_command(
     default_project = {"text": case.project.display_name, "value": case.project.id}
 
     blocks = [
-        Context(elements=[MarkdownText(text="Accept the defaults or adjust as needed.")]),
+        Context(elements=[Text(type="mrkdwn", text="Accept the defaults or adjust as needed.")]),
         title_input(initial_value=default_title),
         description_input(initial_value=default_description),
         project_select(
@@ -270,12 +270,13 @@ def handle_update_case_command(
         ),
         Context(
             elements=[
-                MarkdownText(
+                Text(
+                    type="mrkdwn",
                     text=(
                         "Note: Cases cannot be escalated here. Please use the "
                         f"{SlackConversationConfiguration.model_json_schema()['properties']['slack_command_escalate_case']['default']} "
                         "slash command."
-                    )
+                    ),
                 )
             ]
         ),
@@ -342,7 +343,14 @@ def handle_list_signals_command(
         modal = Modal(
             title="Signal Definition List",
             blocks=[
-                Context(elements=[f"There are no signals configured for {conversation_name}"]),
+                Context(
+                    elements=[
+                        Text(
+                            type="mrkdwn",
+                            text=f"There are no signals configured for {conversation_name}",
+                        )
+                    ]
+                ),
             ],
             close="Close",
         ).build()
@@ -379,8 +387,9 @@ def handle_engage_user_command(
     blocks = [
         Context(
             elements=[
-                MarkdownText(
-                    text="Accept the defaults or adjust as needed. Person to engage must already be a participant in the case."
+                Text(
+                    type="mrkdwn",
+                    text="Accept the defaults or adjust as needed. Person to engage must already be a participant in the case.",
                 )
             ]
         ),
@@ -640,7 +649,9 @@ def _build_signal_list_modal_blocks(
                     ),
                 ),
                 Context(
-                    elements=[MarkdownText(text=f"{signal.variant}" if signal.variant else "N/A")]
+                    elements=[
+                        Text(type="mrkdwn", text=f"{signal.variant}" if signal.variant else "N/A")
+                    ]
                 ),
             ]
         )
@@ -771,7 +782,7 @@ def snooze_button_click(
 
     signal = signal_service.get(db_session=db_session, signal_id=subject.id)
     blocks = [
-        Context(elements=[MarkdownText(text=f"{signal.name}")]),
+        Context(elements=[Text(type="mrkdwn", text=f"{signal.name}")]),
         Divider(),
         title_input(placeholder="A name for your snooze filter."),
         description_input(placeholder="Provide a description for your snooze filter."),
@@ -806,8 +817,9 @@ def snooze_button_click(
         blocks.append(
             Context(
                 elements=[
-                    MarkdownText(
-                        text="Signals that contain all selected entities will be snoozed for the configured timeframe."
+                    Text(
+                        type="mrkdwn",
+                        text="Signals that contain all selected entities will be snoozed for the configured timeframe.",
                     )
                 ]
             ),
@@ -856,8 +868,9 @@ def handle_snooze_preview_event(
             blocks=[
                 Context(
                     elements=[
-                        MarkdownText(
-                            text=f"A signal filter with the name '{title}' already exists."
+                        Text(
+                            type="mrkdwn",
+                            text=f"A signal filter with the name '{title}' already exists.",
                         )
                     ]
                 )
@@ -884,7 +897,7 @@ def handle_snooze_preview_event(
         preview_signal_instances = None
         text = "No entities selected. All instances of this signal will be snoozed."
 
-    blocks = [Context(elements=[MarkdownText(text=text)])]
+    blocks = [Context(elements=[Text(type="mrkdwn", text=text)])]
 
     if preview_signal_instances:
         # Only show 5 examples
@@ -894,15 +907,17 @@ def handle_snooze_preview_event(
                     Section(text=signal_instance.signal.name),
                     Context(
                         elements=[
-                            MarkdownText(
-                                text=f" Case: {signal_instance.case.name if signal_instance.case else 'N/A'}"
+                            Text(
+                                type="mrkdwn",
+                                text=f" Case: {signal_instance.case.name if signal_instance.case else 'N/A'}",
                             )
                         ]
                     ),
                     Context(
                         elements=[
-                            MarkdownText(
-                                text=f" Created: {signal_instance.case.created_at if signal_instance.case else 'N/A'}"
+                            Text(
+                                type="mrkdwn",
+                                text=f" Created: {signal_instance.case.created_at if signal_instance.case else 'N/A'}",
                             )
                         ]
                     ),
@@ -1452,7 +1467,7 @@ def escalate_button_click(
     ack()
     case = case_service.get(db_session=db_session, case_id=int(context["subject"].id))
     blocks = [
-        Context(elements=[MarkdownText(text="Accept the defaults or adjust as needed.")]),
+        Context(elements=[Text(type="mrkdwn", text="Accept the defaults or adjust as needed.")]),
         title_input(initial_value=case.title),
         description_input(initial_value=case.description),
         project_select(
@@ -1509,7 +1524,7 @@ def handle_project_select_action(
     project = project_service.get(db_session=db_session, project_id=project_id)
 
     blocks = [
-        Context(elements=[MarkdownText(text="Accept the defaults or adjust as needed.")]),
+        Context(elements=[Text(type="mrkdwn", text="Accept the defaults or adjust as needed.")]),
         title_input(),
         description_input(),
         project_select(
@@ -1656,12 +1671,13 @@ def handle_escalation_submission_event(
         Section(text=f"*Description*\n {incident.description}"),
         Section(
             fields=[
-                MarkdownText(
-                    text=f"*Commander*\n<{incident.commander.individual.weblink}|{incident.commander.individual.name}>"
+                Text(
+                    type="mrkdwn",
+                    text=f"*Commander*\n<{incident.commander.individual.weblink}|{incident.commander.individual.name}>",
                 ),
-                MarkdownText(text=f"*Type*\n {incident.incident_type.name}"),
-                MarkdownText(text=f"*Severity*\n {incident.incident_severity.name}"),
-                MarkdownText(text=f"*Priority*\n {incident.incident_priority.name}"),
+                Text(type="mrkdwn", text=f"*Type*\n {incident.incident_type.name}"),
+                Text(type="mrkdwn", text=f"*Severity*\n {incident.incident_severity.name}"),
+                Text(type="mrkdwn", text=f"*Priority*\n {incident.incident_priority.name}"),
             ]
         ),
     ]
@@ -1691,7 +1707,11 @@ def create_channel_button_click(
 
     blocks = [
         Section(text="Migrate the thread conversation to a dedicated channel?"),
-        Context(elements=[MarkdownText(text="This action will remove the case from this thread.")]),
+        Context(
+            elements=[
+                Text(type="mrkdwn", text="This action will remove the case from this thread.")
+            ]
+        ),
     ]
 
     modal = Modal(
@@ -2158,7 +2178,9 @@ def resolve_button_click(
             if reason
             else case_resolution_reason_select(dispatch_action=True)
         ),
-        Context(elements=[MarkdownText(text="Select a resolution reason to see its description")]),
+        Context(
+            elements=[Text(type="mrkdwn", text="Select a resolution reason to see its description")]
+        ),
         resolution_input(initial_value=case.resolution),
     ]
 
@@ -2210,7 +2232,7 @@ def handle_resolution_reason_select_action(
             initial_option={"text": resolution_reason, "value": resolution_reason},
             dispatch_action=True,
         ),
-        Context(elements=[MarkdownText(text=f"*Description:* {description}")]),
+        Context(elements=[Text(type="mrkdwn", text=f"*Description:* {description}")]),
         resolution_input(initial_value=case.resolution),
     ]
 
@@ -2331,8 +2353,9 @@ def report_issue(
     blocks = [
         Context(
             elements=[
-                MarkdownText(
-                    text="Cases are meant for triaging events that do not raise to the level of incidents, but can be escalated to incidents if necessary."
+                Text(
+                    type="mrkdwn",
+                    text="Cases are meant for triaging events that do not raise to the level of incidents, but can be escalated to incidents if necessary.",
                 )
             ]
         ),
@@ -2397,8 +2420,9 @@ def handle_report_project_select_action(
         ),
         Context(
             elements=[
-                MarkdownText(
-                    text="💡 Case Types determine the initial assignee based on their configured on-call schedule."
+                Text(
+                    type="mrkdwn",
+                    text="💡 Case Types determine the initial assignee based on their configured on-call schedule.",
                 )
             ]
         ),
@@ -2506,8 +2530,9 @@ def handle_report_case_type_select_action(
         ),
         Context(
             elements=[
-                MarkdownText(
-                    text="💡 Case Types determine the initial assignee based on their configured on-call schedule."
+                Text(
+                    type="mrkdwn",
+                    text="💡 Case Types determine the initial assignee based on their configured on-call schedule.",
                 )
             ]
         ),
@@ -2534,12 +2559,13 @@ def handle_report_case_type_select_action(
 
         blocks.extend(
             [
-                Context(elements=[MarkdownText(text=oncall_text)]),
+                Context(elements=[Text(type="mrkdwn", text=oncall_text)]),
                 Divider(),
                 Context(
                     elements=[
-                        MarkdownText(
-                            text="Not who you're looking for? You can override the assignee for this case."
+                        Text(
+                            type="mrkdwn",
+                            text="Not who you're looking for? You can override the assignee for this case.",
                         )
                     ]
                 ),
@@ -2550,12 +2576,15 @@ def handle_report_case_type_select_action(
             [
                 Context(
                     elements=[
-                        MarkdownText(
-                            text="There is no on-call service associated with this case type."
+                        Text(
+                            type="mrkdwn",
+                            text="There is no on-call service associated with this case type.",
                         )
                     ]
                 ),
-                Context(elements=[MarkdownText(text="Please select an assignee for this case.")]),
+                Context(
+                    elements=[Text(type="mrkdwn", text="Please select an assignee for this case.")]
+                ),
             ]
         )
 
@@ -2738,8 +2767,9 @@ def engagement_button_approve_click(
         blocks.append(
             Context(
                 elements=[
-                    MarkdownText(
-                        text="💡 After submission, you will be asked to validate your identity by completing a Multi-Factor Authentication challenge."
+                    Text(
+                        type="mrkdwn",
+                        text="💡 After submission, you will be asked to validate your identity by completing a Multi-Factor Authentication challenge.",
                     )
                 ]
             ),
@@ -2794,8 +2824,9 @@ def ack_mfa_required_submission_event(
             Divider(),
             Context(
                 elements=[
-                    MarkdownText(
-                        text="💡 This step protects against unauthorized confirmation if your account is compromised."
+                    Text(
+                        type="mrkdwn",
+                        text="💡 This step protects against unauthorized confirmation if your account is compromised.",
                     )
                 ]
             ),

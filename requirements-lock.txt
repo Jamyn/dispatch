@@ -275,9 +275,9 @@ blis==1.3.3 \
     --hash=sha256:f20f7ad69aaffd1ce14fe77de557b6df9b61e0c9e582f75a843715d836b5c8af \
     --hash=sha256:f36c0ca84a05ee5d3dbaa38056c4423c1fc29948b17a7923dd2fed8967375d74
     # via thinc
-blockkit==1.9.2 \
-    --hash=sha256:028986074ea744e18afe83c000c1371096f365183805101a6d4247cb8fe81348 \
-    --hash=sha256:7e9f2d7288b975948b2111888a433c02570b97caadeb8cab90d1d09cdfdef6db
+blockkit==2.1.3 \
+    --hash=sha256:d92c30296770de6a8a4f0ac30fa6f6c78881c45a22d808bdb33767cfa0ea7bb9 \
+    --hash=sha256:f71de30029afdce3e7cd3d869519c7207788e419267898acd6445d471b112215
     # via dispatch (pyproject.toml)
 boto3==1.43.68 \
     --hash=sha256:4be071482312d05ea345ae8a2ea307637d3e2f4fdce44b8ebeb0192929aa2644 \
@@ -714,9 +714,7 @@ ecdsa==0.19.2 \
 email-validator==2.3.0 \
     --hash=sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4 \
     --hash=sha256:9fc05c37f2f6cf439ff414f8fc46d917929974a82244c20eb10231ba60c54426
-    # via
-    #   dispatch (pyproject.toml)
-    #   pydantic
+    # via dispatch (pyproject.toml)
 emails==1.1.2 \
     --hash=sha256:0ab991876921eeac13039d5be93192ab27da1600afa7d7ea6d51dfa7cd006eda \
     --hash=sha256:9fd216b691704b3df9ad70073fc85945ba4e8eac80198233919cfa2488af8665
@@ -2110,7 +2108,6 @@ pydantic==2.13.4 \
     --hash=sha256:c40756b57adaa8b1efeeced5c196f3f3b7c435f90e84ea7f443901bec8099ef6
     # via
     #   dispatch (pyproject.toml)
-    #   blockkit
     #   fastapi
     #   openai
     #   pydantic-extra-types

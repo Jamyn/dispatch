@@ -4,15 +4,16 @@ from blockkit import (
     Context,
     Message,
     Divider,
+    Text,
 )
-from blockkit.surfaces import Block
+from blockkit.core import MessageBlock
 
 
-def create_incident_channel_escalate_message() -> list[Block]:
+def create_incident_channel_escalate_message() -> list[MessageBlock]:
     """Generate a escalation."""
 
     blocks = [
-        Context(elements=["This Case has been escalated to an Incident"]),
+        Context(elements=[Text(type="mrkdwn", text="This Case has been escalated to an Incident")]),
         Divider(),
     ]
 

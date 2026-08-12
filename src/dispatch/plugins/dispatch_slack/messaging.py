@@ -12,10 +12,10 @@ from blockkit import (
     Button,
     Context,
     Divider,
-    MarkdownText,
+    Text,
     Section,
     StaticSelect,
-    PlainOption,
+    Option,
 )
 from slack_sdk.web.client import WebClient
 from slack_sdk.errors import SlackApiError
@@ -224,7 +224,9 @@ def default_notification(items: list):
 
         if item.get("type"):
             if item["type"] == "context":
-                blocks.append(Context(elements=[MarkdownText(text=format_default_text(item))]))
+                blocks.append(
+                    Context(elements=[Text(type="mrkdwn", text=format_default_text(item))])
+                )
             else:
                 blocks.append(Section(text=format_default_text(item)))
         else:
@@ -254,7 +256,7 @@ def default_notification(items: list):
         if select := item.get("select"):
             options = []
             for option in select["options"]:
-                element = PlainOption(text=option["option_text"], value=option["option_value"])
+                element = Option(text=option["option_text"], value=option["option_value"])
                 options.append(element)
 
             static_select = []

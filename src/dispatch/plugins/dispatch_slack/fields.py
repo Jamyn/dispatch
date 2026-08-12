@@ -8,7 +8,7 @@ from blockkit import (
     Input,
     MultiExternalSelect,
     MultiStaticSelect,
-    PlainOption,
+    Option,
     PlainTextInput,
     StaticSelect,
 )
@@ -281,9 +281,9 @@ def static_select_block(
     return Input(
         element=StaticSelect(
             placeholder=placeholder,
-            options=[PlainOption(**x) for x in processed_options] if processed_options else None,
+            options=[Option(**x) for x in processed_options] if processed_options else None,
             initial_option=(
-                PlainOption(**processed_initial_option) if processed_initial_option else None
+                Option(**processed_initial_option) if processed_initial_option else None
             ),
             action_id=action_id,
         ),
@@ -312,7 +312,7 @@ def multi_select_block(
     return Input(
         element=MultiStaticSelect(
             placeholder=placeholder,
-            options=[PlainOption(**x) for x in processed_options] if processed_options else None,
+            options=[Option(**x) for x in processed_options] if processed_options else None,
             action_id=action_id,
         ),
         block_id=block_id,
@@ -801,7 +801,7 @@ def extension_request_checkbox(
     **kwargs,
 ):
     options = [
-        PlainOption(
+        Option(
             text=("Check this box to request an expiration longer than 2 weeks."),
             value="Yes",
         )
