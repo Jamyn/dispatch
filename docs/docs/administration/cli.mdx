@@ -121,9 +121,15 @@ Commands:
 
 The `list` command lists all tasks registered with the scheduler. Today the scheduler periods are hardcoded and cannot be adjusted.
 
+The output below is a representative sample, not exhaustive — every subsystem
+under `src/dispatch/*/scheduled.py` (case, case_cost, document, evergreen,
+incident, incident_cost, monitor, report, tag, task, term, workflow)
+registers its own tasks; run the command against your own instance for the
+full, current list.
+
 ```bash
 > dispatch scheduler list
-Task Name                        Period          At Time
+Task Name                       Period          At Time
 -------------------------------  --------------  ---------
 incident-status-report-reminder  1:00:00
 incident-daily-summary           1 day, 0:00:00  18:00:00
@@ -133,6 +139,10 @@ incident-task-sync               0:00:30
 term-sync                        1:00:00
 document-term-sync               1 day, 0:00:00
 application-sync                 1:00:00
+calculate-cases-response-cost    1:00:00
+case-close-reminder              1 day, 0:00:00  18:00:00
+case-triage-reminder             1 day, 0:00:00  18:00:00
+case-stable-reminder             1 day, 0:00:00  18:00:00
 ```
 
 ### Start
