@@ -164,15 +164,17 @@ Options:
   --help  Show this message and exit.
 
 Commands:
-  downgrade      Downgrades database schema to the next newest version.
-  drop           Drops all data in database.
-  heads          Shows the heads of the database.
-  history        Shows the history of the database.
-  init           Initializes a new database.
-  populate       Populates database with default values.
-  revision       Create new database revision.
-  sync-triggers  Ensures that all database triggers have been installed.
-  upgrade        Upgrades database schema to newest version.
+  downgrade  Downgrades database schema to the next newest version.
+  drop       Drops all data in database.
+  dump       Dumps the database via pg_dump.
+  heads      Shows the heads of the database.
+  history    Shows the history of the database.
+  init       Initializes a new database.
+  merge      Combines two revisions.
+  restore    Restores the database via psql.
+  revision   Create new database revision.
+  stamp      Forces the database to a given revision.
+  upgrade    Upgrades database schema to newest version.
 ```
 
 :::info
@@ -207,7 +209,7 @@ The `upgrade` and `downgrade` commands manage how `alembic` database migrations 
 
 ### Restore/Dump
 
-The `restore` and `dump` commands allow you to quickly backup and restore the Dispatch database. It can also be used to load our [example](https://github.com/Netflix/dispatch/blob/develop/data/dispatch-sample-data.dump) data set into your Dispatch installation.
+The `restore` and `dump` commands allow you to quickly backup and restore the Dispatch database. It can also be used to load our [example](https://github.com/Jamyn/dispatch/blob/main/data/dispatch-sample-data.dump) data set into your Dispatch installation.
 
 Today, the `.dump` file must be located in `$CWD` and must be named `dispatch-backup.dump`.
 
