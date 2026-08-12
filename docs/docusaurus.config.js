@@ -1,8 +1,9 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
 
-const lightCodeTheme = require("prism-react-renderer/themes/github")
-const darkCodeTheme = require("prism-react-renderer/themes/dracula")
+const { themes } = require("prism-react-renderer")
+const lightCodeTheme = themes.github
+const darkCodeTheme = themes.dracula
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -23,7 +24,12 @@ const config = {
   trailingSlash: false,
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: "warn",
+    },
+  },
 
   // Even if you don't use internalization, you can use this field to set useful
   // metadata like html lang. For example, if your site is Chinese, you may want
@@ -37,6 +43,9 @@ const config = {
       require.resolve("@cmfcmf/docusaurus-search-local"),
       {
         indexPages: true,
+        // Must track `blog: false` in the classic preset below — the plugin
+        // hard-errors at postBuild if indexBlog is on with no blog plugin.
+        indexBlog: false,
         style: undefined,
       },
     ],
@@ -52,6 +61,9 @@ const config = {
           editUrl: ({ docPath }) =>
             `https://github.com/Jamyn/dispatch/edit/main/docs/docs/${docPath}`,
         },
+        // This site has no blog/ directory. Docusaurus 2 emitted nothing for the
+        // preset's default-on blog; v3 emits an empty /blog index page instead.
+        blog: false,
         theme: {
           customCss: require.resolve("./src/css/custom.css"),
         },
