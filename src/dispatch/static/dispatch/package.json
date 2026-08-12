@@ -86,7 +86,7 @@
     "eslint-plugin-prettier": "^4.2.1",
     "eslint-plugin-vue": "^9.18.1",
     "eslint-plugin-vuetify": "^2.7.2",
-    "husky": "^8.0.3",
+    "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
     "prettier": "^2.8.8",
     "resize-observer-polyfill": "^1.5.1",
