@@ -33,9 +33,10 @@ tests against a sample-data-seeded database).
 - Keep pull requests focused — one logical change per PR.
 - Match existing code style; there's no separate style guide beyond what the
   linters (`ruff`, `eslint`, `prettier`) enforce.
-- Add or update tests for behavior you change. Note that CI does not
-  currently run the test suites (`python.yml`, `javascript.yml`,
-  `playwright.yml` are disabled) — run them locally before opening a PR.
+- Add or update tests for behavior you change. CI runs ruff, pytest
+  (against Postgres, on Python 3.14), eslint, and vitest on every PR, and
+  builds the docs site when `docs/` changes. Playwright e2e is local-only —
+  run it before opening a PR that touches user-facing flows.
 - Don't regenerate `src/dispatch/static/dispatch/components.d.ts` as part of
   an unrelated change; a production frontend build rewrites it as a side
   effect.

@@ -1,0 +1,35 @@
+name: Frontend CI
+
+# Lint and unit tests for the Vue frontend. Replaces the disabled
+# javascript.yml (node 16, `npm install`).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/dispatch/static/dispatch
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/dispatch/static/dispatch/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run lint
+      - run: npx vitest run --dom
