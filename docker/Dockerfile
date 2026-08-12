@@ -115,17 +115,16 @@ RUN mkdir -p /etc/apt/keyrings \
 RUN wget --quiet -O - https://deb.nodesource.com/setup_20.x | bash -
 
 COPY --from=sdist /dist/*.whl /tmp/dist/
+COPY requirements-lock.txt /tmp/requirements-lock.txt
 RUN buildDeps="" \
   && apt-get update \
   && apt-get install -y --no-install-recommends "$buildDeps" \
-  # remove internal index when internal plugins are separated
-  && uv pip install --system -U /tmp/dist/*.whl \
-  # setuptools vendors jaraco.context and wheel, and pkg_resources imports
-  # jaraco.text from that tree at runtime -- jira and langcodes both import
-  # pkg_resources, so it cannot simply be removed. 81 is the last release
-  # that still ships pkg_resources and the first whose vendored tree is past
-  # CVE-2026-23949 and CVE-2026-24049; 82 drops pkg_resources entirely.
-  && uv pip install --system -U "setuptools==81.0.0" \
+  # pyproject.toml leaves most dependencies unconstrained, so resolving at build
+  # time makes the image non-reproducible. The lockfile is the full closure, so
+  # --no-deps installs it exactly as pinned -- re-resolving here would let sdists
+  # that compute their own requirements (dkimpy probes for a DNS module) drift.
+  && uv pip install --system --no-deps --require-hashes -r /tmp/requirements-lock.txt \
+  && uv pip install --system --no-deps /tmp/dist/*.whl \
   # uv extracts installed wheels into its cache before linking them into
   # site-packages, leaving a second copy of the source tree at
   # /root/.cache/uv/archive-v0/. Unlike site-packages, trivy's secret
@@ -144,6 +143,10 @@ RUN buildDeps="" \
   # a server newer than itself. Client 18 covers servers 14 through 18; client
   # 14 could not dump from the 18.x server this is deployed against.
   pkg-config postgresql-client-18 nodejs \
+  # The pinned base ships openssl below the fixed 3.5.6-1~deb13u2 and nothing
+  # here pulls it forward on its own, so trivy's CRITICAL/HIGH gate goes red.
+  # Upgrade explicitly, before apt-get clean, so the fix is deterministic.
+  && apt-get upgrade -y \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   # mjml has to be installed differently here because
