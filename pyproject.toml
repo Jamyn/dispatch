@@ -77,7 +77,7 @@ dependencies = [
     "schedule",
     "schemathesis",
     "sentry-asgi",
-    "sentry-sdk==1.45.0",
+    "sentry-sdk==1.45.1",
     "sh",
     "slack-bolt",
     "slack_sdk",
@@ -114,9 +114,6 @@ dev = [
     "pytest-mock",
     "ruff",
     "typing-extensions==4.16.0",
-]
-netflix = [
-    "dispatch-internal-plugins",
 ]
 
 [project.scripts]
@@ -298,10 +295,3 @@ known-third-party = ["fastapi", "pydantic", "starlette"]
 "tests/conftest.py" = ["E402"]
 "src/dispatch/entity/service.py" = ["W605"]
 
-[dependency-groups]
-netflix = [
-    "dispatch-internal-plugins",
-]
-
-[tool.uv.sources]
-dispatch-internal-plugins = { path = "../dispatch-internal-plugins", editable = true }

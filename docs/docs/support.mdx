@@ -19,7 +19,7 @@ If you believe you've identified a security issue with `Dispatch`, please report
 
 Once you've submitted the issue, it will be handled by our triage team, typically within 48 hours.
 
-> **Note:** Any secrets in the codebase, for example in the `docker-compose.yml` file, are used for demonstration purposes and not meant for production systems.
+> **Note:** The codebase contains no secret values. Development secrets are generated locally by `docker/dev-setup.sh` into a gitignored `docker/.env`; the committed `docker/.env.example` carries only placeholders.
 
 ## Support Versions
 

@@ -10,9 +10,9 @@ env:
   LOG_LEVEL: ERROR
   STATIC_DIR: ""
   DATABASE_HOSTNAME: localhost
+  # Must match the services.postgres block below. Service containers are
+  # resolved before any step runs, so this one cannot be generated per run.
   DATABASE_CREDENTIALS: dispatch:dispatch
-  DISPATCH_ENCRYPTION_KEY: NJHDWDJ3PbHT8h
-  DISPATCH_JWT_SECRET: foo
 
 # Least privilege: these workflows only read the repository.
 permissions:
@@ -93,6 +93,10 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Generate per-run application secrets
+        run: |
+          echo "DISPATCH_ENCRYPTION_KEY=$(openssl rand -hex 30)" >> "$GITHUB_ENV"
+          echo "DISPATCH_JWT_SECRET=$(openssl rand -hex 30)" >> "$GITHUB_ENV"
       - name: Set up Python 3.11
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
