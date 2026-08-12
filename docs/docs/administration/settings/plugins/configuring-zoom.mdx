@@ -8,20 +8,22 @@ description: Configuration options for the Zoom plugin.
 Dispatch ships with Zoom conference support. The Zoom plugin creates a conference call with a valid time of 6 weeks and generates a password to protect the call. The Web URL returned by the plugin to the messaging is created such that you need to click it and not worry about entering the password.
 :::
 
-## `ZOOM_API_USER_ID` \[Required. Secret: True\]
+:::caution
+Zoom disabled JWT app authorization on 2023-09-01 in favor of Server-to-Server OAuth. The setup steps below (JWT app creation) can no longer be completed on the Zoom Marketplace, and the plugin's own auth code (`generate_jwt()` in `dispatch_zoom/client.py`) still implements the removed JWT flow, so this plugin cannot currently authenticate against the live Zoom API. Tracked for a code + doc fix together; see [Jamyn/dispatch#70](https://github.com/Jamyn/dispatch/issues/70).
+:::
 
-> Email / User ID attached to the JWT credentials.
+## Dispatch Configuration
 
-## `ZOOM_API_KEY` \[Required\]
+The Zoom plugin is configured in the Dispatch Web UI under Settings -> Project -> Plugins. Add the plugin using the `NEW` button and then edit its configuration by clicking on the three vertical dots.
 
-> JWT API Key.
+### Zoom API User Id
 
-## `ZOOM_API_SECRET` \[Required. Secret: True\]
+> Email / User ID attached to the API credentials.
 
-> JWT API Secret.
+### API Key
 
-## Create the Zoom Application for your API Keys
+> API Key. (Currently a JWT app key — see the caution above.)
 
-To create the API Keys required for the Zoom plugin, navigate to the Zoom Marketplace and select [create an App](https://marketplace.zoom.us/develop/create). Ensure that you are logged in as the user that you wish to tie the API credentials to.
+### API Secret
 
-Create a `JWT` application to generate the JWT API Key and Secret. Make sure to set the `Intent to publish: No`.
+> API Secret. (Currently a JWT app secret — see the caution above.)

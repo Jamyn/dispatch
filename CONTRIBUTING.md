@@ -19,7 +19,7 @@ welcome; response time is not guaranteed.
 ## Development setup
 
 ```bash
-uv sync                      # Python deps (see pyproject.toml / requirements-lock.txt)
+uv sync --extra dev          # Python deps, including pytest/ruff/pre-commit (see pyproject.toml / requirements-lock.txt)
 cd src/dispatch/static/dispatch && npm ci   # frontend deps
 ```
 
