@@ -1,21 +1,18 @@
-import { defineConfig } from "vite"
-import vue from "@vitejs/plugin-vue"
-import path from "path"
+import { defineConfig, mergeConfig } from "vitest/config"
+import viteConfig from "./vite.config.js"
 
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [vue()],
-  test: {
-    globals: true,
-    server: {
-      deps: {
-        inline: ["vuetify"],
+export default mergeConfig(
+  viteConfig,
+  defineConfig({
+    test: {
+      setupFiles: ["src/tests/setup.js"],
+      server: {
+        deps: {
+          // vuetify ships raw .css imports in its ESM build; it must go
+          // through vite's transform pipeline, not node's loader.
+          inline: ["vuetify"],
+        },
       },
     },
-  },
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "src"), // provide an absolute path to your src directory
-    },
-  },
-})
+  })
+)

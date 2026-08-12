@@ -172,28 +172,28 @@ describe("findPath", () => {
       ],
     }
     const result = findPath(geigerAlert, key, value)
-    expect(result).toBe("$.events[0].original")
+    expect(result).toBe("$.events[*].original")
   })
 
   it("should find the correct path to a string within a nested array", () => {
     const key = "email"
     const value = "wshel@pompom.com"
     const result = findPath(geigerAlert, key, value)
-    expect(result).toBe("$.events[0].subjects[0].email")
+    expect(result).toBe("$.events[*].subjects[*].email")
   })
 
   it("should find the correct path to an object within a nested array", () => {
     const key = "subject_type"
     const value = "user"
     const result = findPath(geigerAlert, key, value)
-    expect(result).toBe("$.events[0].subjects[0].subject_type")
+    expect(result).toBe("$.events[*].subjects[*].subject_type")
   })
 
   it("should find the correct path to a deeply nested key", () => {
     const key = "description"
     const value = "A human readable description of the alert."
     const result = findPath(geigerAlert, key, value)
-    expect(result).toBe("$.computed[0].description")
+    expect(result).toBe("$.computed[*].description")
   })
 
   const guarddutyAlert = {
@@ -401,7 +401,7 @@ describe("findPath", () => {
     const key = "id"
     const value = "arn:aws:ec2:us-west-2:133711111111:instance/i-133711111111"
     const result = findPath(guarddutyAlert, key, value)
-    expect(result).toBe("$.asset[0].id")
+    expect(result).toBe("$.asset[*].id")
     const evaluated = jsonpath.query(guarddutyAlert, result)
     expect(evaluated.includes(value)).toBe(true)
   })
@@ -414,7 +414,7 @@ describe("findPath", () => {
       title: "Test Test (test@netflix.com) - Test Test)",
     }
     const result = findPath(guarddutyAlert, key, value)
-    expect(result).toBe("$.asset[0].details.devLead")
+    expect(result).toBe("$.asset[*].details.devLead")
     const evaluated = jsonpath.query(guarddutyAlert, result)
     expect(evaluated[0]).toEqual(value)
   })
@@ -423,7 +423,7 @@ describe("findPath", () => {
     const key = "public_facing_guess"
     const value = false
     const result = findPath(guarddutyAlert, key, value)
-    expect(result).toBe("$.asset[0].details.public_facing_guess")
+    expect(result).toBe("$.asset[*].details.public_facing_guess")
     const evaluated = jsonpath.query(guarddutyAlert, result)
     expect(evaluated[0]).toBe(value)
   })
@@ -432,7 +432,7 @@ describe("findPath", () => {
     const key = "IpV4Addresses"
     const value = ["1337.1337.1337.1337"]
     const result = findPath(guarddutyAlert, key, value)
-    expect(result).toBe("$.asset[0].details.AwsEc2Instance.IpV4Addresses")
+    expect(result).toBe("$.asset[*].details.AwsEc2Instance.IpV4Addresses")
     const evaluated = jsonpath.query(guarddutyAlert, result)
     expect(evaluated[0]).toEqual(value)
   })
@@ -441,7 +441,7 @@ describe("findPath", () => {
     const key = "value"
     const value = "us-west-2"
     const result = findPath(guarddutyAlert, key, value)
-    expect(result).toBe("$.originLocation[1].value")
+    expect(result).toBe("$.originLocation[*].value")
     const evaluated = jsonpath.query(guarddutyAlert, result)
     expect(evaluated.includes(value)).toBe(true)
   })
@@ -467,7 +467,7 @@ describe("findPath", () => {
       nf_ip_provider: "test",
     }
     const result = findPath(guarddutyAlert, key, value)
-    expect(result).toBe("$.originLocation[2].geoIP")
+    expect(result).toBe("$.originLocation[*].geoIP")
     const evaluated = jsonpath.query(guarddutyAlert, result)
     expect(evaluated[0]).toEqual(value)
   })
