@@ -19,7 +19,7 @@ jobs:
         image: postgres
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: dispatch
+          POSTGRES_PASSWORD: not-a-real-password-tests-only
           POSTGRES_DB: dispatch
         ports:
           - 5432:5432
