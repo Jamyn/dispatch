@@ -4,7 +4,7 @@ module.exports = {
   extends: [
     "eslint:recommended",
     "plugin:prettier/recommended",
-    "plugin:vue/vue3-strongly-recommended",
+    "plugin:vue/strongly-recommended",
     "plugin:vuetify/base",
   ],
   parserOptions: {

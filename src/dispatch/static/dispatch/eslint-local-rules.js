@@ -1,12 +1,22 @@
+// eslint-plugin-vue 10 scopes vue-eslint-parser to *.vue via an override, so plain .js
+// files carry no template services. These rules only match template nodes, so returning
+// an empty visitor there is correct rather than a workaround.
+function templateServices(context) {
+  const parserServices = context.sourceCode.parserServices
+  return parserServices && parserServices.defineTemplateBodyVisitor ? parserServices : null
+}
+
 module.exports = {
   "icon-button-variant": {
     meta: {
       fixable: "code",
     },
     create(context) {
-      const template = context.parserServices.getTemplateBodyTokenStore()
+      const parserServices = templateServices(context)
+      if (!parserServices) return {}
+      const template = parserServices.getTemplateBodyTokenStore()
 
-      return context.parserServices.defineTemplateBodyVisitor({
+      return parserServices.defineTemplateBodyVisitor({
         VElement(node) {
           if (node.name !== "v-btn") return
 
@@ -42,7 +52,9 @@ module.exports = {
       fixable: "code",
     },
     create(context) {
-      const template = context.parserServices.getTemplateBodyTokenStore()
+      const parserServices = templateServices(context)
+      if (!parserServices) return {}
+      const template = parserServices.getTemplateBodyTokenStore()
       let observerNode
       let formNode
       let observerRefNodes = []
@@ -54,7 +66,7 @@ module.exports = {
       let hasSetup = false
       const methodNodes = []
 
-      return context.parserServices.defineTemplateBodyVisitor(
+      return parserServices.defineTemplateBodyVisitor(
         {
           'VElement[parent.type!="VElement"]:exit'(node) {
             if (rulesToImport.size) {
@@ -553,7 +565,10 @@ module.exports = {
       fixable: "code",
     },
     create(context) {
-      return context.parserServices.defineTemplateBodyVisitor({
+      const parserServices = templateServices(context)
+      if (!parserServices) return {}
+
+      return parserServices.defineTemplateBodyVisitor({
         'VElement[name="v-list-item"]'(node) {
           if (
             node.startTag.attributes.some((attr) => attr.directive && attr.key.name.name === "slot")
