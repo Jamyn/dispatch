@@ -1693,9 +1693,9 @@ oauthlib==3.3.1 \
     # via
     #   atlassian-python-api
     #   requests-oauthlib
-openai==1.77.0 \
-    --hash=sha256:07706e91eb71631234996989a8ea991d5ee56f0744ef694c961e0824d4f39218 \
-    --hash=sha256:897969f927f0068b8091b4b041d1f8175bcf124f7ea31bab418bf720971223bc
+openai==2.53.0 \
+    --hash=sha256:baf5802ad08980e1d9d561e1b996e800c8bcd14af5847c6d0e7a5cc59e4d4116 \
+    --hash=sha256:c694ffc747a3c4d1663ef2b07b811315a476164ee5efa3a993967349ebca7618
     # via dispatch (pyproject.toml)
 packaging==26.3 \
     --hash=sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79 \
