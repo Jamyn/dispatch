@@ -829,27 +829,41 @@ def run_server(log_level):
 
         # Add git commit information for development
         try:
-            commit_hash = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=".", stderr=subprocess.DEVNULL
-            ).decode("utf-8").strip()
+            commit_hash = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"], cwd=".", stderr=subprocess.DEVNULL
+                )
+                .decode("utf-8")
+                .strip()
+            )
             envvars["VITE_DISPATCH_COMMIT_HASH"] = commit_hash
         except (subprocess.CalledProcessError, FileNotFoundError):
             # If git is not available or not in a git repo, use a default value
             envvars["VITE_DISPATCH_COMMIT_HASH"] = "dev-local"
 
         try:
-            commit_message = subprocess.check_output(
-                ["git", "log", "-1", "--pretty=%B"], cwd=".", stderr=subprocess.DEVNULL
-            ).decode("utf-8").strip()
+            commit_message = (
+                subprocess.check_output(
+                    ["git", "log", "-1", "--pretty=%B"], cwd=".", stderr=subprocess.DEVNULL
+                )
+                .decode("utf-8")
+                .strip()
+            )
             envvars["VITE_DISPATCH_COMMIT_MESSAGE"] = commit_message
         except (subprocess.CalledProcessError, FileNotFoundError):
             # If git is not available or not in a git repo, use a default value
             envvars["VITE_DISPATCH_COMMIT_MESSAGE"] = "Development build"
 
         try:
-            commit_date = subprocess.check_output(
-                ["git", "log", "-1", "--pretty=%cd", "--date=short"], cwd=".", stderr=subprocess.DEVNULL
-            ).decode("utf-8").strip()
+            commit_date = (
+                subprocess.check_output(
+                    ["git", "log", "-1", "--pretty=%cd", "--date=short"],
+                    cwd=".",
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode("utf-8")
+                .strip()
+            )
             envvars["VITE_DISPATCH_COMMIT_DATE"] = commit_date
         except (subprocess.CalledProcessError, FileNotFoundError):
             # If git is not available or not in a git repo, use a default value

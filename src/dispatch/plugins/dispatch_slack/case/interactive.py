@@ -1125,7 +1125,7 @@ def handle_snooze_submission_event(
             if response == MfaChallengeStatus.EXPIRED:
                 text = "Adding Snooze failed, the MFA request timed out."
             elif response == MfaChallengeStatus.DENIED:
-                text = "Adding Snooze failed, challenge did not complete succsfully."
+                text = "Adding Snooze failed, challenge did not complete successfully."
             else:
                 text = "Adding Snooze failed, you must accept the MFA prompt."
 

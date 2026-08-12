@@ -203,10 +203,10 @@ def test_create_or_update_participant_activity__new_plugin_with_overlap(
 def test_get_incidents_by_plugin(session, participant_activity):
     """Tests retrieval of all of an incident's recorded participant activity from a specific plugin."""
     from dispatch.participant_activity.service import (
-        get_all_recorded_incident_partcipant_activities_for_plugin,
+        get_all_recorded_incident_participant_activities_for_plugin,
     )
 
-    activities = get_all_recorded_incident_partcipant_activities_for_plugin(
+    activities = get_all_recorded_incident_participant_activities_for_plugin(
         db_session=session,
         incident_id=participant_activity.incident.id,
         plugin_id=participant_activity.plugin_event.plugin.id,
