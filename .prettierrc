@@ -1,8 +1,4 @@
 {
-  "endOfLine": "auto",
   "printWidth": 100,
-  "semi": false,
-  "singleQuote": false,
-  "tabWidth": 2,
-  "useTabs": false
+  "semi": false
 }

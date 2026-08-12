@@ -1,0 +1,6 @@
+# Holds applied when compiling requirements-lock.txt. Not installed directly.
+
+# Held so the vendored jaraco.context and wheel stay past CVE-2026-23949 /
+# CVE-2026-24049. 83 removes pkg_resources; verified in the runtime image that
+# nothing in the lock needs it, so the old "hold at 81 for pkg_resources" is dead.
+setuptools==83.0.0

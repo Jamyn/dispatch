@@ -6,7 +6,7 @@ class DuoConfiguration(BaseConfigurationModel):
     """Duo configuration description."""
 
     integration_key: SecretStr = Field(
-        title="Integration Key", description="Admin API integration key ('DI...'):"
+        title="Integration Key", description="Auth API integration key ('DI...'):"
     )
     integration_secret_key: SecretStr = Field(
         title="Integration Secret Key",

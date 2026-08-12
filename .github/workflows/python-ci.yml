@@ -1,0 +1,99 @@
+name: Python CI
+
+# Lint, format, and test gates for the backend. The disabled Netflix-era
+# python.yml this replaces installed uv via unpinned `curl | sh` and had a
+# per-file coverage gate that could never fail (it compared against a
+# variable that was never assigned).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.5.9" # same pin as python-lock-sync
+
+jobs:
+  python-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install ruff
+        # Version comes from .pre-commit-config.yaml so the CI gate can never
+        # drift from what the hooks enforce locally. The sed is scoped to the
+        # ruff-pre-commit block so adding repos above it can't change which
+        # rev is picked up.
+        run: |
+          RUFF_VERSION=$(sed -n '/astral-sh\/ruff-pre-commit/,/rev:/{s/^ *rev: v//p}' .pre-commit-config.yaml)
+          test -n "$RUFF_VERSION"
+          pipx install "ruff==${RUFF_VERSION}"
+      - run: ruff check .
+      - run: ruff format --check .
+
+  python-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Same major as the deployment's pinned postgres image.
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: not-a-real-password-tests-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Install the production lock
+        run: |
+          python -m pip install "uv==${UV_VERSION}"
+          uv pip install --system --no-deps --require-hashes -r requirements-lock.txt
+          uv pip install --system --no-deps -e .
+      - name: Import the app from the lock alone
+        # Catches undeclared runtime dependencies (packages the code imports
+        # that only reach the environment via the test tools installed below).
+        # A missing sortedcontainers declaration once passed every other gate
+        # and would have broken the production image at startup.
+        env:
+          DISPATCH_ENCRYPTION_KEY: not-a-real-key-tests-only
+          DISPATCH_JWT_SECRET: not-a-real-key-tests-only
+          DATABASE_CREDENTIALS: postgres:not-a-real-password-tests-only
+          DATABASE_HOSTNAME: localhost
+          DISPATCH_UI_URL: https://example.com
+          STATIC_DIR: ""
+        run: python -c "import dispatch.main, dispatch.cli"
+      - name: Install test-only tools
+        # Constrained to the lock so they cannot move locked versions.
+        run: |
+          uv pip install --system --constraint requirements-lock.txt \
+            pytest==9.1.1 pytest-mock factory-boy faker easydict devtools schemathesis coverage
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/dispatch/static/dispatch/package-lock.json
+      - name: Install frontend node_modules for the mjml tests
+        working-directory: src/dispatch/static/dispatch
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run pytest with coverage
+        run: |
+          coverage run -m pytest -q
+          coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true

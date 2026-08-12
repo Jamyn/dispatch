@@ -9,44 +9,46 @@ Dispatch ships with several G Suite plugins \(Docs, Groups, Drive, etc.,\). This
 for these plugins and the permissions required to enable them.
 :::
 
-## Dispatch Configuration Variables
+## Dispatch Configuration
 
-### `GOOGLE_DOMAIN` \[Required\]
+The G Suite plugins are configured in the Dispatch Web UI under Settings -> Project -> Plugins. Add the desired plugin(s) using the `NEW` button and then edit their configuration by clicking on the three vertical dots.
 
-> Base domain for which this Google Cloud Platform \(GCP\) service account resides.
-
-### `GOOGLE_DEVELOPER_KEY` \[Required. Secret: True\]
+### Developer Key
 
 > This is used by the Google API Discovery Service and prevents rate limiting.
 
-### `GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL` \[Required\]
+### Service Account Client Email
 
 > The `client_email` value from your Google Cloud Platform \(GCP\) service account configuration file.
 
-### `GOOGLE_SERVICE_ACCOUNT_CLIENT_ID` \[Required\]
+### Service Account Client Id
 
 > The `client_id` value from your Google Cloud Platform \(GCP\) service account configuration file.
 
-### `GOOGLE_SERVICE_ACCOUNT_DELEGATED_ACCOUNT` \[Required\]
+### Service Account Delegated Account
 
 > Account to delegate to from the Google Cloud Platform \(GCP\) service account.
 > Outgoing emails and other artifacts will appear to be from this account.
 
-### `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` \[Required. Secret: True\]
+### Service Account Private Key
 
 > The `private_key` value from your Google Cloud Platform \(GCP\) service account configuration file.
 
-### `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID` \[Required\]
+### Service Account Private Key Id
 
 > The `private_key_id` value from your Google Cloud Platform \(GCP\) service account configuration file.
 
-### `GOOGLE_SERVICE_ACCOUNT_PROJECT_ID` \[Required\]
+### Service Account Project Id
 
 > The `project_id` value from your Google Cloud Platform \(GCP\) service account configuration file.
 
-### `GOOGLE_USER_OVERRIDE` \[Optional. Default: None\]
+### Google Workspace Domain
 
-> Used for development to funnel all emails to a specific user.
+> Base domain for which this Google Cloud Platform \(GCP\) service account resides.
+
+### Default Event Duration (Minutes)
+
+> Default duration in minutes for conference events. Defaults to 1440 minutes (1 day).
 
 ## G Suite Setup
 
@@ -63,13 +65,13 @@ You do not need to assign any Google Cloud permissions to this service account w
 
 Once created, download the JSON based key. You'll use these values to configure Dispatch:
 
-- `project_id` -&gt; `GOOGLE_SERVICE_ACCOUNT_PROJECT_ID`
-- `private_key_id` -&gt; `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID`
-- `private_key` -&gt; `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`
-- `client_email` -&gt; `GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL`
-- `client_id` -&gt; `GOOGLE_SERVICE_ACCOUNT_CLIENT_ID`
+- `project_id` -&gt; Service Account Project Id
+- `private_key_id` -&gt; Service Account Private Key Id
+- `private_key` -&gt; Service Account Private Key
+- `client_email` -&gt; Service Account Client Email
+- `client_id` -&gt; Service Account Client Id
 
-Then, create a Developer API key \(APIs & Services &gt; Credentials &gt; Create Credentials &gt; API Key\), and set it to the value for `GOOGLE_DEVELOPER_KEY`.
+Then, create a Developer API key \(APIs & Services &gt; Credentials &gt; Create Credentials &gt; API Key\), and set it as the Developer Key.
 
 Enable the following APIs \(APIs and Services &gt; Library\):
 
@@ -102,4 +104,4 @@ https://www.googleapis.com/auth/calendar
 Navigate to the G Suite Admin [Domain-wide Delegation](https://admin.google.com/ac/owl/domainwidedelegation) page
 \(Security &gt; API Controls &gt; Domain-wide Delegation\) and add a new API client.
 
-Enter the Client ID you used for `GOOGLE_SERVICE_ACCOUNT_CLIENT_ID`, and then paste in a comma-separated list of the OAuth scopes above.
+Enter the Client ID you used for Service Account Client Id, and then paste in a comma-separated list of the OAuth scopes above.

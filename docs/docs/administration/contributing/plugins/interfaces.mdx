@@ -370,17 +370,18 @@ def update(
 
 :::info
 This interface is not stable and will need to be refactored or generalized. Please file an issue for guidance if you are trying to extend workflow creation.
+:::
 
 ```python
 def get_instance(
-        self, workflow_id: str, instance_id: str, **kwargs)
+        self, workflow_id: str, instance_id: str, **kwargs
     ):
     """Fetches an individual workflow instance."""
     return
 
 def run(
     self,
-    workflow_id: str, params: dict, **kwargs):
+    workflow_id: str, params: dict, **kwargs
 ):
     """Runs the given workflow"""
     return

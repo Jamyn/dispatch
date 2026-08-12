@@ -1,4 +1,8 @@
-kevgliss
-mvilanova
-whitdog47
-wssheldon
+# Ownership for this repository. The upstream Netflix maintainers listed
+# here previously do not maintain this repository and Netflix/dispatch is
+# archived, so review requests to them would never be actioned.
+#
+# Note the syntax: CODEOWNERS entries need a path pattern and an @-prefixed
+# owner. The previous contents were bare usernames with neither, which GitHub
+# silently ignores, so this file was not actually assigning reviewers at all.
+* @Jamyn

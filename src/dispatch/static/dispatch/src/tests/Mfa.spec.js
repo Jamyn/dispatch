@@ -3,7 +3,7 @@ import { expect, test, vi, beforeEach, afterEach } from "vitest"
 import { createVuetify } from "vuetify"
 import * as components from "vuetify/components"
 import * as directives from "vuetify/directives"
-import MfaVerification from "@/auth/mfa.vue"
+import MfaVerification from "@/auth/Mfa.vue"
 import authApi from "@/auth/api"
 
 vi.mock("vue-router", () => ({

@@ -308,9 +308,15 @@ def generate_case_signal_summary(case: Case, db_session: Session) -> CaseSignalS
     )
     prompt = f"""
     <prompt>
-    {signal_instance.signal.genai_prompt
+    {
+        signal_instance.signal.genai_prompt
         if signal_instance.signal.genai_prompt
-        else (db_prompt.genai_prompt if db_prompt and db_prompt.genai_prompt else SIGNAL_ANALYSIS_PROMPT)}
+        else (
+            db_prompt.genai_prompt
+            if db_prompt and db_prompt.genai_prompt
+            else SIGNAL_ANALYSIS_PROMPT
+        )
+    }
     </prompt>
 
     <current_event>

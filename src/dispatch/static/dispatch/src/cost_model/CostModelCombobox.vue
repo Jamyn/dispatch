@@ -41,7 +41,7 @@
             icon
             v-bind="tooltip"
             variant="text"
-            href="https://netflix.github.io/dispatch/docs/administration/settings/cost_model"
+            href="https://jamyn.github.io/dispatch/docs/administration/settings/cost_model"
             target="_blank"
           >
             <v-icon>mdi-information-outline</v-icon>

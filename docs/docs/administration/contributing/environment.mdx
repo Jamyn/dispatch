@@ -6,6 +6,7 @@ description: Quick guide for setting your environment for Dispatch development.
 
 :::info
 This guide assumes you're using an OS of the Linux/Unix variant \(Ubuntu/OS X\) and is not meant to be exhaustive.
+:::
 
 ## Easy Mode
 
@@ -44,7 +45,8 @@ Python 3.10.11
 ```
 
 :::info
-Dispatch requires `python 3.10+`.
+Dispatch requires `python 3.11+` (the shipped image runs 3.14).
+:::
 
 Create a new virtualenv just for Dispatch:
 
@@ -66,7 +68,7 @@ Test it by seeing if the `dispatch` command is in your path:
 
 ## UI
 
-Dispatch uses the [Vue Cli](https://cli.vuejs.org/) to manage its single-page app \(SPA\) and the [Vuetify](https://vuetifyjs.com/en/) framework for material based components.
+Dispatch uses [Vite](https://vitejs.dev/) to build its single-page app \(SPA\) and the [Vuetify](https://vuetifyjs.com/en/) framework for material based components.
 
 To get started developing with Vue, first navigate to the root static directory:
 
@@ -91,7 +93,8 @@ v12.7.0
 ```
 
 :::info
-To correctly build it's components Dispatch requires node 12.7.0+
+To correctly build its components Dispatch requires node 12.7.0+
+:::
 
 Install required node modules with `npm` :
 

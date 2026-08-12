@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from easydict import EasyDict
@@ -6,18 +8,41 @@ from sqlalchemy_utils import drop_database, database_exists
 from starlette.config import environ
 from fastapi.testclient import TestClient
 
-# set test config
-environ["DATABASE_CREDENTIALS"] = "postgres:dispatch"
-environ["DATABASE_HOSTNAME"] = "localhost"
-environ["DATABASE_NAME"] = "dispatch-test"
-environ["DISPATCH_ENCRYPTION_KEY"] = "test123"
-environ["DISPATCH_JWT_SECRET"] = "test123"
-environ["DISPATCH_UI_URL"] = "https://example.com"
-environ["ENV"] = "pytest"
-environ["JWKS_URL"] = "example.com"
-environ["METRIC_PROVIDERS"] = ""  # TODO move this to the default
-environ["SECRET_PROVIDER"] = ""
-environ["STATIC_DIR"] = ""  # we don't need static files for tests
+# DATABASE_NAME is forced, never taken from the environment. This suite drops
+# its database before and after the run, and docker/.env sets
+# DATABASE_NAME=dispatch -- so honouring the environment here would delete the
+# developer's dev database the moment they exported docker/.env and ran pytest.
+_TEST_OVERRIDES = {
+    "DATABASE_NAME": "dispatch-test",
+}
+
+# Defaults, not overrides: the dev database password is generated, so a
+# developer who exported docker/.env must have their DATABASE_CREDENTIALS win
+# or the suite cannot connect. Values here are deliberately non-secret
+# placeholders. Nothing destructive keys off these -- see _TEST_OVERRIDES.
+_TEST_DEFAULTS = {
+    "DATABASE_CREDENTIALS": "postgres:not-a-real-password-tests-only",
+    "DATABASE_HOSTNAME": "localhost",
+    "DISPATCH_ENCRYPTION_KEY": "not-a-real-key-tests-only",
+    "DISPATCH_JWT_SECRET": "not-a-real-key-tests-only",
+    "DISPATCH_UI_URL": "https://example.com",
+    "ENV": "pytest",
+    "JWKS_URL": "example.com",
+    "METRIC_PROVIDERS": "",  # TODO move this to the default
+    "SECRET_PROVIDER": "",
+    "STATIC_DIR": "",  # we don't need static files for tests
+}
+
+# Membership is tested against os.environ, not starlette's `environ` wrapper.
+# The wrapper records every key it is asked for and then refuses to let that
+# key be set, so `environ.setdefault(k, v)` and `k in environ` both poison the
+# very key they are checking.
+for _key, _value in _TEST_OVERRIDES.items():
+    environ[_key] = _value
+
+for _key, _value in _TEST_DEFAULTS.items():
+    if _key not in os.environ:
+        environ[_key] = _value
 
 from dispatch import config
 from dispatch.database.core import engine
@@ -127,6 +152,11 @@ def db():
     )
     Session.configure(bind=schema_engine)
     yield
+    # DROP DATABASE fails while any backend is still connected, and an idle
+    # pooled connection counts. sqlalchemy_utils 0.42.0 issues a bare DROP and
+    # never terminates other backends, so release ours before asking.
+    Session.remove()
+    engine.dispose()
     drop_database(str(config.SQLALCHEMY_DATABASE_URI))
 
 

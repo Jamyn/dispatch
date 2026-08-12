@@ -1,12 +1,12 @@
 FROM python:3.14.0-slim-trixie as sdist
 
-LABEL maintainer="oss@netflix.com"
+LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch PyPI Wheel"
 LABEL org.opencontainers.image.description="PyPI Wheel Builder for Dispatch"
-LABEL org.opencontainers.image.url="https://dispatch.io/"
-LABEL org.opencontainers.image.source="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.vendor="Netflix, Inc."
-LABEL org.opencontainers.image.authors="oss@netflix.com"
+LABEL org.opencontainers.image.url="https://jamyn.github.io/dispatch/"
+LABEL org.opencontainers.image.source="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.vendor="Jamyn"
+LABEL org.opencontainers.image.authors="oss@dispatch.io"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-c"]
 
@@ -19,16 +19,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install uv for building
-RUN curl -LsSf https://astral.sh/uv/0.4.17/install.sh | sh && \
-  mv /root/.cargo/bin/uv /usr/local/bin/
+# pip-installed so no remote install script runs; same uv pin as CI's
+# python-lock-sync job -- bump the two together.
+RUN pip install --no-cache-dir uv==0.5.9
 
-RUN wget --quiet -O - https://deb.nodesource.com/setup_20.x | bash - \
+# Still an unpinned remote script; the clean endpoint is a digest-pinned
+# COPY --from=node:22-slim multi-stage step, deferred to its own change.
+RUN wget --quiet -O - https://deb.nodesource.com/setup_22.x | bash - \
   && apt-get install -y nodejs --no-install-recommends
 
 ARG SOURCE_COMMIT
 ENV DISPATCH_BUILD=${SOURCE_COMMIT:-unknown}
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
-LABEL org.opencontainers.image.licenses="https://github.com/netflix/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
+LABEL org.opencontainers.image.licenses="https://github.com/Jamyn/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
 
 ARG DISPATCH_LIGHT_BUILD
 ENV DISPATCH_LIGHT_BUILD=${DISPATCH_LIGHT_BUILD}
@@ -79,11 +82,11 @@ FROM python:3.14.0-slim-trixie
 LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch"
 LABEL org.opencontainers.image.description="Dispatch runtime image"
-LABEL org.opencontainers.image.url="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.documentation="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.source="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.vendor="Netflix, Inc."
-LABEL org.opencontainers.image.authors="oss@netflix.com"
+LABEL org.opencontainers.image.url="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.documentation="https://jamyn.github.io/dispatch/"
+LABEL org.opencontainers.image.source="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.vendor="Jamyn"
+LABEL org.opencontainers.image.authors="oss@dispatch.io"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-c"]
 
@@ -103,8 +106,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 # Install uv
-RUN curl -LsSf https://astral.sh/uv/0.4.17/install.sh | sh && \
-  mv /root/.cargo/bin/uv /usr/local/bin/
+# pip-installed so no remote install script runs; same uv pin as CI's
+# python-lock-sync job -- bump the two together.
+RUN pip install --no-cache-dir uv==0.5.9
 
 # apt-key was removed in apt 3.0 (Debian 13), so the pgdg key is installed as a
 # keyring file and bound to the repository with signed-by instead.
@@ -112,20 +116,19 @@ RUN mkdir -p /etc/apt/keyrings \
   && wget --quiet -O /etc/apt/keyrings/pgdg.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
   && echo "deb [signed-by=/etc/apt/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt trixie-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 
-RUN wget --quiet -O - https://deb.nodesource.com/setup_20.x | bash -
+RUN wget --quiet -O - https://deb.nodesource.com/setup_22.x | bash -
 
 COPY --from=sdist /dist/*.whl /tmp/dist/
+COPY requirements-lock.txt /tmp/requirements-lock.txt
 RUN buildDeps="" \
   && apt-get update \
   && apt-get install -y --no-install-recommends "$buildDeps" \
-  # remove internal index when internal plugins are separated
-  && uv pip install --system -U /tmp/dist/*.whl \
-  # setuptools vendors jaraco.context and wheel, and pkg_resources imports
-  # jaraco.text from that tree at runtime -- jira and langcodes both import
-  # pkg_resources, so it cannot simply be removed. 81 is the last release
-  # that still ships pkg_resources and the first whose vendored tree is past
-  # CVE-2026-23949 and CVE-2026-24049; 82 drops pkg_resources entirely.
-  && uv pip install --system -U "setuptools==81.0.0" \
+  # pyproject.toml leaves most dependencies unconstrained, so resolving at build
+  # time makes the image non-reproducible. The lockfile is the full closure, so
+  # --no-deps installs it exactly as pinned -- re-resolving here would let sdists
+  # that compute their own requirements (dkimpy probes for a DNS module) drift.
+  && uv pip install --system --no-deps --require-hashes -r /tmp/requirements-lock.txt \
+  && uv pip install --system --no-deps /tmp/dist/*.whl \
   # uv extracts installed wheels into its cache before linking them into
   # site-packages, leaving a second copy of the source tree at
   # /root/.cache/uv/archive-v0/. Unlike site-packages, trivy's secret
@@ -144,6 +147,10 @@ RUN buildDeps="" \
   # a server newer than itself. Client 18 covers servers 14 through 18; client
   # 14 could not dump from the 18.x server this is deployed against.
   pkg-config postgresql-client-18 nodejs \
+  # The pinned base ships openssl below the fixed 3.5.6-1~deb13u2 and nothing
+  # here pulls it forward on its own, so trivy's CRITICAL/HIGH gate goes red.
+  # Upgrade explicitly, before apt-get clean, so the fix is deterministic.
+  && apt-get upgrade -y \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
   # mjml has to be installed differently here because
@@ -179,4 +186,4 @@ CMD ["server", "start", "dispatch.main:app", "--host=0.0.0.0"]
 
 ARG SOURCE_COMMIT
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
-LABEL org.opencontainers.image.licenses="https://github.com/netflix/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
+LABEL org.opencontainers.image.licenses="https://github.com/Jamyn/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"

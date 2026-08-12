@@ -103,7 +103,15 @@ const config = {
       },
       footer: {
         style: "dark",
-        links: [],
+        links: [
+          {
+            title: "More",
+            items: [
+              { label: "Changelog", to: "/docs/changelog" },
+              { label: "License", to: "/docs/license" },
+            ],
+          },
+        ],
         copyright: `Copyright © ${new Date().getFullYear()} Dispatch Documentation Built with Docusaurus.`,
       },
       prism: {
