@@ -1,6 +1,6 @@
 # Holds applied when compiling requirements-lock.txt. Not installed directly.
 
-# 81 is the last release shipping pkg_resources, which jira, langcodes and
-# language_data import unconditionally at module level, and the first whose
-# vendored jaraco.context and wheel are past CVE-2026-23949 / CVE-2026-24049.
-setuptools==81.0.0
+# Held so the vendored jaraco.context and wheel stay past CVE-2026-23949 /
+# CVE-2026-24049. 83 removes pkg_resources; verified in the runtime image that
+# nothing in the lock needs it, so the old "hold at 81 for pkg_resources" is dead.
+setuptools==83.0.0
