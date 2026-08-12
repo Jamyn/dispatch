@@ -759,3 +759,16 @@ def test_apply_filters_complex(session):
 
     filtered_query = apply_filters(query, filter_spec)
     assert filtered_query is not None
+
+
+def test_get_query_models_includes_joined_entities(session):
+    """Joined models must be discoverable, or model-scoped filter specs
+    (e.g. signal filters targeting Entity/EntityType) raise BadSpec."""
+    from dispatch.database.service import get_query_models
+
+    query = session.query(Incident).join(Incident.participants).join(Participant.individual)
+    models = get_query_models(query)
+
+    assert "Incident" in models
+    assert "Participant" in models
+    assert "IndividualContact" in models
