@@ -65,7 +65,15 @@ describe("CaseStatusSelectGroup", () => {
   })
 
   it("opens dialog on status click", async () => {
-    await wrapper.find(".overlap-card").trigger("click")
+    // The case is in "New" (the first card); clicking a *different* status
+    // opens the status-change dialog.
+    await wrapper.findAll(".overlap-card")[1].trigger("click")
     expect(wrapper.vm.dialogVisible).toBe(true)
+  })
+
+  it("opens the already-selected dialog when clicking the active status", async () => {
+    await wrapper.findAll(".overlap-card")[0].trigger("click")
+    expect(wrapper.vm.dialogVisible).toBe(false)
+    expect(wrapper.vm.alreadySelectedDialog).toBe(true)
   })
 })

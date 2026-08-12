@@ -138,8 +138,11 @@ test("handles empty events array", async () => {
   const wrapper = createWrapper([])
   await flushPromises()
 
+  // With no tactical reports the component renders the empty-state message
+  // instead of the timeline (which would otherwise carry a header item).
   const timelineItems = wrapper.findAllComponents({ name: "v-timeline-item" })
-  expect(timelineItems.length).toBe(1) // Just the header item
+  expect(timelineItems.length).toBe(0)
+  expect(wrapper.text()).toContain("No tactical reports have been created yet.")
 })
 
 test("displays correct icon for tactical reports", async () => {
