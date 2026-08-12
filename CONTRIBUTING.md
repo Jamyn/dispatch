@@ -61,10 +61,24 @@ fix: correct signature verification for slack event payloads
   `maintenance`, `security`, `ci`, or `breaking-change` — this is required
   by `enforce-labels` and also drives the categorized release notes. Topic
   labels (`postgres`, `docker`, etc.) are optional.
-- `lockfile-sync` and `python-lock-sync` are required checks — validate
-  lockfiles with `npm ci` (not `npm install`) and regenerate
-  `requirements-lock.txt` with the command in its own header comment if you
-  change Python dependencies.
+- `lockfile-sync` and `python-lock-sync` are required checks. **A bare-host
+  `npm ci --dry-run` is not sufficient evidence the frontend lockfile is in
+  sync** — npm's peer-dependency resolution is sensitive to local npm cache
+  state, and a warm cache can silently mask packages (e.g.
+  `eslint-plugin-vuetify`'s nested `@typescript-eslint@8.67.0` tree) that a
+  clean environment, and CI, require. If you change frontend dependencies,
+  regenerate and validate `package-lock.json` inside a container matching
+  CI's `node:22` (floating, not pinned to a patch — CI floats too):
+  ```bash
+  cd src/dispatch/static/dispatch
+  docker run --rm -v "$PWD:/w" -w /w node:22 \
+    npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+  docker run --rm -v "$PWD:/w" -w /w node:22 \
+    npm ci --dry-run --ignore-scripts --no-audit --no-fund   # must pass clean
+  ```
+  For `requirements-lock.txt`, regenerate with the command in its own header
+  comment — the Python lock is already compiled inside
+  `python:3.14.0-slim-trixie` for exactly this reason.
 - No approvals are required to merge, but all required checks must pass and
   all commits must be signed.
 
