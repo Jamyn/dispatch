@@ -161,7 +161,7 @@ def get_participant_incident_activities_by_individual_contact(
     )
 
 
-def get_all_recorded_incident_partcipant_activities_for_plugin(
+def get_all_recorded_incident_participant_activities_for_plugin(
     db_session: SessionLocal,
     incident_id: int,
     plugin_id: int,

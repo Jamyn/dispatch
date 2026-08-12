@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "dispatch"
 dynamic = ["version"]
-description = "Dispatch is a incident management and orchestration platform"
+description = "Dispatch is an incident management and orchestration platform"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "Netflix, Inc.", email = "oss@netflix.com"}
 ]
 maintainers = [
-    {name = "Netflix OSS", email = "oss@netflix.com"}
+    {name = "Jamyn", email = "oss@dispatch.io"}
 ]
 requires-python = ">=3.11"
 classifiers = [
@@ -60,7 +60,7 @@ dependencies = [
     "msal",
     "numpy",
     "oauth2client",
-    "openai==1.77.0",
+    "openai==2.53.0",
     "pandas",
     "pdpyras",
     "protobuf==7.35.1",
@@ -82,6 +82,10 @@ dependencies = [
     "slack-bolt",
     "slack_sdk",
     "slowapi",
+    # Imported directly by dispatch.database.service; before this was
+    # declared it reached the lock only as a transitive of the (test-only)
+    # schemathesis tree, so removing that tree broke the runtime image.
+    "sortedcontainers",
     "spacy==3.8.13",
     "sqlalchemy-filters",
     "sqlalchemy-utils",
@@ -289,3 +293,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "tests/conftest.py" = ["E402"]
 "src/dispatch/entity/service.py" = ["W605"]
 
+
+[tool.typos.default.extend-words]
+# SQLAlchemy's FROM-clause accessors (Select.froms / get_final_froms) are
+# real identifiers; without this the typos hook rewrites them to "forms".
+froms = "froms"

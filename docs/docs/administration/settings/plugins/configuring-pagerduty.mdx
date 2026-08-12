@@ -8,17 +8,21 @@ description: Configuration options for the PagerDuty plugin.
 Dispatch ships with support for resolving on-call schedules via the PagerDuty API.
 :::
 
-### Env Configuration
+### Dispatch Configuration
 
-Add the following env vars to your `.env` file.
+The PagerDuty plugin is configured in the Dispatch Web UI under Settings -> Project -> Plugins. Add the plugin using the `NEW` button and then edit its configuration by clicking on the three vertical dots.
 
-## `PAGERDUTY_API_KEY` \[Required. Secret: True\]
+#### API Key
 
-> PagerDuty API key.
+> This is the key used to talk to the PagerDuty API. See: https://support.pagerduty.com/docs/generating-api-keys
 
-## `PAGERDUTY_API_FROM_EMAIL` \[Required\]
+#### From Email
 
-> Email to be added to all outgoing incident pages.
+> This the email to put into the 'From' field of any page requests.
+
+#### Instance API URL
+
+> Enter the URL for your API (defaults to `https://api.pagerduty.com`, i.e. the US instance).
 
 ## Oncall Service Configuration
 
