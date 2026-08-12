@@ -19,7 +19,7 @@
     "serve": "cross-env NODE_ENV=dev NODE_OPTIONS='--max-http-header-size=100000' vite",
     "test": "vitest --dom",
     "preinstall": "node preinstall.js",
-    "prepare": "cd ../../../.. && husky install src/dispatch/static/dispatch/.husky"
+    "prepare": "cd ../../../.. && husky src/dispatch/static/dispatch/.husky"
   },
   "dependencies": {
     "@date-io/date-fns": "^2.17.0",
