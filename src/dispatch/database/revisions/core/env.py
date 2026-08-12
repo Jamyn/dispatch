@@ -44,20 +44,26 @@ def run_migrations_online():
     connectable = create_engine(SQLALCHEMY_DATABASE_URI)
 
     log.info("Migrating dispatch core schema...")
-    # migrate common tables
-    with connectable.connect() as connection:
-        set_search_path = text(f'set search_path to "{CORE_SCHEMA_NAME}"')
-        connection.execute(set_search_path)
-        connection.commit()
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            include_object=include_object,
-            process_revision_directives=process_revision_directives,
-        )
+    # Alembic's module-global context outlives the command and keeps this
+    # engine referenced, so the pool must be disposed explicitly -- an idle
+    # pooled backend is enough to make a later DROP DATABASE fail.
+    try:
+        # migrate common tables
+        with connectable.connect() as connection:
+            set_search_path = text(f'set search_path to "{CORE_SCHEMA_NAME}"')
+            connection.execute(set_search_path)
+            connection.commit()
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                include_object=include_object,
+                process_revision_directives=process_revision_directives,
+            )
 
-        with context.begin_transaction():
-            context.run_migrations()
+            with context.begin_transaction():
+                context.run_migrations()
+    finally:
+        connectable.dispose()
 
 
 if context.is_offline_mode():
