@@ -1,0 +1,3 @@
+# Mechanical reformats; keep out of git blame.
+# chore: bump pre-commit hooks and reformat with current ruff (#64)
+2d9d2b1e773325665ac1e5919ea3ce4fa81a6ffc
