@@ -318,33 +318,33 @@ def test_restricted_incident_filter_with_test_data(session, user, admin_user):
         admin_query = session.query(Incident).filter(Incident.project_id == project.id)
         admin_filtered = restricted_incident_filter(admin_query, admin_user, UserRoles.admin)
         admin_results = admin_filtered.all()
-        assert (
-            len(admin_results) == 4
-        ), f"Admin should see all 4 incidents, got {len(admin_results)}"
+        assert len(admin_results) == 4, (
+            f"Admin should see all 4 incidents, got {len(admin_results)}"
+        )
 
         # Test owner role - should see all incidents
         owner_query = session.query(Incident).filter(Incident.project_id == project.id)
         owner_filtered = restricted_incident_filter(owner_query, user, UserRoles.owner)
         owner_results = owner_filtered.all()
-        assert (
-            len(owner_results) == 4
-        ), f"Owner should see all 4 incidents, got {len(owner_results)}"
+        assert len(owner_results) == 4, (
+            f"Owner should see all 4 incidents, got {len(owner_results)}"
+        )
 
         # Test manager role - should see all incidents
         manager_query = session.query(Incident).filter(Incident.project_id == project.id)
         manager_filtered = restricted_incident_filter(manager_query, user, UserRoles.manager)
         manager_results = manager_filtered.all()
-        assert (
-            len(manager_results) == 4
-        ), f"Manager should see all 4 incidents, got {len(manager_results)}"
+        assert len(manager_results) == 4, (
+            f"Manager should see all 4 incidents, got {len(manager_results)}"
+        )
 
         # Test member role - should see open incidents + restricted where user is participant
         member_query = session.query(Incident).filter(Incident.project_id == project.id)
         member_filtered = restricted_incident_filter(member_query, user, UserRoles.member)
         member_results = member_filtered.all()
-        assert (
-            len(member_results) == 3
-        ), f"Member should see 3 incidents (2 open + 1 restricted as participant), got {len(member_results)}"
+        assert len(member_results) == 3, (
+            f"Member should see 3 incidents (2 open + 1 restricted as participant), got {len(member_results)}"
+        )
 
         # Verify member sees correct incidents
         member_titles = {incident.title for incident in member_results}
@@ -353,9 +353,9 @@ def test_restricted_incident_filter_with_test_data(session, user, admin_user):
             f"{test_prefix}_Open_Incident_2",
             f"{test_prefix}_Restricted_User_Participant",
         }
-        assert (
-            member_titles == expected_titles
-        ), f"Member should see {expected_titles}, got {member_titles}"
+        assert member_titles == expected_titles, (
+            f"Member should see {expected_titles}, got {member_titles}"
+        )
 
     finally:
         # Always restore original user email
@@ -493,17 +493,17 @@ def test_restricted_case_filter_with_test_data(session, user, admin_user):
         manager_query = session.query(Case).filter(Case.project_id == project.id)
         manager_filtered = restricted_case_filter(manager_query, user, UserRoles.manager)
         manager_results = manager_filtered.all()
-        assert (
-            len(manager_results) == 4
-        ), f"Manager should see all 4 cases, got {len(manager_results)}"
+        assert len(manager_results) == 4, (
+            f"Manager should see all 4 cases, got {len(manager_results)}"
+        )
 
         # Test member role - should see open cases + restricted where user is participant
         member_query = session.query(Case).filter(Case.project_id == project.id)
         member_filtered = restricted_case_filter(member_query, user, UserRoles.member)
         member_results = member_filtered.all()
-        assert (
-            len(member_results) == 3
-        ), f"Member should see 3 cases (2 open + 1 restricted as participant), got {len(member_results)}"
+        assert len(member_results) == 3, (
+            f"Member should see 3 cases (2 open + 1 restricted as participant), got {len(member_results)}"
+        )
 
         # Verify member sees correct cases
         member_titles = {case.title for case in member_results}
@@ -512,9 +512,9 @@ def test_restricted_case_filter_with_test_data(session, user, admin_user):
             f"{test_prefix}_Open_Case_2",
             f"{test_prefix}_Restricted_User_Participant",
         }
-        assert (
-            member_titles == expected_titles
-        ), f"Member should see {expected_titles}, got {member_titles}"
+        assert member_titles == expected_titles, (
+            f"Member should see {expected_titles}, got {member_titles}"
+        )
 
     finally:
         # Always restore original user email
@@ -619,7 +619,9 @@ def test_participant_based_filtering_edge_cases(session, user):
 
         # Test user not in participants cannot see restricted incident
         non_participant_email = f"nonparticipant_{test_id}@example.com"
-        non_participant_user = user.__class__(email=non_participant_email)  # Properly initialize user
+        non_participant_user = user.__class__(
+            email=non_participant_email
+        )  # Properly initialize user
         query = session.query(Incident).filter(Incident.project_id == project.id)
         filtered_query = restricted_incident_filter(query, non_participant_user, UserRoles.member)
         results = filtered_query.all()
