@@ -1,12 +1,12 @@
 FROM python:3.14.0-slim-trixie as sdist
 
-LABEL maintainer="oss@netflix.com"
+LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch PyPI Wheel"
 LABEL org.opencontainers.image.description="PyPI Wheel Builder for Dispatch"
-LABEL org.opencontainers.image.url="https://dispatch.io/"
-LABEL org.opencontainers.image.source="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.vendor="Netflix, Inc."
-LABEL org.opencontainers.image.authors="oss@netflix.com"
+LABEL org.opencontainers.image.url="https://jamyn.github.io/dispatch/"
+LABEL org.opencontainers.image.source="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.vendor="Jamyn"
+LABEL org.opencontainers.image.authors="oss@dispatch.io"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-c"]
 
@@ -31,7 +31,7 @@ RUN wget --quiet -O - https://deb.nodesource.com/setup_22.x | bash - \
 ARG SOURCE_COMMIT
 ENV DISPATCH_BUILD=${SOURCE_COMMIT:-unknown}
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
-LABEL org.opencontainers.image.licenses="https://github.com/netflix/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
+LABEL org.opencontainers.image.licenses="https://github.com/Jamyn/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
 
 ARG DISPATCH_LIGHT_BUILD
 ENV DISPATCH_LIGHT_BUILD=${DISPATCH_LIGHT_BUILD}
@@ -82,11 +82,11 @@ FROM python:3.14.0-slim-trixie
 LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch"
 LABEL org.opencontainers.image.description="Dispatch runtime image"
-LABEL org.opencontainers.image.url="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.documentation="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.source="https://github.com/netflix/dispatch"
-LABEL org.opencontainers.image.vendor="Netflix, Inc."
-LABEL org.opencontainers.image.authors="oss@netflix.com"
+LABEL org.opencontainers.image.url="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.documentation="https://jamyn.github.io/dispatch/"
+LABEL org.opencontainers.image.source="https://github.com/Jamyn/dispatch"
+LABEL org.opencontainers.image.vendor="Jamyn"
+LABEL org.opencontainers.image.authors="oss@dispatch.io"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-o", "errexit", "-c"]
 
@@ -186,4 +186,4 @@ CMD ["server", "start", "dispatch.main:app", "--host=0.0.0.0"]
 
 ARG SOURCE_COMMIT
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
-LABEL org.opencontainers.image.licenses="https://github.com/netflix/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
+LABEL org.opencontainers.image.licenses="https://github.com/Jamyn/dispatch/blob/${SOURCE_COMMIT:-main}/LICENSE"
