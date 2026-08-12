@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "dispatch"
 dynamic = ["version"]
-description = "Dispatch is a incident management and orchestration platform"
+description = "Dispatch is an incident management and orchestration platform"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [

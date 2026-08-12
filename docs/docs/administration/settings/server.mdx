@@ -27,7 +27,7 @@ In general, do not include any quotation marks when adding configuration values.
 
 > Controls the level of logging the application will perform during operations. Possible values: CRITICAL, ERROR, WARNING, INFO, DEBUG
 
-#### `STATIC_DIR` \[default: './src/static/dispatch/dist'\]
+#### `STATIC_DIR` \[default: 'src/dispatch/static/dispatch/dist'\]
 
 > Controls where on the local disk, static content for the Dispatch Web UI should be served. This variable can also be explicitly set to `''` if you wish to serve static content outside of the Dispatch server.
 
@@ -47,7 +47,7 @@ In general, do not include any quotation marks when adding configuration values.
 
 > Optional configuration for using Sentry to report Dispatch errors.
 
-#### `MJML_PATH` \[default: /node_modules/.bin]
+#### `MJML_PATH` \[default: 'static/dispatch/node_modules/.bin' (relative to the package directory)\]
 
 > Dispatch uses [MJML](https://mjml.io/documentation/) to generate its HTML emails. This package also requires the `node` binary to be available on the standard path (or set in Dispatch's path). Use this variable to adjust the location where Dispatch should look for the `mjml` command. **If you are using the stock docker image of Dispatch you must manually set this field to the default path.**
 
@@ -169,7 +169,7 @@ Add a ALB listener action without authenticate for `/api/v1/{organization}/event
 
 #### `DATABASE_HOSTNAME`
 
-> Dispatch relies on a `Postgres` database. This hostname should point to a supporter version of `Postgres (9.6+)`.
+> Dispatch relies on a `Postgres` database. This hostname should point to a supported version of `Postgres` — this project tests against and deploys `18`; there is no supported upgrade path from a pre-`14` cluster.
 
 #### `DATABASE_CREDENTIALS` \[secret: True\]
 
@@ -187,4 +187,4 @@ Add a ALB listener action without authenticate for `/api/v1/{organization}/event
 
 ### Incident Cost
 
-Dispatch [calculates](https://github.com/Jamyn/dispatch/blob/main/src/dispatch/incident/service.py#L279) the cost of an incident by adding up the time participants have spent on each incident role \(e.g., Incident Commander\) and applying an [engagement multiplier](https://github.com/Jamyn/dispatch/blob/main/src/dispatch/incident/service.py#L266) that's based on the incident role. It also includes time spent on incident review-related activities. Dispatch calculates and published the cost for all incidents [every 5 minutes](https://github.com/Jamyn/dispatch/blob/main/src/dispatch/incident/scheduled.py#L257).
+Dispatch [calculates](https://github.com/Jamyn/dispatch/blob/main/src/dispatch/incident/service.py#L279) the cost of an incident by adding up the time participants have spent on each incident role \(e.g., Incident Commander\) and applying an [engagement multiplier](https://github.com/Jamyn/dispatch/blob/main/src/dispatch/incident/service.py#L266) that's based on the incident role. It also includes time spent on incident review-related activities. Dispatch calculates and publishes the cost for all incidents [every 5 minutes](https://github.com/Jamyn/dispatch/blob/main/src/dispatch/incident/scheduled.py#L257).
