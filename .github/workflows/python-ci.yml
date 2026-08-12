@@ -94,6 +94,14 @@ jobs:
         working-directory: src/dispatch/static/dispatch
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run pytest with coverage
+        env:
+          # Optional. With these set, tests/plugins/dispatch_slack/test_slack_live.py
+          # posts to a real workspace; without them it skips, which is the case
+          # on forks and until the secrets are configured. See that file's
+          # docstring for the app manifest and scopes.
+          DISPATCH_SLACK_TEST_BOT_TOKEN: ${{ secrets.DISPATCH_SLACK_TEST_BOT_TOKEN }}
+          DISPATCH_SLACK_TEST_CHANNEL_ID: ${{ secrets.DISPATCH_SLACK_TEST_CHANNEL_ID }}
+          DISPATCH_SLACK_TEST_USER_ID: ${{ secrets.DISPATCH_SLACK_TEST_USER_ID }}
         run: |
           coverage run -m pytest -q
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true
