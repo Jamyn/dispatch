@@ -26,7 +26,7 @@ The supported way to run Dispatch is [`Jamyn/dispatch-docker`](https://github.co
 
 ## Reporting issues
 
-Bug reports are tracked in [`Jamyn/dispatch-docker`'s issue tracker](https://github.com/Jamyn/dispatch-docker/issues), the single tracker for both repositories. Suspected vulnerabilities in the application should be reported privately via [GitHub security advisories](https://github.com/Jamyn/dispatch/security/advisories/new) — please don't open a public issue for those.
+Bug reports and feature requests for the application belong in [this repo's issue tracker](https://github.com/Jamyn/dispatch/issues). Deployment, Compose, and installer issues belong in [`Jamyn/dispatch-docker`'s issue tracker](https://github.com/Jamyn/dispatch-docker/issues) instead. Suspected vulnerabilities in the application should be reported privately via [GitHub security advisories](https://github.com/Jamyn/dispatch/security/advisories/new) — please don't open a public issue for those.
 
 Reports are accepted against the **latest tagged release** and the current `main` tip only.
 
