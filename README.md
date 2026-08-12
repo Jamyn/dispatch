@@ -14,7 +14,7 @@ Dispatch helps effectively manage security incidents by deeply integrating with 
 
 This means you can let Dispatch focus on creating resources, assembling participants, sending out notifications, tracking tasks, and assisting with post-incident reviews; allowing you to focus on actually fixing the issue!
 
-![](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-1.png) ![](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-2.png) ![](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-3.png) ![](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-4.png) ![](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-5.png) ![](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-6.png)
+![Dispatch incident dashboard screenshot](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-1.png) ![Dispatch incident detail screenshot](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-2.png) ![Dispatch incident timeline screenshot](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-3.png) ![Dispatch incident participants screenshot](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-4.png) ![Dispatch incident tasks screenshot](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-5.png) ![Dispatch incident report screenshot](https://github.com/Jamyn/dispatch/raw/main/docs/static/img/thumb-6.png)
 
 ## Status: independently maintained
 
