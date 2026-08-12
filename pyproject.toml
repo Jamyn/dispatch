@@ -12,7 +12,7 @@ authors = [
     {name = "Netflix, Inc.", email = "oss@netflix.com"}
 ]
 maintainers = [
-    {name = "Netflix OSS", email = "oss@netflix.com"}
+    {name = "Jamyn", email = "oss@dispatch.io"}
 ]
 requires-python = ">=3.11"
 classifiers = [

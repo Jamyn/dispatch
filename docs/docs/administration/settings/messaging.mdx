@@ -15,7 +15,7 @@ mount a volume with a customized templates dir as part of the docker compose:
     image: dispatch-local
     ...
     volumes:
-      - "../dispatch-templates/messaging-email-templates:/usr/local/lib/python3.11/site-packages/dispatch/messaging/email/templates"
+      - "../dispatch-templates/messaging-email-templates:/usr/local/lib/python3.14/site-packages/dispatch/messaging/email/templates"
 ```
 
 Such approach allows you to customize the common template for _all projects_.

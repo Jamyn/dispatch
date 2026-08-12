@@ -4,13 +4,12 @@ description: Make Dispatch your own by writing a plugin!
 
 # Plugins
 
-Each plugin has its interface, but in general, all plugins are structured the same way.
+Each plugin has its interface, but in general, all plugins are structured the same way. Every current plugin lives in-tree under `src/dispatch/plugins/`, alongside the rest of the codebase:
 
 ```bash
-setup.py
-dispatch_pluginname/
-dispatch_pluginname/__init__.py
-dispatch_pluginname/plugin.py
+src/dispatch/plugins/dispatch_pluginname/
+src/dispatch/plugins/dispatch_pluginname/__init__.py
+src/dispatch/plugins/dispatch_pluginname/plugin.py
 ```
 
 The `__init__.py` file should contain no plugin logic, and at most, a VERSION = ‘x.x.x’ line. For example, if you want to pull the version using pkg_resources \(which is what we recommend\), your file might contain:
@@ -48,39 +47,23 @@ class PluginName(ConversationPlugin):
         return "Message sent"
 ```
 
-Register your plugin via `entry_points` by modifying your `setup.py`:
+Register your plugin by adding it to the shared `[project.entry-points."dispatch.plugins"]` table in the root `pyproject.toml` (every in-tree plugin registers here, not in a per-plugin file):
 
-```python
-setup(
-    # ...
-    entry_points={
-       'dispatch.plugins': [
-            'pluginname = dispatch_pluginname.conversations:PluginName'
-        ],
-    },
-)
+```toml
+[project.entry-points."dispatch.plugins"]
+pluginname = "dispatch.plugins.dispatch_pluginname.plugin:PluginName"
 ```
 
-You can potentially package multiple plugin types in one package, say you want to create a conversation and conference plugins for the same third-party. To accomplish this, alias the plugin in entry points to point at multiple plugins within your package:
+You can potentially package multiple plugin types in one package, say you want to create a conversation and conference plugins for the same third-party. To accomplish this, add multiple entries pointing at different plugins within your package:
 
-```python
-setup(
-    # ...
-    entry_points={
-        'dispatch.plugins': [
-            'pluginnameconversation = dispatch_pluginname.plugin:PluginNameConversation',
-            'pluginnameconference = dispatch_pluginname.plugin:PluginNameConference'
-        ],
-    },
-)
+```toml
+[project.entry-points."dispatch.plugins"]
+pluginnameconversation = "dispatch.plugins.dispatch_pluginname.plugin:PluginNameConversation"
+pluginnameconference = "dispatch.plugins.dispatch_pluginname.plugin:PluginNameConference"
 ```
 
-Once your plugin files are in place, you can load your plugin into your instance by installing your package:
-
-```bash
-> uv pip install -e .
-```
+Once your plugin files are in place and registered, `uv sync` (or `uv pip install -e .`) picks it up along with the rest of the package — no separate install step is needed for an in-tree plugin.
 
 :::info
-For more information about python packages see: [Python Packaging](https://packaging.python.org/en/latest/distributing.html)
+A plugin can still be distributed as its own external package with its own `setup.py`/`pyproject.toml` and `entry_points`/`[project.entry-points]` table, the same way any Python package registers entry points — see [Python Packaging](https://packaging.python.org/en/latest/distributing.html). No current Dispatch plugin does this; it's a viable option, not the established pattern.
 :::

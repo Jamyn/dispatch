@@ -28,6 +28,12 @@ cd src/dispatch/static/dispatch && npm ci   # frontend deps
 validation workflow (running the API, frontend dev server, and end-to-end
 tests against a sample-data-seeded database).
 
+If you install the `pre-push` hook from `.pre-commit-config.yaml`
+(`pre-commit install --hook-type pre-push`), it runs the full `pytest -v
+tests/` suite on every push. That needs a running Postgres and the same env
+vars as the local validation workflow above — set those up first, or the
+hook will fail for reasons unrelated to your change.
+
 ## Making changes
 
 - Keep pull requests focused — one logical change per PR.

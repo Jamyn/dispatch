@@ -1,5 +1,5 @@
 # Section mapping for GitHub's generated release notes, driven by the same
-# primary labels used across this fork's repositories.
+# primary labels used across this project's repositories.
 changelog:
   exclude:
     labels: [duplicate, invalid, wontfix, question]
