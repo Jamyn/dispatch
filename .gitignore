@@ -226,3 +226,5 @@ pyrightconfig.json
 
 # Local agent memory, deliberately untracked (same convention as dispatch-docker).
 CLAUDE.md
+data/.dump.tmp
+data/.dump.raw

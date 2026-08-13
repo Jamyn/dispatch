@@ -21,6 +21,37 @@ from dispatch.incident.models import Incident
 TOKEN = "zzarquux"
 
 
+_UNTRIGGERED_CORE_TABLES = """
+SELECT c.relname
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_attribute a ON a.attrelid = c.oid
+                   AND a.attname = 'search_vector'
+                   AND a.attnum > 0
+                   AND NOT a.attisdropped
+LEFT JOIN pg_trigger t ON t.tgrelid = c.oid AND NOT t.tgisinternal
+WHERE n.nspname = 'dispatch_core' AND c.relkind = 'r'
+GROUP BY 1
+HAVING count(t.oid) = 0
+"""
+
+
+def test_init_database_commits_the_core_search_triggers(session):
+    """The core schema half of the same connect()/begin() defect.
+
+    init_schema was fixed to commit its triggers; init_database was not, so a
+    fresh install rolled back all four dispatch_core triggers on the way out.
+    The tenant tests above cannot see it -- their triggers come from init_schema
+    -- and the sample-data suite restores a dump rather than running init.
+    """
+    from dispatch.database.core import engine
+
+    with engine.connect() as connection:
+        missing = [row[0] for row in connection.exec_driver_sql(_UNTRIGGERED_CORE_TABLES)]
+
+    assert not missing, f"init_database left these core triggers uncommitted: {missing}"
+
+
 @pytest.fixture
 def incident_described_as(session):
     """Creates an incident whose TOKEN appears only in `description`."""
