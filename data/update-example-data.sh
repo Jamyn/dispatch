@@ -38,18 +38,27 @@ dispatch database restore --dump-file ./dispatch-sample-data.dump
 echo "Running database migrations..."
 dispatch database upgrade
 echo "Dumping sql to file..."
-dispatch database dump --dump-file ./dispatch-sample-data.dump
+dispatch database dump --dump-file ./.dump.raw
 
 # pg_dump 18 brackets its output in \restrict/\unrestrict psql meta-commands
 # keyed on a token it regenerates every run. Keeping them would churn the
 # committed file on every regeneration and restrict the dump to psql, which is
 # not the only thing that loads it.
-grep -v '^\\restrict \|^\\unrestrict ' ./dispatch-sample-data.dump > ./.dump.tmp
-mv ./.dump.tmp ./dispatch-sample-data.dump
+grep -v '^\\restrict \|^\\unrestrict ' ./.dump.raw > ./.dump.tmp
+rm -f ./.dump.raw
 
 # This script restores, upgrades and re-dumps, so a schema the upgrade cannot
 # repair is round-tripped back out rather than fixed (issue #90). Verify the
-# file that was just written instead of trusting the round trip.
+# candidate before it replaces the committed dump -- overwriting first would
+# leave a bad file in place and the good one recoverable only from git.
+#
+# Note there is deliberately no "setval every sequence to max(id)" step here.
+# It would not be idempotent on this fixture: six sequences legitimately sit
+# ahead of their table's max because rows were deleted, and rewriting them to
+# max would churn the committed diff on every run and destroy that record. The
+# test below catches a sequence that is *behind*, which is the only broken case.
 echo "Verifying the regenerated dump against the models and its own sequences..."
 cd "${SCRIPT_DIR}/.."
-python -m pytest tests/database/test_sample_data.py -q
+DISPATCH_SAMPLE_DUMP="${SCRIPT_DIR}/.dump.tmp" python -m pytest tests/database/test_sample_data.py -q
+
+mv "${SCRIPT_DIR}/.dump.tmp" "${SCRIPT_DIR}/dispatch-sample-data.dump"

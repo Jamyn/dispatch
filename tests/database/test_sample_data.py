@@ -25,7 +25,13 @@ from dispatch import config
 from dispatch.database.core import Base
 from dispatch.database.manage import get_core_tables, get_tenant_tables
 
-DUMP = Path(__file__).parents[2] / "data" / "dispatch-sample-data.dump"
+# Overridable so update-example-data.sh can verify a candidate dump before it
+# replaces the committed one.
+DUMP = Path(
+    os.environ.get(
+        "DISPATCH_SAMPLE_DUMP", Path(__file__).parents[2] / "data" / "dispatch-sample-data.dump"
+    )
+)
 SAMPLE_DB = "dispatch-sample-data-test"
 TENANT_SCHEMA = "dispatch_organization_default"
 CORE_SCHEMA = "dispatch_core"
@@ -191,8 +197,6 @@ SELECT seq_ns.nspname AS sequence_schema,
        tab_ns.nspname AS table_schema,
        tab.relname    AS table_name,
        att.attname    AS column_name,
-       pg_sequence_last_value(seq.oid) AS last_value,
-       s.seqstart     AS start_value,
        s.seqincrement AS increment
 FROM pg_class seq
 JOIN pg_namespace seq_ns ON seq_ns.oid = seq.relnamespace
@@ -234,12 +238,19 @@ def test_sample_data_sequences_lead_their_tables(sample_data_engine):
             if highest is None:
                 continue  # an empty table constrains nothing
 
-            # pg_sequence_last_value is NULL until the sequence is first read,
-            # which is the is_called=false case: nothing has been handed out yet.
-            last = seq["last_value"]
-            if last is None:
-                last = seq["start_value"] - seq["increment"]
-            following = last + seq["increment"]
+            # Read the sequence itself rather than pg_sequence_last_value(),
+            # which reports NULL for *every* is_called=false sequence -- so
+            # `ALTER SEQUENCE ... RESTART WITH n` would be compared against the
+            # start value instead of n. Assumes CACHE 1, as all of these are: a
+            # cached sequence reports the reserved high-water mark, which would
+            # hide a collision rather than invent one.
+            sequence = (
+                f"{preparer.quote(seq['sequence_schema'])}.{preparer.quote(seq['sequence_name'])}"
+            )
+            last, is_called = connection.exec_driver_sql(
+                f"SELECT last_value, is_called FROM {sequence}"
+            ).one()
+            following = last + seq["increment"] if is_called else last
             if following <= highest:
                 collisions.append(
                     f"{seq['sequence_schema']}.{seq['sequence_name']}: next value "
@@ -253,34 +264,53 @@ def test_sample_data_sequences_lead_their_tables(sample_data_engine):
 # Triggers are per-table objects, so a table with no row in pg_trigger has no
 # trigger at all. tgisinternal is load-bearing: without it every table carrying
 # a foreign key looks like it has one.
+# The whole definition, not just the trigger row: an unweighted table gets the
+# builtin tsvector_update_trigger with its regconfig as a literal argument, a
+# weighted one gets a generated function whose body carries it. Only the pair
+# tells you which text search configuration the table is actually indexed with.
 _SEARCH_VECTOR_TRIGGERS = """
 SELECT n.nspname AS schema_name,
        c.relname AS table_name,
-       count(t.oid) FILTER (WHERE NOT t.tgisinternal) AS triggers
+       coalesce(
+         string_agg(
+           pg_get_triggerdef(t.oid) ||
+           coalesce(' ' || pg_get_functiondef(t.tgfoid), ''), ' '),
+         '') AS definition
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 JOIN pg_attribute a ON a.attrelid = c.oid
                    AND a.attname = 'search_vector'
                    AND a.attnum > 0
                    AND NOT a.attisdropped
-LEFT JOIN pg_trigger t ON t.tgrelid = c.oid
-WHERE c.relkind = 'r'
+LEFT JOIN pg_trigger t ON t.tgrelid = c.oid AND NOT t.tgisinternal
+WHERE c.relkind IN ('r', 'p')
   AND starts_with(n.nspname, 'dispatch')
 GROUP BY 1, 2
 """
 
 
-def _searchable_tables() -> set[tuple[str, str]]:
-    """(schema, table) for every model column the trigger machinery covers."""
-    expected = set()
-    for schema, tables in ((CORE_SCHEMA, get_core_tables()), (TENANT_SCHEMA, get_tenant_tables())):
-        for table in tables:
-            for column in table.columns:
-                # setup_fulltext_search only installs a trigger when the
-                # TSVectorType names the columns to index.
-                if column.name.endswith("search_vector") and hasattr(column.type, "columns"):
-                    expected.add((schema, table.name))
+def _searchable_tables() -> dict[tuple[str, str], str]:
+    """(schema, table) -> regconfig, for every column the trigger machinery covers.
+
+    Snapshotted at import for the same reason _MODEL_METADATA is: init_schema
+    assigns Table.schema in place on the shared metadata, after which
+    get_tenant_tables() reports nothing and this silently shrinks to the four
+    core tables -- which still passes, because the tenant tables it was written
+    to guard have simply left the expected set.
+    """
+    expected = {}
+    for table in Base.metadata.tables.values():
+        schema = CORE_SCHEMA if table.schema == CORE_SCHEMA else TENANT_SCHEMA
+        for column in table.columns:
+            # setup_fulltext_search only installs a trigger when the
+            # TSVectorType names the columns to index.
+            if column.name.endswith("search_vector") and hasattr(column.type, "columns"):
+                options = getattr(column.type, "options", None) or {}
+                expected[(schema, table.name)] = options.get("regconfig", "pg_catalog.english")
     return expected
+
+
+_SEARCHABLE_TABLES = _searchable_tables()
 
 
 def test_upgraded_sample_data_has_every_search_vector_trigger(sample_data_engine):
@@ -290,20 +320,34 @@ def test_upgraded_sample_data_has_every_search_vector_trigger(sample_data_engine
     a migration got its column and its GIN index but nothing to fill them. The
     result is invisible: `database.service.search` ORs the vector match with a
     `name ILIKE` fallback, so search keeps returning plausible rows.
+
+    Also checks the text search configuration, because "has a trigger" is too
+    weak a property: sync_trigger falls back to an unweighted english trigger
+    when it cannot see the model's TSVectorType options, so a table can be
+    repaired into indexing under the wrong configuration and still look fixed.
     """
     with sample_data_engine.connect() as connection:
         found = {
-            (row.schema_name, row.table_name): row.triggers
+            (row.schema_name, row.table_name): row.definition
             for row in connection.exec_driver_sql(_SEARCH_VECTOR_TRIGGERS)
         }
 
-    untriggered = sorted(
-        f"{schema}.{table}"
-        for schema, table in _searchable_tables()
-        if found.get((schema, table)) == 0
-    )
+    assert _SEARCHABLE_TABLES, "the expected set collapsed; see _searchable_tables"
+
+    untriggered, misconfigured = [], []
+    for (schema, table), regconfig in sorted(_SEARCHABLE_TABLES.items()):
+        # A table absent from the catalog result has no trigger either.
+        definition = found.get((schema, table), "")
+        if not definition:
+            untriggered.append(f"{schema}.{table}")
+        elif regconfig not in definition:
+            misconfigured.append(f"{schema}.{table}: expected {regconfig}")
+
     assert not untriggered, "search_vector columns with no trigger to populate them:\n" + "\n".join(
         untriggered
+    )
+    assert not misconfigured, "triggers indexing under the wrong config:\n" + "\n".join(
+        misconfigured
     )
 
 
