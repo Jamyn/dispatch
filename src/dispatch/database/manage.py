@@ -66,7 +66,9 @@ def init_database(engine: Engine):
     Base.metadata.create_all(engine, tables=tables)
 
     version_schema(script_location=config.ALEMBIC_CORE_REVISION_PATH)
-    with engine.connect() as connection:
+    # begin(), not connect(): connect() never commits, so every core trigger was
+    # rolled back on the way out and a fresh install started with none of them.
+    with engine.begin() as connection:
         setup_fulltext_search(connection, tables)
 
     # setup an required database functions
@@ -170,14 +172,16 @@ def init_schema(*, engine: Engine, organization: Organization) -> Organization:
     return organization
 
 
-def setup_fulltext_search(connection: Connection, tables: list[Table]) -> None:
-    """Syncs any required fulltext table triggers and functions."""
-    # parsing functions
-    function_path = os.path.join(
-        os.path.dirname(os.path.abspath(fulltext.__file__)), "expressions.sql"
-    )
-    connection.execute(text(open(function_path).read()))
+def sync_search_triggers(connection: Connection, tables: list[Table]) -> None:
+    """Installs the tsvector trigger for every search_vector column on `tables`.
 
+    Split out of setup_fulltext_search so a migration can repair triggers
+    without also re-running expressions.sql, whose first statement is a
+    `DROP TYPE ... CASCADE` that would take the running application's tsq_parse
+    with it. The indexed columns, weights and regconfig come from the model's
+    TSVectorType -- a reflected column carries none of them, and sync_trigger
+    silently falls back to an unweighted english trigger when they are missing.
+    """
     for table in tables:
         table_triggers = []
         for column in table.columns:
@@ -198,3 +202,14 @@ def setup_fulltext_search(connection: Connection, tables: list[Table]) -> None:
 
         for trigger in table_triggers:
             sync_trigger(**trigger)
+
+
+def setup_fulltext_search(connection: Connection, tables: list[Table]) -> None:
+    """Syncs any required fulltext table triggers and functions."""
+    # parsing functions
+    function_path = os.path.join(
+        os.path.dirname(os.path.abspath(fulltext.__file__)), "expressions.sql"
+    )
+    connection.execute(text(open(function_path).read()))
+
+    sync_search_triggers(connection, tables)
