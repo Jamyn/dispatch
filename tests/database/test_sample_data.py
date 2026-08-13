@@ -292,11 +292,12 @@ GROUP BY 1, 2
 def _searchable_tables() -> dict[tuple[str, str], str]:
     """(schema, table) -> regconfig, for every column the trigger machinery covers.
 
-    Snapshotted at import for the same reason _MODEL_METADATA is: init_schema
-    assigns Table.schema in place on the shared metadata, after which
-    get_tenant_tables() reports nothing and this silently shrinks to the four
-    core tables -- which still passes, because the tenant tables it was written
-    to guard have simply left the expected set.
+    Reads Base.metadata directly rather than through get_tenant_tables(), which
+    selects on `schema is None` and so reports nothing once the db fixture has
+    run init_schema and assigned Table.schema in place. Bucketing on "core or
+    else tenant" survives that mutation; selecting on it would leave this
+    covering only the four core tables, and still passing, because the tenant
+    tables it exists to guard would have left the expected set entirely.
     """
     expected = {}
     for table in Base.metadata.tables.values():
@@ -310,6 +311,8 @@ def _searchable_tables() -> dict[tuple[str, str], str]:
     return expected
 
 
+# Taken at import, before any fixture can touch the metadata. Belt and braces:
+# the bucketing above already tolerates that mutation.
 _SEARCHABLE_TABLES = _searchable_tables()
 
 

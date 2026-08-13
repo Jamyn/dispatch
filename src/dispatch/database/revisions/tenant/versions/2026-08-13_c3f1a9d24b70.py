@@ -11,9 +11,17 @@ so this reconciles every tenant table carrying a `search_vector` rather than a
 list frozen at authoring time. `sync_trigger` drops and recreates, so tables
 that already have a correct trigger are unaffected.
 
-Note this backfills by rewriting every row of each repaired table, which on a
-large `case`, `incident` or `entity` is not free -- treat it as a maintenance
-window rather than an incidental upgrade step.
+This backfills by rewriting every row of each repaired table. env.py wraps a
+whole schema in one transaction, so the ACCESS EXCLUSIVE that each DROP TRIGGER
+takes is held -- blocking reads as well as writes -- until every table in that
+schema has been rewritten, not just for its own statement. Treat it as a
+maintenance window, not an incidental upgrade step.
+
+Reading the models rather than a frozen column list is what keeps weights and
+regconfig correct, but it costs the usual guarantee that a revision means the
+same thing forever: if a model later drops an indexed column, replaying this
+against a database old enough to predate that column emits a trigger naming a
+column it does not have, and the upgrade fails here.
 
 Revision ID: c3f1a9d24b70
 Revises: ff08d822ef2c
