@@ -7258,7 +7258,7 @@ SELECT pg_catalog.setval('dispatch_organization_default.incident_severity_id_seq
 -- Name: incident_type_id_seq; Type: SEQUENCE SET; Schema: dispatch_organization_default; Owner: postgres
 --
 
-SELECT pg_catalog.setval('dispatch_organization_default.incident_type_id_seq', 3, true);
+SELECT pg_catalog.setval('dispatch_organization_default.incident_type_id_seq', 6, true);
 
 
 --

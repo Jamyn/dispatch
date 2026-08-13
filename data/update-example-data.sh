@@ -50,6 +50,6 @@ mv ./.dump.tmp ./dispatch-sample-data.dump
 # This script restores, upgrades and re-dumps, so a schema the upgrade cannot
 # repair is round-tripped back out rather than fixed (issue #90). Verify the
 # file that was just written instead of trusting the round trip.
-echo "Verifying the regenerated dump against the models..."
+echo "Verifying the regenerated dump against the models and its own sequences..."
 cd "${SCRIPT_DIR}/.."
 python -m pytest tests/database/test_sample_data.py -q
