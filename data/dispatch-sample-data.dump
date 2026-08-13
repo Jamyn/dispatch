@@ -2,12 +2,14 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 14.6 (Debian 14.6-1.pgdg110+1)
--- Dumped by pg_dump version 14.17 (Homebrew)
+
+-- Dumped from database version 18.4 (Debian 18.4-1.pgdg13+1)
+-- Dumped by pg_dump version 18.4 (Debian 18.4-1.pgdg13+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -1937,7 +1939,7 @@ CREATE SEQUENCE dispatch_core.dispatch_user_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_core.dispatch_user_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_core.dispatch_user_id_seq OWNER TO postgres;
 
 --
 -- Name: dispatch_user_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_core; Owner: postgres
@@ -1960,6 +1962,43 @@ CREATE TABLE dispatch_core.dispatch_user_organization (
 
 
 ALTER TABLE dispatch_core.dispatch_user_organization OWNER TO postgres;
+
+--
+-- Name: dispatch_user_settings; Type: TABLE; Schema: dispatch_core; Owner: postgres
+--
+
+CREATE TABLE dispatch_core.dispatch_user_settings (
+    id integer NOT NULL,
+    dispatch_user_id integer,
+    auto_add_to_incident_bridges boolean,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+ALTER TABLE dispatch_core.dispatch_user_settings OWNER TO postgres;
+
+--
+-- Name: dispatch_user_settings_id_seq; Type: SEQUENCE; Schema: dispatch_core; Owner: postgres
+--
+
+CREATE SEQUENCE dispatch_core.dispatch_user_settings_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE dispatch_core.dispatch_user_settings_id_seq OWNER TO postgres;
+
+--
+-- Name: dispatch_user_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_core; Owner: postgres
+--
+
+ALTER SEQUENCE dispatch_core.dispatch_user_settings_id_seq OWNED BY dispatch_core.dispatch_user_settings.id;
+
 
 --
 -- Name: organization; Type: TABLE; Schema: dispatch_core; Owner: postgres
@@ -1993,7 +2032,7 @@ CREATE SEQUENCE dispatch_core.organization_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_core.organization_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_core.organization_id_seq OWNER TO postgres;
 
 --
 -- Name: organization_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_core; Owner: postgres
@@ -2051,7 +2090,7 @@ CREATE SEQUENCE dispatch_core.plugin_event_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_core.plugin_event_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_core.plugin_event_id_seq OWNER TO postgres;
 
 --
 -- Name: plugin_event_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_core; Owner: postgres
@@ -2073,7 +2112,7 @@ CREATE SEQUENCE dispatch_core.plugin_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_core.plugin_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_core.plugin_id_seq OWNER TO postgres;
 
 --
 -- Name: plugin_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_core; Owner: postgres
@@ -2125,7 +2164,7 @@ CREATE SEQUENCE dispatch_organization_default.alert_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.alert_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.alert_id_seq OWNER TO postgres;
 
 --
 -- Name: alert_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2387,6 +2426,46 @@ CREATE TABLE dispatch_organization_default.assoc_team_contact_filters (
 ALTER TABLE dispatch_organization_default.assoc_team_contact_filters OWNER TO postgres;
 
 --
+-- Name: canvas; Type: TABLE; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TABLE dispatch_organization_default.canvas (
+    id integer NOT NULL,
+    canvas_id character varying NOT NULL,
+    incident_id integer,
+    case_id integer,
+    type character varying NOT NULL,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone,
+    project_id integer
+);
+
+
+ALTER TABLE dispatch_organization_default.canvas OWNER TO postgres;
+
+--
+-- Name: canvas_id_seq; Type: SEQUENCE; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE SEQUENCE dispatch_organization_default.canvas_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE dispatch_organization_default.canvas_id_seq OWNER TO postgres;
+
+--
+-- Name: canvas_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER SEQUENCE dispatch_organization_default.canvas_id_seq OWNED BY dispatch_organization_default.canvas.id;
+
+
+--
 -- Name: case; Type: TABLE; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -2421,7 +2500,9 @@ CREATE TABLE dispatch_organization_default."case" (
     reporter_id integer,
     dedicated_channel boolean,
     genai_analysis jsonb DEFAULT '{}'::jsonb NOT NULL,
-    event boolean
+    event boolean,
+    stable_at timestamp without time zone,
+    resolved_by_id integer
 );
 
 
@@ -2457,7 +2538,7 @@ CREATE SEQUENCE dispatch_organization_default.case_cost_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.case_cost_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.case_cost_id_seq OWNER TO postgres;
 
 --
 -- Name: case_cost_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2476,12 +2557,12 @@ CREATE TABLE dispatch_organization_default.case_cost_type (
     description character varying,
     category character varying,
     details json,
-    "default" boolean,
     editable boolean,
     search_vector tsvector,
     project_id integer,
     updated_at timestamp without time zone,
-    created_at timestamp without time zone
+    created_at timestamp without time zone,
+    model_type character varying
 );
 
 
@@ -2500,7 +2581,7 @@ CREATE SEQUENCE dispatch_organization_default.case_cost_type_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.case_cost_type_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.case_cost_type_id_seq OWNER TO postgres;
 
 --
 -- Name: case_cost_type_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2522,13 +2603,51 @@ CREATE SEQUENCE dispatch_organization_default.case_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.case_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.case_id_seq OWNER TO postgres;
 
 --
 -- Name: case_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
 --
 
 ALTER SEQUENCE dispatch_organization_default.case_id_seq OWNED BY dispatch_organization_default."case".id;
+
+
+--
+-- Name: case_notes; Type: TABLE; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TABLE dispatch_organization_default.case_notes (
+    id integer NOT NULL,
+    content character varying,
+    case_id integer,
+    last_updated_by_id integer,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone
+);
+
+
+ALTER TABLE dispatch_organization_default.case_notes OWNER TO postgres;
+
+--
+-- Name: case_notes_id_seq; Type: SEQUENCE; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE SEQUENCE dispatch_organization_default.case_notes_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE dispatch_organization_default.case_notes_id_seq OWNER TO postgres;
+
+--
+-- Name: case_notes_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER SEQUENCE dispatch_organization_default.case_notes_id_seq OWNED BY dispatch_organization_default.case_notes.id;
 
 
 --
@@ -2545,7 +2664,8 @@ CREATE TABLE dispatch_organization_default.case_priority (
     view_order integer,
     search_vector tsvector,
     project_id integer,
-    page_assignee boolean
+    page_assignee boolean,
+    disable_delayed_message_warning boolean DEFAULT false
 );
 
 
@@ -2564,7 +2684,7 @@ CREATE SEQUENCE dispatch_organization_default.case_priority_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.case_priority_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.case_priority_id_seq OWNER TO postgres;
 
 --
 -- Name: case_priority_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2605,7 +2725,7 @@ CREATE SEQUENCE dispatch_organization_default.case_severity_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.case_severity_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.case_severity_id_seq OWNER TO postgres;
 
 --
 -- Name: case_severity_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2634,7 +2754,8 @@ CREATE TABLE dispatch_organization_default.case_type (
     incident_type_id integer,
     conversation_target character varying,
     cost_model_id integer,
-    auto_close boolean DEFAULT false
+    auto_close boolean DEFAULT false,
+    generate_read_in_summary boolean DEFAULT false
 );
 
 
@@ -2653,7 +2774,7 @@ CREATE SEQUENCE dispatch_organization_default.case_type_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.case_type_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.case_type_id_seq OWNER TO postgres;
 
 --
 -- Name: case_type_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2694,7 +2815,7 @@ CREATE SEQUENCE dispatch_organization_default.conference_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.conference_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.conference_id_seq OWNER TO postgres;
 
 --
 -- Name: conference_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2736,7 +2857,7 @@ CREATE SEQUENCE dispatch_organization_default.conversation_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.conversation_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.conversation_id_seq OWNER TO postgres;
 
 --
 -- Name: conversation_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2790,7 +2911,7 @@ CREATE SEQUENCE dispatch_organization_default.cost_model_activity_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.cost_model_activity_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.cost_model_activity_id_seq OWNER TO postgres;
 
 --
 -- Name: cost_model_activity_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2812,7 +2933,7 @@ CREATE SEQUENCE dispatch_organization_default.cost_model_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.cost_model_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.cost_model_id_seq OWNER TO postgres;
 
 --
 -- Name: cost_model_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2849,7 +2970,7 @@ CREATE SEQUENCE dispatch_organization_default.definition_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.definition_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.definition_id_seq OWNER TO postgres;
 
 --
 -- Name: definition_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2938,7 +3059,7 @@ CREATE SEQUENCE dispatch_organization_default.document_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.document_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.document_id_seq OWNER TO postgres;
 
 --
 -- Name: document_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -2979,7 +3100,7 @@ CREATE SEQUENCE dispatch_organization_default.email_templates_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.email_templates_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.email_templates_id_seq OWNER TO postgres;
 
 --
 -- Name: email_templates_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3021,7 +3142,7 @@ CREATE SEQUENCE dispatch_organization_default.entity_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.entity_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.entity_id_seq OWNER TO postgres;
 
 --
 -- Name: entity_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3064,7 +3185,7 @@ CREATE SEQUENCE dispatch_organization_default.entity_type_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.entity_type_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.entity_type_id_seq OWNER TO postgres;
 
 --
 -- Name: entity_type_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3114,7 +3235,7 @@ CREATE SEQUENCE dispatch_organization_default.event_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.event_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.event_id_seq OWNER TO postgres;
 
 --
 -- Name: event_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3156,7 +3277,7 @@ CREATE SEQUENCE dispatch_organization_default.feedback_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.feedback_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.feedback_id_seq OWNER TO postgres;
 
 --
 -- Name: feedback_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3202,7 +3323,7 @@ CREATE SEQUENCE dispatch_organization_default.forms_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.forms_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.forms_id_seq OWNER TO postgres;
 
 --
 -- Name: forms_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3246,7 +3367,7 @@ CREATE SEQUENCE dispatch_organization_default.forms_type_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.forms_type_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.forms_type_id_seq OWNER TO postgres;
 
 --
 -- Name: forms_type_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3288,7 +3409,7 @@ CREATE SEQUENCE dispatch_organization_default.group_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.group_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.group_id_seq OWNER TO postgres;
 
 --
 -- Name: group_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3370,7 +3491,7 @@ CREATE SEQUENCE dispatch_organization_default.incident_cost_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.incident_cost_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.incident_cost_id_seq OWNER TO postgres;
 
 --
 -- Name: incident_cost_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3413,7 +3534,7 @@ CREATE SEQUENCE dispatch_organization_default.incident_cost_type_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.incident_cost_type_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.incident_cost_type_id_seq OWNER TO postgres;
 
 --
 -- Name: incident_cost_type_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3435,7 +3556,7 @@ CREATE SEQUENCE dispatch_organization_default.incident_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.incident_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.incident_id_seq OWNER TO postgres;
 
 --
 -- Name: incident_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3480,7 +3601,7 @@ CREATE SEQUENCE dispatch_organization_default.incident_priority_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.incident_priority_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.incident_priority_id_seq OWNER TO postgres;
 
 --
 -- Name: incident_priority_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3522,7 +3643,7 @@ CREATE SEQUENCE dispatch_organization_default.incident_role_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.incident_role_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.incident_role_id_seq OWNER TO postgres;
 
 --
 -- Name: incident_role_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3600,7 +3721,7 @@ CREATE SEQUENCE dispatch_organization_default.incident_severity_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.incident_severity_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.incident_severity_id_seq OWNER TO postgres;
 
 --
 -- Name: incident_severity_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3636,7 +3757,8 @@ CREATE TABLE dispatch_organization_default.incident_type (
     cost_model_id integer,
     channel_description character varying,
     description_service_id integer,
-    task_plugin_metadata json DEFAULT '[]'::json
+    task_plugin_metadata json DEFAULT '[]'::json,
+    generate_read_in_summary boolean DEFAULT false
 );
 
 
@@ -3655,7 +3777,7 @@ CREATE SEQUENCE dispatch_organization_default.incident_type_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.incident_type_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.incident_type_id_seq OWNER TO postgres;
 
 --
 -- Name: incident_type_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3706,7 +3828,7 @@ CREATE SEQUENCE dispatch_organization_default.individual_contact_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.individual_contact_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.individual_contact_id_seq OWNER TO postgres;
 
 --
 -- Name: individual_contact_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3747,7 +3869,7 @@ CREATE SEQUENCE dispatch_organization_default.mfa_challenge_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.mfa_challenge_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.mfa_challenge_id_seq OWNER TO postgres;
 
 --
 -- Name: mfa_challenge_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3790,7 +3912,7 @@ CREATE SEQUENCE dispatch_organization_default.monitor_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.monitor_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.monitor_id_seq OWNER TO postgres;
 
 --
 -- Name: monitor_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3836,7 +3958,7 @@ CREATE SEQUENCE dispatch_organization_default.notification_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.notification_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.notification_id_seq OWNER TO postgres;
 
 --
 -- Name: notification_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3897,7 +4019,7 @@ CREATE SEQUENCE dispatch_organization_default.participant_activity_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.participant_activity_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.participant_activity_id_seq OWNER TO postgres;
 
 --
 -- Name: participant_activity_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3919,7 +4041,7 @@ CREATE SEQUENCE dispatch_organization_default.participant_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.participant_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.participant_id_seq OWNER TO postgres;
 
 --
 -- Name: participant_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3957,7 +4079,7 @@ CREATE SEQUENCE dispatch_organization_default.participant_role_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.participant_role_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.participant_role_id_seq OWNER TO postgres;
 
 --
 -- Name: participant_role_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -3994,7 +4116,7 @@ CREATE SEQUENCE dispatch_organization_default.plugin_instance_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.plugin_instance_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.plugin_instance_id_seq OWNER TO postgres;
 
 --
 -- Name: plugin_instance_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4010,7 +4132,7 @@ ALTER SEQUENCE dispatch_organization_default.plugin_instance_id_seq OWNED BY dis
 CREATE TABLE dispatch_organization_default.project (
     id integer NOT NULL,
     name character varying,
-    display_name character varying,
+    display_name character varying DEFAULT ''::character varying NOT NULL,
     description character varying,
     "default" boolean,
     color character varying,
@@ -4034,7 +4156,8 @@ CREATE TABLE dispatch_organization_default.project (
     report_incident_instructions character varying,
     report_incident_title_hint character varying,
     report_incident_description_hint character varying,
-    snooze_extension_oncall_service_id integer
+    snooze_extension_oncall_service_id integer,
+    suggest_security_event_over_incident boolean DEFAULT false
 );
 
 
@@ -4053,13 +4176,53 @@ CREATE SEQUENCE dispatch_organization_default.project_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.project_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.project_id_seq OWNER TO postgres;
 
 --
 -- Name: project_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
 --
 
 ALTER SEQUENCE dispatch_organization_default.project_id_seq OWNED BY dispatch_organization_default.project.id;
+
+
+--
+-- Name: prompt; Type: TABLE; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TABLE dispatch_organization_default.prompt (
+    id integer NOT NULL,
+    genai_type integer NOT NULL,
+    genai_prompt character varying NOT NULL,
+    genai_system_message character varying,
+    enabled boolean NOT NULL,
+    created_at timestamp without time zone,
+    updated_at timestamp without time zone,
+    project_id integer
+);
+
+
+ALTER TABLE dispatch_organization_default.prompt OWNER TO postgres;
+
+--
+-- Name: prompt_id_seq; Type: SEQUENCE; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE SEQUENCE dispatch_organization_default.prompt_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE dispatch_organization_default.prompt_id_seq OWNER TO postgres;
+
+--
+-- Name: prompt_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER SEQUENCE dispatch_organization_default.prompt_id_seq OWNED BY dispatch_organization_default.prompt.id;
 
 
 --
@@ -4095,7 +4258,7 @@ CREATE SEQUENCE dispatch_organization_default.query_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.query_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.query_id_seq OWNER TO postgres;
 
 --
 -- Name: query_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4130,7 +4293,7 @@ CREATE SEQUENCE dispatch_organization_default.recommendation_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.recommendation_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.recommendation_id_seq OWNER TO postgres;
 
 --
 -- Name: recommendation_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4167,7 +4330,7 @@ CREATE SEQUENCE dispatch_organization_default.recommendation_match_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.recommendation_match_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.recommendation_match_id_seq OWNER TO postgres;
 
 --
 -- Name: recommendation_match_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4207,7 +4370,7 @@ CREATE SEQUENCE dispatch_organization_default.report_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.report_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.report_id_seq OWNER TO postgres;
 
 --
 -- Name: report_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4250,7 +4413,7 @@ CREATE SEQUENCE dispatch_organization_default.search_filter_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.search_filter_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.search_filter_id_seq OWNER TO postgres;
 
 --
 -- Name: search_filter_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4321,7 +4484,7 @@ CREATE SEQUENCE dispatch_organization_default.service_feedback_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.service_feedback_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.service_feedback_id_seq OWNER TO postgres;
 
 --
 -- Name: service_feedback_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4363,7 +4526,7 @@ CREATE SEQUENCE dispatch_organization_default.service_feedback_reminder_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.service_feedback_reminder_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.service_feedback_reminder_id_seq OWNER TO postgres;
 
 --
 -- Name: service_feedback_reminder_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4385,7 +4548,7 @@ CREATE SEQUENCE dispatch_organization_default.service_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.service_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.service_id_seq OWNER TO postgres;
 
 --
 -- Name: service_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4464,7 +4627,7 @@ CREATE SEQUENCE dispatch_organization_default.signal_engagement_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.signal_engagement_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.signal_engagement_id_seq OWNER TO postgres;
 
 --
 -- Name: signal_engagement_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4513,7 +4676,7 @@ CREATE SEQUENCE dispatch_organization_default.signal_filter_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.signal_filter_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.signal_filter_id_seq OWNER TO postgres;
 
 --
 -- Name: signal_filter_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4535,7 +4698,7 @@ CREATE SEQUENCE dispatch_organization_default.signal_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.signal_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.signal_id_seq OWNER TO postgres;
 
 --
 -- Name: signal_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4632,7 +4795,7 @@ CREATE SEQUENCE dispatch_organization_default.source_data_format_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.source_data_format_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.source_data_format_id_seq OWNER TO postgres;
 
 --
 -- Name: source_data_format_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4669,7 +4832,7 @@ CREATE SEQUENCE dispatch_organization_default.source_environment_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.source_environment_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.source_environment_id_seq OWNER TO postgres;
 
 --
 -- Name: source_environment_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4691,7 +4854,7 @@ CREATE SEQUENCE dispatch_organization_default.source_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.source_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.source_id_seq OWNER TO postgres;
 
 --
 -- Name: source_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4728,7 +4891,7 @@ CREATE SEQUENCE dispatch_organization_default.source_status_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.source_status_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.source_status_id_seq OWNER TO postgres;
 
 --
 -- Name: source_status_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4765,7 +4928,7 @@ CREATE SEQUENCE dispatch_organization_default.source_transport_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.source_transport_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.source_transport_id_seq OWNER TO postgres;
 
 --
 -- Name: source_transport_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4802,7 +4965,7 @@ CREATE SEQUENCE dispatch_organization_default.source_type_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.source_type_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.source_type_id_seq OWNER TO postgres;
 
 --
 -- Name: source_type_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4842,7 +5005,7 @@ CREATE SEQUENCE dispatch_organization_default.storage_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.storage_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.storage_id_seq OWNER TO postgres;
 
 --
 -- Name: storage_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4886,7 +5049,7 @@ CREATE SEQUENCE dispatch_organization_default.tag_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.tag_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.tag_id_seq OWNER TO postgres;
 
 --
 -- Name: tag_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4917,7 +5080,8 @@ CREATE TABLE dispatch_organization_default.tag_type (
     icon character varying,
     required boolean,
     use_for_project_folder boolean DEFAULT false,
-    discoverable_document boolean
+    discoverable_document boolean,
+    genai_suggestions boolean
 );
 
 
@@ -4936,7 +5100,7 @@ CREATE SEQUENCE dispatch_organization_default.tag_type_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.tag_type_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.tag_type_id_seq OWNER TO postgres;
 
 --
 -- Name: tag_type_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -4998,7 +5162,7 @@ CREATE SEQUENCE dispatch_organization_default.task_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.task_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.task_id_seq OWNER TO postgres;
 
 --
 -- Name: task_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -5047,7 +5211,7 @@ CREATE SEQUENCE dispatch_organization_default.team_contact_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.team_contact_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.team_contact_id_seq OWNER TO postgres;
 
 --
 -- Name: team_contact_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -5096,7 +5260,7 @@ CREATE SEQUENCE dispatch_organization_default.term_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.term_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.term_id_seq OWNER TO postgres;
 
 --
 -- Name: term_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -5137,7 +5301,7 @@ CREATE SEQUENCE dispatch_organization_default.ticket_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.ticket_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.ticket_id_seq OWNER TO postgres;
 
 --
 -- Name: ticket_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -5180,7 +5344,7 @@ CREATE SEQUENCE dispatch_organization_default.workflow_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.workflow_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.workflow_id_seq OWNER TO postgres;
 
 --
 -- Name: workflow_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -5262,7 +5426,7 @@ CREATE SEQUENCE dispatch_organization_default.workflow_instance_id_seq
     CACHE 1;
 
 
-ALTER TABLE dispatch_organization_default.workflow_instance_id_seq OWNER TO postgres;
+ALTER SEQUENCE dispatch_organization_default.workflow_instance_id_seq OWNER TO postgres;
 
 --
 -- Name: workflow_instance_id_seq; Type: SEQUENCE OWNED BY; Schema: dispatch_organization_default; Owner: postgres
@@ -5284,1646 +5448,17 @@ CREATE TABLE dispatch_organization_default.workflow_term (
 ALTER TABLE dispatch_organization_default.workflow_term OWNER TO postgres;
 
 --
--- Name: alembic_version; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.alembic_version (
-    version_num character varying(32) NOT NULL
-);
-
-
-ALTER TABLE public.alembic_version OWNER TO postgres;
-
---
--- Name: assoc_incident_tags; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.assoc_incident_tags (
-    incident_id integer NOT NULL,
-    tag_id integer NOT NULL
-);
-
-
-ALTER TABLE public.assoc_incident_tags OWNER TO postgres;
-
---
--- Name: assoc_incident_terms; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.assoc_incident_terms (
-    incident_id integer NOT NULL,
-    term_id integer NOT NULL
-);
-
-
-ALTER TABLE public.assoc_incident_terms OWNER TO postgres;
-
---
--- Name: assoc_individual_contact_incident_priority; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.assoc_individual_contact_incident_priority (
-    incident_priority_id integer NOT NULL,
-    individual_contact_id integer NOT NULL
-);
-
-
-ALTER TABLE public.assoc_individual_contact_incident_priority OWNER TO postgres;
-
---
--- Name: assoc_individual_contact_incident_type; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.assoc_individual_contact_incident_type (
-    incident_type_id integer NOT NULL,
-    individual_contact_id integer NOT NULL
-);
-
-
-ALTER TABLE public.assoc_individual_contact_incident_type OWNER TO postgres;
-
---
--- Name: assoc_individual_contact_terms; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.assoc_individual_contact_terms (
-    term_id integer NOT NULL,
-    individual_contact_id integer NOT NULL
-);
-
-
-ALTER TABLE public.assoc_individual_contact_terms OWNER TO postgres;
-
---
--- Name: assoc_notification_filters; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.assoc_notification_filters (
-    notification_id integer NOT NULL,
-    search_filter_id integer NOT NULL
-);
-
-
-ALTER TABLE public.assoc_notification_filters OWNER TO postgres;
-
---
--- Name: conference; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.conference (
-    resource_type character varying,
-    resource_id character varying,
-    weblink character varying,
-    id integer NOT NULL,
-    conference_id character varying,
-    conference_challenge character varying DEFAULT 'N/A'::character varying NOT NULL,
-    incident_id integer,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public.conference OWNER TO postgres;
-
---
--- Name: conference_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.conference_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.conference_id_seq OWNER TO postgres;
-
---
--- Name: conference_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.conference_id_seq OWNED BY public.conference.id;
-
-
---
--- Name: conversation; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.conversation (
-    resource_type character varying,
-    resource_id character varying,
-    weblink character varying,
-    id integer NOT NULL,
-    channel_id character varying,
-    incident_id integer,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
-);
-
-
-ALTER TABLE public.conversation OWNER TO postgres;
-
---
--- Name: conversation_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.conversation_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.conversation_id_seq OWNER TO postgres;
-
---
--- Name: conversation_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.conversation_id_seq OWNED BY public.conversation.id;
-
-
---
--- Name: definition; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.definition (
-    id integer NOT NULL,
-    text character varying,
-    source character varying,
-    search_vector tsvector
-);
-
-
-ALTER TABLE public.definition OWNER TO postgres;
-
---
--- Name: definition_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.definition_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.definition_id_seq OWNER TO postgres;
-
---
--- Name: definition_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.definition_id_seq OWNED BY public.definition.id;
-
-
---
--- Name: definition_teams; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.definition_teams (
-    definition_id integer NOT NULL,
-    team_contact_id integer NOT NULL
-);
-
-
-ALTER TABLE public.definition_teams OWNER TO postgres;
-
---
--- Name: definition_terms; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.definition_terms (
-    definition_id integer NOT NULL,
-    term_id integer NOT NULL
-);
-
-
-ALTER TABLE public.definition_terms OWNER TO postgres;
-
---
--- Name: dispatch_user; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.dispatch_user (
-    id integer NOT NULL,
-    email character varying,
-    password bytea NOT NULL,
-    role character varying NOT NULL,
-    search_vector tsvector,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public.dispatch_user OWNER TO postgres;
-
---
--- Name: dispatch_user_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.dispatch_user_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.dispatch_user_id_seq OWNER TO postgres;
-
---
--- Name: dispatch_user_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.dispatch_user_id_seq OWNED BY public.dispatch_user.id;
-
-
---
--- Name: document; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.document (
-    resource_type character varying,
-    resource_id character varying,
-    weblink character varying,
-    id integer NOT NULL,
-    name character varying,
-    description character varying,
-    report_id integer,
-    search_vector tsvector,
-    incident_id integer,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone,
-    evergreen boolean,
-    evergreen_last_reminder_at timestamp without time zone,
-    evergreen_owner character varying,
-    evergreen_reminder_interval integer
-);
-
-
-ALTER TABLE public.document OWNER TO postgres;
-
---
--- Name: document_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.document_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.document_id_seq OWNER TO postgres;
-
---
--- Name: document_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.document_id_seq OWNED BY public.document.id;
-
-
---
--- Name: document_incident_priority; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.document_incident_priority (
-    incident_priority_id integer NOT NULL,
-    document_id integer NOT NULL
-);
-
-
-ALTER TABLE public.document_incident_priority OWNER TO postgres;
-
---
--- Name: document_incident_type; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.document_incident_type (
-    incident_type_id integer NOT NULL,
-    document_id integer NOT NULL
-);
-
-
-ALTER TABLE public.document_incident_type OWNER TO postgres;
-
---
--- Name: document_terms; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.document_terms (
-    term_id integer NOT NULL,
-    document_id integer NOT NULL
-);
-
-
-ALTER TABLE public.document_terms OWNER TO postgres;
-
---
--- Name: event; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.event (
-    id integer NOT NULL,
-    uuid uuid NOT NULL,
-    started_at timestamp without time zone NOT NULL,
-    ended_at timestamp without time zone NOT NULL,
-    source character varying NOT NULL,
-    description character varying NOT NULL,
-    details json,
-    individual_id integer,
-    incident_id integer,
-    search_vector tsvector,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
-);
-
-
-ALTER TABLE public.event OWNER TO postgres;
-
---
--- Name: event_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.event_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.event_id_seq OWNER TO postgres;
-
---
--- Name: event_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.event_id_seq OWNED BY public.event.id;
-
-
---
--- Name: feedback; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.feedback (
-    id integer NOT NULL,
-    rating character varying,
-    feedback character varying,
-    incident_id integer,
-    participant_id integer,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public.feedback OWNER TO postgres;
-
---
--- Name: feedback_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.feedback_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.feedback_id_seq OWNER TO postgres;
-
---
--- Name: feedback_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.feedback_id_seq OWNED BY public.feedback.id;
-
-
---
--- Name: group; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public."group" (
-    resource_type character varying,
-    resource_id character varying,
-    weblink character varying,
-    id integer NOT NULL,
-    name character varying,
-    email character varying,
-    incident_id integer,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public."group" OWNER TO postgres;
-
---
--- Name: group_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.group_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.group_id_seq OWNER TO postgres;
-
---
--- Name: group_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.group_id_seq OWNED BY public."group".id;
-
-
---
--- Name: incident; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.incident (
-    id integer NOT NULL,
-    name character varying,
-    title character varying NOT NULL,
-    description character varying NOT NULL,
-    status character varying,
-    cost double precision,
-    visibility character varying,
-    reported_at timestamp without time zone,
-    stable_at timestamp without time zone,
-    closed_at timestamp without time zone,
-    search_vector tsvector,
-    incident_priority_id integer,
-    incident_type_id integer,
-    duplicate_id integer,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public.incident OWNER TO postgres;
-
---
--- Name: incident_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.incident_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.incident_id_seq OWNER TO postgres;
-
---
--- Name: incident_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.incident_id_seq OWNED BY public.incident.id;
-
-
---
--- Name: incident_priority; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.incident_priority (
-    id integer NOT NULL,
-    name character varying,
-    description character varying,
-    page_commander boolean,
-    tactical_report_reminder integer DEFAULT 24,
-    executive_report_reminder integer DEFAULT 24,
-    "default" boolean,
-    view_order integer,
-    search_vector tsvector
-);
-
-
-ALTER TABLE public.incident_priority OWNER TO postgres;
-
---
--- Name: incident_priority_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.incident_priority_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.incident_priority_id_seq OWNER TO postgres;
-
---
--- Name: incident_priority_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.incident_priority_id_seq OWNED BY public.incident_priority.id;
-
-
---
--- Name: incident_type; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.incident_type (
-    id integer NOT NULL,
-    name character varying,
-    slug character varying,
-    description character varying,
-    exclude_from_metrics boolean,
-    "default" boolean,
-    visibility character varying,
-    plugin_metadata json,
-    template_document_id integer,
-    commander_service_id integer,
-    search_vector tsvector,
-    liaison_service_id integer
-);
-
-
-ALTER TABLE public.incident_type OWNER TO postgres;
-
---
--- Name: incident_type_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.incident_type_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.incident_type_id_seq OWNER TO postgres;
-
---
--- Name: incident_type_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.incident_type_id_seq OWNED BY public.incident_type.id;
-
-
---
--- Name: individual_contact; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.individual_contact (
-    is_active boolean,
-    is_external boolean,
-    contact_type character varying,
-    email character varying,
-    company character varying,
-    notes character varying,
-    owner character varying,
-    id integer NOT NULL,
-    name character varying,
-    mobile_phone character varying,
-    office_phone character varying,
-    title character varying,
-    weblink character varying,
-    team_contact_id integer,
-    search_vector tsvector,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
-);
-
-
-ALTER TABLE public.individual_contact OWNER TO postgres;
-
---
--- Name: individual_contact_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.individual_contact_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.individual_contact_id_seq OWNER TO postgres;
-
---
--- Name: individual_contact_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.individual_contact_id_seq OWNED BY public.individual_contact.id;
-
-
---
--- Name: notification; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.notification (
-    id integer NOT NULL,
-    name character varying,
-    description character varying,
-    type character varying,
-    target character varying,
-    enabled boolean,
-    search_vector tsvector,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public.notification OWNER TO postgres;
-
---
--- Name: notification_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.notification_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.notification_id_seq OWNER TO postgres;
-
---
--- Name: notification_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.notification_id_seq OWNED BY public.notification.id;
-
-
---
--- Name: participant; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.participant (
-    id integer NOT NULL,
-    is_active boolean,
-    active_at timestamp without time zone,
-    inactive_at timestamp without time zone,
-    team character varying,
-    department character varying,
-    added_by_id integer,
-    added_reason character varying,
-    location character varying,
-    after_hours_notification boolean,
-    incident_id integer,
-    individual_contact_id integer
-);
-
-
-ALTER TABLE public.participant OWNER TO postgres;
-
---
--- Name: participant_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.participant_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.participant_id_seq OWNER TO postgres;
-
---
--- Name: participant_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.participant_id_seq OWNED BY public.participant.id;
-
-
---
--- Name: participant_role; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.participant_role (
-    id integer NOT NULL,
-    assumed_at timestamp without time zone,
-    renounced_at timestamp without time zone,
-    role character varying,
-    participant_id integer
-);
-
-
-ALTER TABLE public.participant_role OWNER TO postgres;
-
---
--- Name: participant_role_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.participant_role_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.participant_role_id_seq OWNER TO postgres;
-
---
--- Name: participant_role_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.participant_role_id_seq OWNED BY public.participant_role.id;
-
-
---
--- Name: plugin; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.plugin (
-    id integer NOT NULL,
-    title character varying,
-    slug character varying,
-    description character varying,
-    version character varying,
-    author character varying,
-    author_url character varying,
-    type character varying,
-    enabled boolean,
-    required boolean,
-    multiple boolean,
-    configuration json,
-    search_vector tsvector
-);
-
-
-ALTER TABLE public.plugin OWNER TO postgres;
-
---
--- Name: plugin_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.plugin_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.plugin_id_seq OWNER TO postgres;
-
---
--- Name: plugin_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.plugin_id_seq OWNED BY public.plugin.id;
-
-
---
--- Name: recommendation; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation (
-    id integer NOT NULL,
-    text character varying
-);
-
-
-ALTER TABLE public.recommendation OWNER TO postgres;
-
---
--- Name: recommendation_accuracy; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation_accuracy (
-    id integer NOT NULL,
-    recommendation_id integer,
-    correct boolean,
-    resource_id integer,
-    resource_type character varying
-);
-
-
-ALTER TABLE public.recommendation_accuracy OWNER TO postgres;
-
---
--- Name: recommendation_accuracy_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.recommendation_accuracy_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.recommendation_accuracy_id_seq OWNER TO postgres;
-
---
--- Name: recommendation_accuracy_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.recommendation_accuracy_id_seq OWNED BY public.recommendation_accuracy.id;
-
-
---
--- Name: recommendation_documents; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation_documents (
-    document_id integer NOT NULL,
-    recommendation_id integer NOT NULL
-);
-
-
-ALTER TABLE public.recommendation_documents OWNER TO postgres;
-
---
--- Name: recommendation_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.recommendation_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.recommendation_id_seq OWNER TO postgres;
-
---
--- Name: recommendation_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.recommendation_id_seq OWNED BY public.recommendation.id;
-
-
---
--- Name: recommendation_incident_priorities; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation_incident_priorities (
-    incident_priority_id integer NOT NULL,
-    recommendation_id integer NOT NULL
-);
-
-
-ALTER TABLE public.recommendation_incident_priorities OWNER TO postgres;
-
---
--- Name: recommendation_incident_types; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation_incident_types (
-    incident_type_id integer NOT NULL,
-    recommendation_id integer NOT NULL
-);
-
-
-ALTER TABLE public.recommendation_incident_types OWNER TO postgres;
-
---
--- Name: recommendation_individual_contacts; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation_individual_contacts (
-    individual_contact_id integer NOT NULL,
-    recommendation_id integer NOT NULL
-);
-
-
-ALTER TABLE public.recommendation_individual_contacts OWNER TO postgres;
-
---
--- Name: recommendation_services; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation_services (
-    service_id integer NOT NULL,
-    recommendation_id integer NOT NULL
-);
-
-
-ALTER TABLE public.recommendation_services OWNER TO postgres;
-
---
--- Name: recommendation_team_contacts; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation_team_contacts (
-    team_contact_id integer NOT NULL,
-    recommendation_id integer NOT NULL
-);
-
-
-ALTER TABLE public.recommendation_team_contacts OWNER TO postgres;
-
---
--- Name: recommendation_terms; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.recommendation_terms (
-    term_id integer NOT NULL,
-    recommendation_id integer NOT NULL
-);
-
-
-ALTER TABLE public.recommendation_terms OWNER TO postgres;
-
---
--- Name: report; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.report (
-    id integer NOT NULL,
-    created_at timestamp without time zone,
-    details json,
-    details_raw character varying,
-    type character varying DEFAULT 'Tactical Report'::character varying NOT NULL,
-    incident_id integer,
-    participant_id integer,
-    search_vector tsvector
-);
-
-
-ALTER TABLE public.report OWNER TO postgres;
-
---
--- Name: report_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.report_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.report_id_seq OWNER TO postgres;
-
---
--- Name: report_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.report_id_seq OWNED BY public.report.id;
-
-
---
--- Name: search_filter; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.search_filter (
-    id integer NOT NULL,
-    name character varying,
-    description character varying,
-    expression json,
-    creator_id integer,
-    type character varying,
-    search_vector tsvector
-);
-
-
-ALTER TABLE public.search_filter OWNER TO postgres;
-
---
--- Name: search_filter_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.search_filter_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.search_filter_id_seq OWNER TO postgres;
-
---
--- Name: search_filter_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.search_filter_id_seq OWNED BY public.search_filter.id;
-
-
---
--- Name: service; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.service (
-    id integer NOT NULL,
-    is_active boolean,
-    name character varying,
-    type character varying,
-    description character varying,
-    external_id character varying,
-    search_vector tsvector,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public.service OWNER TO postgres;
-
---
--- Name: service_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.service_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.service_id_seq OWNER TO postgres;
-
---
--- Name: service_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.service_id_seq OWNED BY public.service.id;
-
-
---
--- Name: service_incident; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.service_incident (
-    incident_id integer NOT NULL,
-    service_id integer NOT NULL
-);
-
-
-ALTER TABLE public.service_incident OWNER TO postgres;
-
---
--- Name: service_incident_priority; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.service_incident_priority (
-    incident_priority_id integer NOT NULL,
-    service_id integer NOT NULL
-);
-
-
-ALTER TABLE public.service_incident_priority OWNER TO postgres;
-
---
--- Name: service_incident_type; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.service_incident_type (
-    incident_type_id integer NOT NULL,
-    service_id integer NOT NULL
-);
-
-
-ALTER TABLE public.service_incident_type OWNER TO postgres;
-
---
--- Name: service_terms; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.service_terms (
-    term_id integer NOT NULL,
-    service_id integer NOT NULL
-);
-
-
-ALTER TABLE public.service_terms OWNER TO postgres;
-
---
--- Name: storage; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.storage (
-    resource_type character varying,
-    resource_id character varying,
-    weblink character varying,
-    id integer NOT NULL,
-    incident_id integer,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
-);
-
-
-ALTER TABLE public.storage OWNER TO postgres;
-
---
--- Name: storage_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.storage_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.storage_id_seq OWNER TO postgres;
-
---
--- Name: storage_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.storage_id_seq OWNED BY public.storage.id;
-
-
---
--- Name: tag; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.tag (
-    id integer NOT NULL,
-    name character varying,
-    description character varying,
-    uri character varying,
-    source character varying,
-    discoverable boolean,
-    search_vector tsvector,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone,
-    tag_type_id integer
-);
-
-
-ALTER TABLE public.tag OWNER TO postgres;
-
---
--- Name: tag_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.tag_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.tag_id_seq OWNER TO postgres;
-
---
--- Name: tag_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.tag_id_seq OWNED BY public.tag.id;
-
-
---
--- Name: tag_type; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.tag_type (
-    id integer NOT NULL,
-    name character varying,
-    description character varying,
-    search_vector tsvector,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public.tag_type OWNER TO postgres;
-
---
--- Name: tag_type_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.tag_type_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.tag_type_id_seq OWNER TO postgres;
-
---
--- Name: tag_type_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.tag_type_id_seq OWNED BY public.tag_type.id;
-
-
---
--- Name: task; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.task (
-    resource_type character varying,
-    resource_id character varying,
-    weblink character varying,
-    id integer NOT NULL,
-    resolved_at timestamp without time zone,
-    resolve_by timestamp without time zone,
-    last_reminder_at timestamp without time zone,
-    creator_id integer,
-    description character varying,
-    source character varying,
-    priority character varying,
-    status character varying,
-    reminders boolean,
-    incident_id integer,
-    search_vector tsvector,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone,
-    owner_id integer
-);
-
-
-ALTER TABLE public.task OWNER TO postgres;
-
---
--- Name: task_assignees; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.task_assignees (
-    participant_id integer NOT NULL,
-    task_id integer NOT NULL
-);
-
-
-ALTER TABLE public.task_assignees OWNER TO postgres;
-
---
--- Name: task_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.task_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.task_id_seq OWNER TO postgres;
-
---
--- Name: task_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.task_id_seq OWNED BY public.task.id;
-
-
---
--- Name: task_tickets; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.task_tickets (
-    ticket_id integer NOT NULL,
-    task_id integer NOT NULL
-);
-
-
-ALTER TABLE public.task_tickets OWNER TO postgres;
-
---
--- Name: team_contact; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.team_contact (
-    is_active boolean,
-    is_external boolean,
-    contact_type character varying,
-    email character varying,
-    company character varying,
-    owner character varying,
-    id integer NOT NULL,
-    name character varying,
-    notes character varying,
-    search_vector tsvector,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone
-);
-
-
-ALTER TABLE public.team_contact OWNER TO postgres;
-
---
--- Name: team_contact_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.team_contact_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.team_contact_id_seq OWNER TO postgres;
-
---
--- Name: team_contact_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.team_contact_id_seq OWNED BY public.team_contact.id;
-
-
---
--- Name: team_contact_incident; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.team_contact_incident (
-    incident_id integer NOT NULL,
-    team_contact_id integer NOT NULL
-);
-
-
-ALTER TABLE public.team_contact_incident OWNER TO postgres;
-
---
--- Name: team_contact_incident_priority; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.team_contact_incident_priority (
-    incident_priority_id integer NOT NULL,
-    team_contact_id integer NOT NULL
-);
-
-
-ALTER TABLE public.team_contact_incident_priority OWNER TO postgres;
-
---
--- Name: team_contact_incident_type; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.team_contact_incident_type (
-    incident_type_id integer NOT NULL,
-    team_contact_id integer NOT NULL
-);
-
-
-ALTER TABLE public.team_contact_incident_type OWNER TO postgres;
-
---
--- Name: team_contact_terms; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.team_contact_terms (
-    term_id integer NOT NULL,
-    team_contact_id integer NOT NULL
-);
-
-
-ALTER TABLE public.team_contact_terms OWNER TO postgres;
-
---
--- Name: term; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.term (
-    id integer NOT NULL,
-    text character varying,
-    discoverable boolean,
-    search_vector tsvector
-);
-
-
-ALTER TABLE public.term OWNER TO postgres;
-
---
--- Name: term_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.term_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.term_id_seq OWNER TO postgres;
-
---
--- Name: term_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.term_id_seq OWNED BY public.term.id;
-
-
---
--- Name: ticket; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.ticket (
-    resource_type character varying,
-    resource_id character varying,
-    weblink character varying,
-    id integer NOT NULL,
-    incident_id integer,
-    updated_at timestamp without time zone,
-    created_at timestamp without time zone
-);
-
-
-ALTER TABLE public.ticket OWNER TO postgres;
-
---
--- Name: ticket_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.ticket_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.ticket_id_seq OWNER TO postgres;
-
---
--- Name: ticket_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.ticket_id_seq OWNED BY public.ticket.id;
-
-
---
--- Name: workflow; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.workflow (
-    id integer NOT NULL,
-    name character varying,
-    description character varying,
-    parameters json,
-    resource_id character varying,
-    search_vector tsvector,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone,
-    plugin_id integer,
-    enabled boolean
-);
-
-
-ALTER TABLE public.workflow OWNER TO postgres;
-
---
--- Name: workflow_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.workflow_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.workflow_id_seq OWNER TO postgres;
-
---
--- Name: workflow_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.workflow_id_seq OWNED BY public.workflow.id;
-
-
---
--- Name: workflow_incident_priority; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.workflow_incident_priority (
-    incident_priority_id integer NOT NULL,
-    workflow_id integer NOT NULL
-);
-
-
-ALTER TABLE public.workflow_incident_priority OWNER TO postgres;
-
---
--- Name: workflow_incident_type; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.workflow_incident_type (
-    incident_type_id integer NOT NULL,
-    workflow_id integer NOT NULL
-);
-
-
-ALTER TABLE public.workflow_incident_type OWNER TO postgres;
-
---
--- Name: workflow_instance; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.workflow_instance (
-    resource_type character varying,
-    resource_id character varying,
-    weblink character varying,
-    id integer NOT NULL,
-    workflow_id integer,
-    creator_id integer,
-    status character varying,
-    incident_id integer,
-    created_at timestamp without time zone,
-    updated_at timestamp without time zone,
-    parameters json,
-    run_reason character varying
-);
-
-
-ALTER TABLE public.workflow_instance OWNER TO postgres;
-
---
--- Name: workflow_instance_artifact; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.workflow_instance_artifact (
-    document_id integer NOT NULL,
-    workflow_instance_id integer NOT NULL
-);
-
-
-ALTER TABLE public.workflow_instance_artifact OWNER TO postgres;
-
---
--- Name: workflow_instance_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-CREATE SEQUENCE public.workflow_instance_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER TABLE public.workflow_instance_id_seq OWNER TO postgres;
-
---
--- Name: workflow_instance_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
---
-
-ALTER SEQUENCE public.workflow_instance_id_seq OWNED BY public.workflow_instance.id;
-
-
---
--- Name: workflow_term; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.workflow_term (
-    term_id integer NOT NULL,
-    workflow_id integer NOT NULL
-);
-
-
-ALTER TABLE public.workflow_term OWNER TO postgres;
-
---
 -- Name: dispatch_user id; Type: DEFAULT; Schema: dispatch_core; Owner: postgres
 --
 
 ALTER TABLE ONLY dispatch_core.dispatch_user ALTER COLUMN id SET DEFAULT nextval('dispatch_core.dispatch_user_id_seq'::regclass);
+
+
+--
+-- Name: dispatch_user_settings id; Type: DEFAULT; Schema: dispatch_core; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_core.dispatch_user_settings ALTER COLUMN id SET DEFAULT nextval('dispatch_core.dispatch_user_settings_id_seq'::regclass);
 
 
 --
@@ -6955,6 +5490,13 @@ ALTER TABLE ONLY dispatch_organization_default.alert ALTER COLUMN id SET DEFAULT
 
 
 --
+-- Name: canvas id; Type: DEFAULT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.canvas ALTER COLUMN id SET DEFAULT nextval('dispatch_organization_default.canvas_id_seq'::regclass);
+
+
+--
 -- Name: case id; Type: DEFAULT; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -6973,6 +5515,13 @@ ALTER TABLE ONLY dispatch_organization_default.case_cost ALTER COLUMN id SET DEF
 --
 
 ALTER TABLE ONLY dispatch_organization_default.case_cost_type ALTER COLUMN id SET DEFAULT nextval('dispatch_organization_default.case_cost_type_id_seq'::regclass);
+
+
+--
+-- Name: case_notes id; Type: DEFAULT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.case_notes ALTER COLUMN id SET DEFAULT nextval('dispatch_organization_default.case_notes_id_seq'::regclass);
 
 
 --
@@ -7207,6 +5756,13 @@ ALTER TABLE ONLY dispatch_organization_default.project ALTER COLUMN id SET DEFAU
 
 
 --
+-- Name: prompt id; Type: DEFAULT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.prompt ALTER COLUMN id SET DEFAULT nextval('dispatch_organization_default.prompt_id_seq'::regclass);
+
+
+--
 -- Name: query id; Type: DEFAULT; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -7389,221 +5945,11 @@ ALTER TABLE ONLY dispatch_organization_default.workflow_instance ALTER COLUMN id
 
 
 --
--- Name: conference id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.conference ALTER COLUMN id SET DEFAULT nextval('public.conference_id_seq'::regclass);
-
-
---
--- Name: conversation id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.conversation ALTER COLUMN id SET DEFAULT nextval('public.conversation_id_seq'::regclass);
-
-
---
--- Name: definition id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition ALTER COLUMN id SET DEFAULT nextval('public.definition_id_seq'::regclass);
-
-
---
--- Name: dispatch_user id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.dispatch_user ALTER COLUMN id SET DEFAULT nextval('public.dispatch_user_id_seq'::regclass);
-
-
---
--- Name: document id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document ALTER COLUMN id SET DEFAULT nextval('public.document_id_seq'::regclass);
-
-
---
--- Name: event id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.event ALTER COLUMN id SET DEFAULT nextval('public.event_id_seq'::regclass);
-
-
---
--- Name: feedback id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.feedback ALTER COLUMN id SET DEFAULT nextval('public.feedback_id_seq'::regclass);
-
-
---
--- Name: group id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public."group" ALTER COLUMN id SET DEFAULT nextval('public.group_id_seq'::regclass);
-
-
---
--- Name: incident id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident ALTER COLUMN id SET DEFAULT nextval('public.incident_id_seq'::regclass);
-
-
---
--- Name: incident_priority id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident_priority ALTER COLUMN id SET DEFAULT nextval('public.incident_priority_id_seq'::regclass);
-
-
---
--- Name: incident_type id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident_type ALTER COLUMN id SET DEFAULT nextval('public.incident_type_id_seq'::regclass);
-
-
---
--- Name: individual_contact id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.individual_contact ALTER COLUMN id SET DEFAULT nextval('public.individual_contact_id_seq'::regclass);
-
-
---
--- Name: notification id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.notification ALTER COLUMN id SET DEFAULT nextval('public.notification_id_seq'::regclass);
-
-
---
--- Name: participant id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.participant ALTER COLUMN id SET DEFAULT nextval('public.participant_id_seq'::regclass);
-
-
---
--- Name: participant_role id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.participant_role ALTER COLUMN id SET DEFAULT nextval('public.participant_role_id_seq'::regclass);
-
-
---
--- Name: plugin id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.plugin ALTER COLUMN id SET DEFAULT nextval('public.plugin_id_seq'::regclass);
-
-
---
--- Name: recommendation id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation ALTER COLUMN id SET DEFAULT nextval('public.recommendation_id_seq'::regclass);
-
-
---
--- Name: recommendation_accuracy id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_accuracy ALTER COLUMN id SET DEFAULT nextval('public.recommendation_accuracy_id_seq'::regclass);
-
-
---
--- Name: report id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.report ALTER COLUMN id SET DEFAULT nextval('public.report_id_seq'::regclass);
-
-
---
--- Name: search_filter id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.search_filter ALTER COLUMN id SET DEFAULT nextval('public.search_filter_id_seq'::regclass);
-
-
---
--- Name: service id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service ALTER COLUMN id SET DEFAULT nextval('public.service_id_seq'::regclass);
-
-
---
--- Name: storage id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.storage ALTER COLUMN id SET DEFAULT nextval('public.storage_id_seq'::regclass);
-
-
---
--- Name: tag id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.tag ALTER COLUMN id SET DEFAULT nextval('public.tag_id_seq'::regclass);
-
-
---
--- Name: tag_type id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.tag_type ALTER COLUMN id SET DEFAULT nextval('public.tag_type_id_seq'::regclass);
-
-
---
--- Name: task id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task ALTER COLUMN id SET DEFAULT nextval('public.task_id_seq'::regclass);
-
-
---
--- Name: team_contact id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact ALTER COLUMN id SET DEFAULT nextval('public.team_contact_id_seq'::regclass);
-
-
---
--- Name: term id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.term ALTER COLUMN id SET DEFAULT nextval('public.term_id_seq'::regclass);
-
-
---
--- Name: ticket id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.ticket ALTER COLUMN id SET DEFAULT nextval('public.ticket_id_seq'::regclass);
-
-
---
--- Name: workflow id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow ALTER COLUMN id SET DEFAULT nextval('public.workflow_id_seq'::regclass);
-
-
---
--- Name: workflow_instance id; Type: DEFAULT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_instance ALTER COLUMN id SET DEFAULT nextval('public.workflow_instance_id_seq'::regclass);
-
-
---
 -- Data for Name: alembic_version; Type: TABLE DATA; Schema: dispatch_core; Owner: postgres
 --
 
 COPY dispatch_core.alembic_version (version_num) FROM stdin;
-ed0b0388fa3f
+903183fd9aee
 \.
 
 
@@ -7628,6 +5974,14 @@ COPY dispatch_core.dispatch_user_organization (dispatch_user_id, organization_id
 129	1	Owner	2021-07-27 18:45:54.477286	2021-07-27 18:44:28.473467
 496	1	Owner	2021-07-27 19:50:07.983374	2021-07-27 19:47:26.819394
 4236	1	Member	2021-08-04 21:14:27.726854	2021-08-04 21:14:27.726861
+\.
+
+
+--
+-- Data for Name: dispatch_user_settings; Type: TABLE DATA; Schema: dispatch_core; Owner: postgres
+--
+
+COPY dispatch_core.dispatch_user_settings (id, dispatch_user_id, auto_add_to_incident_bridges, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -7676,7 +6030,7 @@ COPY dispatch_core.plugin_event (id, name, slug, description, plugin_id, search_
 --
 
 COPY dispatch_organization_default.alembic_version (version_num) FROM stdin;
-8f324b0f365a
+ff08d822ef2c
 \.
 
 
@@ -7860,10 +6214,18 @@ COPY dispatch_organization_default.assoc_team_contact_filters (team_contact_id, 
 
 
 --
+-- Data for Name: canvas; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
+--
+
+COPY dispatch_organization_default.canvas (id, canvas_id, incident_id, case_id, type, created_at, updated_at, project_id) FROM stdin;
+\.
+
+
+--
 -- Data for Name: case; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
 --
 
-COPY dispatch_organization_default."case" (id, name, title, description, resolution, status, visibility, reported_at, closed_at, search_vector, duplicate_id, project_id, updated_at, created_at, triage_at, escalated_at, tactical_group_id, case_document_id, related_id, case_type_id, case_severity_id, case_priority_id, participants_team, participants_location, assignee_id, resolution_reason, signal_thread_ts, reporter_id, dedicated_channel, genai_analysis, event) FROM stdin;
+COPY dispatch_organization_default."case" (id, name, title, description, resolution, status, visibility, reported_at, closed_at, search_vector, duplicate_id, project_id, updated_at, created_at, triage_at, escalated_at, tactical_group_id, case_document_id, related_id, case_type_id, case_severity_id, case_priority_id, participants_team, participants_location, assignee_id, resolution_reason, signal_thread_ts, reporter_id, dedicated_channel, genai_analysis, event, stable_at, resolved_by_id) FROM stdin;
 \.
 
 
@@ -7879,7 +6241,15 @@ COPY dispatch_organization_default.case_cost (id, amount, case_cost_type_id, cas
 -- Data for Name: case_cost_type; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
 --
 
-COPY dispatch_organization_default.case_cost_type (id, name, description, category, details, "default", editable, search_vector, project_id, updated_at, created_at) FROM stdin;
+COPY dispatch_organization_default.case_cost_type (id, name, description, category, details, editable, search_vector, project_id, updated_at, created_at, model_type) FROM stdin;
+\.
+
+
+--
+-- Data for Name: case_notes; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
+--
+
+COPY dispatch_organization_default.case_notes (id, content, case_id, last_updated_by_id, created_at, updated_at) FROM stdin;
 \.
 
 
@@ -7887,11 +6257,11 @@ COPY dispatch_organization_default.case_cost_type (id, name, description, catego
 -- Data for Name: case_priority; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
 --
 
-COPY dispatch_organization_default.case_priority (id, name, description, color, enabled, "default", view_order, search_vector, project_id, page_assignee) FROM stdin;
-1	Low	Low priority	#558b2f	t	t	-1	\N	1	f
-2	Medium	Medium priority	\N	t	f	2	\N	1	f
-3	High	High priority	#b71c1c	t	f	3	\N	1	f
-4	Critical	Critical priority	\N	t	f	4	\N	1	t
+COPY dispatch_organization_default.case_priority (id, name, description, color, enabled, "default", view_order, search_vector, project_id, page_assignee, disable_delayed_message_warning) FROM stdin;
+1	Low	Low priority	#558b2f	t	t	-1	\N	1	f	f
+2	Medium	Medium priority	\N	t	f	2	\N	1	f	f
+3	High	High priority	#b71c1c	t	f	3	\N	1	f	f
+4	Critical	Critical priority	\N	t	f	4	\N	1	t	f
 \.
 
 
@@ -7908,8 +6278,8 @@ COPY dispatch_organization_default.case_severity (id, name, description, color, 
 -- Data for Name: case_type; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
 --
 
-COPY dispatch_organization_default.case_type (id, name, description, visibility, "default", enabled, exclude_from_metrics, search_vector, project_id, plugin_metadata, case_template_document_id, oncall_service_id, incident_type_id, conversation_target, cost_model_id, auto_close) FROM stdin;
-1	Security Triage	Triage for security	Open	t	t	f	\N	1	[]	\N	\N	5	\N	\N	f
+COPY dispatch_organization_default.case_type (id, name, description, visibility, "default", enabled, exclude_from_metrics, search_vector, project_id, plugin_metadata, case_template_document_id, oncall_service_id, incident_type_id, conversation_target, cost_model_id, auto_close, generate_read_in_summary) FROM stdin;
+1	Security Triage	Triage for security	Open	t	t	f	\N	1	[]	\N	\N	5	\N	\N	f	f
 \.
 
 
@@ -8223,13 +6593,13 @@ COPY dispatch_organization_default.incident_severity (id, name, description, col
 -- Data for Name: incident_type; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
 --
 
-COPY dispatch_organization_default.incident_type (id, name, slug, description, exclude_from_metrics, enabled, "default", visibility, plugin_metadata, exclude_from_reminders, exclude_from_review, incident_template_document_id, executive_template_document_id, review_template_document_id, tracking_template_document_id, commander_service_id, liaison_service_id, search_vector, project_id, cost_model_id, channel_description, description_service_id, task_plugin_metadata) FROM stdin;
-6	Other	\N	This is a miscellaneous incident.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':6 'involv':7 'misc':2,9 'oth':1,8	1	\N	\N	\N	[]
-5	Denial of Service	\N	This is an incident involving a Denial of Service attack on a compute resource or service.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'ddos':1,8 'den':2,9 'incid':6 'involv':7	1	\N	\N	\N	[]
-4	Malware	\N	This is an incident involving malware on a host.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':6 'involv':7 'mal':1,8	1	\N	\N	\N	[]
-3	Customer Data	\N	This is an incident involving customer data.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'custom':1,8 'data':2,9 'incid':6 'involv':7	1	\N	\N	\N	[]
-2	Employee Investigation	\N	This is an employee investigation.	f	t	f	Restricted	[]	\N	\N	1	2	3	\N	\N	\N	'employe':1,6 'investig':2,7	1	\N	\N	\N	[]
-1	Vulnerability	\N	This is an incident involving a misconfiguration or vulnerability.	f	t	t	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':5 'involv':6 'misconfigur':8 'vulner':1,10	1	\N	\N	\N	[]
+COPY dispatch_organization_default.incident_type (id, name, slug, description, exclude_from_metrics, enabled, "default", visibility, plugin_metadata, exclude_from_reminders, exclude_from_review, incident_template_document_id, executive_template_document_id, review_template_document_id, tracking_template_document_id, commander_service_id, liaison_service_id, search_vector, project_id, cost_model_id, channel_description, description_service_id, task_plugin_metadata, generate_read_in_summary) FROM stdin;
+6	Other	\N	This is a miscellaneous incident.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':6 'involv':7 'misc':2,9 'oth':1,8	1	\N	\N	\N	[]	f
+5	Denial of Service	\N	This is an incident involving a Denial of Service attack on a compute resource or service.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'ddos':1,8 'den':2,9 'incid':6 'involv':7	1	\N	\N	\N	[]	f
+4	Malware	\N	This is an incident involving malware on a host.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':6 'involv':7 'mal':1,8	1	\N	\N	\N	[]	f
+3	Customer Data	\N	This is an incident involving customer data.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'custom':1,8 'data':2,9 'incid':6 'involv':7	1	\N	\N	\N	[]	f
+2	Employee Investigation	\N	This is an employee investigation.	f	t	f	Restricted	[]	\N	\N	1	2	3	\N	\N	\N	'employe':1,6 'investig':2,7	1	\N	\N	\N	[]	f
+1	Vulnerability	\N	This is an incident involving a misconfiguration or vulnerability.	f	t	t	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':5 'involv':6 'misconfigur':8 'vulner':1,10	1	\N	\N	\N	[]	f
 \.
 
 
@@ -8333,8 +6703,16 @@ COPY dispatch_organization_default.plugin_instance (id, enabled, plugin_id, proj
 -- Data for Name: project; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
 --
 
-COPY dispatch_organization_default.project (id, name, display_name, description, "default", color, organization_id, search_vector, annual_employee_cost, business_year_hours, owner_email, owner_conversation, send_daily_reports, stable_priority_id, enabled, allow_self_join, storage_folder_one, storage_folder_two, storage_use_folder_one_as_primary, storage_use_title, select_commander_visibility, send_weekly_reports, weekly_report_notification_id, report_incident_instructions, report_incident_title_hint, report_incident_description_hint, snooze_extension_oncall_service_id) FROM stdin;
-1	default	default	Default dispatch project.	t	\N	1	'default':1A,2B 'dispatch':3B 'project':4B	650000	2080	team@acme.com	\N	\N	\N	t	t	\N	\N	\N	f	t	f	\N	\N	\N	\N	\N
+COPY dispatch_organization_default.project (id, name, display_name, description, "default", color, organization_id, search_vector, annual_employee_cost, business_year_hours, owner_email, owner_conversation, send_daily_reports, stable_priority_id, enabled, allow_self_join, storage_folder_one, storage_folder_two, storage_use_folder_one_as_primary, storage_use_title, select_commander_visibility, send_weekly_reports, weekly_report_notification_id, report_incident_instructions, report_incident_title_hint, report_incident_description_hint, snooze_extension_oncall_service_id, suggest_security_event_over_incident) FROM stdin;
+1	default	default	Default dispatch project.	t	\N	1	'default':1A,2B 'dispatch':3B 'project':4B	650000	2080	team@acme.com	\N	\N	\N	t	t	\N	\N	\N	f	t	f	\N	\N	\N	\N	\N	f
+\.
+
+
+--
+-- Data for Name: prompt; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
+--
+
+COPY dispatch_organization_default.prompt (id, genai_type, genai_prompt, genai_system_message, enabled, created_at, updated_at, project_id) FROM stdin;
 \.
 
 
@@ -8524,11 +6902,11 @@ COPY dispatch_organization_default.tag (id, name, description, uri, source, disc
 -- Data for Name: tag_type; Type: TABLE DATA; Schema: dispatch_organization_default; Owner: postgres
 --
 
-COPY dispatch_organization_default.tag_type (id, name, description, search_vector, project_id, created_at, updated_at, exclusive, discoverable_case, discoverable_incident, discoverable_query, discoverable_signal, discoverable_source, color, icon, required, use_for_project_folder, discoverable_document) FROM stdin;
-2	email	Represents an email address.	'email':1	1	2021-07-27 18:59:15.242081	2021-07-27 18:59:15.242077	\N	t	t	t	t	t	\N	\N	\N	f	\N
-3	domain-name	Represents a domain name.	'domain':2 'domain-nam':1 'name':3	1	2021-07-27 18:59:27.697621	2021-07-27 18:59:27.697617	\N	t	t	t	t	t	\N	\N	\N	f	\N
-4	handle	Represents an internet handle.	'handl':1	1	2021-07-27 18:59:49.885602	2021-07-27 18:59:49.885596	\N	t	t	t	t	t	\N	\N	\N	f	\N
-1	default	Default dispatch tag type.	'default':1	1	2021-07-27 18:59:02.975601	2021-07-27 19:00:23.284092	\N	t	t	t	t	t	\N	\N	\N	f	\N
+COPY dispatch_organization_default.tag_type (id, name, description, search_vector, project_id, created_at, updated_at, exclusive, discoverable_case, discoverable_incident, discoverable_query, discoverable_signal, discoverable_source, color, icon, required, use_for_project_folder, discoverable_document, genai_suggestions) FROM stdin;
+2	email	Represents an email address.	'email':1	1	2021-07-27 18:59:15.242081	2021-07-27 18:59:15.242077	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
+3	domain-name	Represents a domain name.	'domain':2 'domain-nam':1 'name':3	1	2021-07-27 18:59:27.697621	2021-07-27 18:59:27.697617	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
+4	handle	Represents an internet handle.	'handl':1	1	2021-07-27 18:59:49.885602	2021-07-27 18:59:49.885596	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
+1	default	Default dispatch tag type.	'default':1	1	2021-07-27 18:59:02.975601	2021-07-27 19:00:23.284092	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
 \.
 
 
@@ -8639,576 +7017,17 @@ COPY dispatch_organization_default.workflow_term (term_id, workflow_id) FROM std
 
 
 --
--- Data for Name: alembic_version; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.alembic_version (version_num) FROM stdin;
-03f742366750
-\.
-
-
---
--- Data for Name: assoc_incident_tags; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.assoc_incident_tags (incident_id, tag_id) FROM stdin;
-\.
-
-
---
--- Data for Name: assoc_incident_terms; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.assoc_incident_terms (incident_id, term_id) FROM stdin;
-\.
-
-
---
--- Data for Name: assoc_individual_contact_incident_priority; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.assoc_individual_contact_incident_priority (incident_priority_id, individual_contact_id) FROM stdin;
-\.
-
-
---
--- Data for Name: assoc_individual_contact_incident_type; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.assoc_individual_contact_incident_type (incident_type_id, individual_contact_id) FROM stdin;
-\.
-
-
---
--- Data for Name: assoc_individual_contact_terms; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.assoc_individual_contact_terms (term_id, individual_contact_id) FROM stdin;
-\.
-
-
---
--- Data for Name: assoc_notification_filters; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.assoc_notification_filters (notification_id, search_filter_id) FROM stdin;
-\.
-
-
---
--- Data for Name: conference; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.conference (resource_type, resource_id, weblink, id, conference_id, conference_challenge, incident_id, updated_at, created_at) FROM stdin;
-google-calendar-conference	9ak1c5r6jqnsjg838bitpnmcpc	https://meet.google.com/kdt-mqyq-vio	1	9ak1c5r6jqnsjg838bitpnmcpc		1	2020-07-24 18:03:14.384785	2020-07-24 18:03:14.364559
-\.
-
-
---
--- Data for Name: conversation; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.conversation (resource_type, resource_id, weblink, id, channel_id, incident_id, created_at, updated_at) FROM stdin;
-slack-conversation	dispatch-1	https://slack.com/app_redirect?channel=G017915SK2T	1	G017915SK2T	1	2020-07-24 18:03:15.668378	2020-07-24 18:03:15.686849
-\.
-
-
---
--- Data for Name: definition; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.definition (id, text, source, search_vector) FROM stdin;
-\.
-
-
---
--- Data for Name: definition_teams; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.definition_teams (definition_id, team_contact_id) FROM stdin;
-\.
-
-
---
--- Data for Name: definition_terms; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.definition_terms (definition_id, term_id) FROM stdin;
-\.
-
-
---
--- Data for Name: dispatch_user; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.dispatch_user (id, email, password, role, search_vector, updated_at, created_at) FROM stdin;
-1	dispatch@example.com	\\x24326224313224497544303865553955444153726d47417763663834654771354b7a58396170577774447a5754635a586454473753396d333564774b	User	'dispatch@example.com':1	2020-07-24 17:20:08.75133	2020-07-24 17:20:08.751345
-\.
-
-
---
--- Data for Name: document; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.document (resource_type, resource_id, weblink, id, name, description, report_id, search_vector, incident_id, created_at, updated_at, evergreen, evergreen_last_reminder_at, evergreen_owner, evergreen_reminder_interval) FROM stdin;
-\.
-
-
---
--- Data for Name: document_incident_priority; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.document_incident_priority (incident_priority_id, document_id) FROM stdin;
-\.
-
-
---
--- Data for Name: document_incident_type; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.document_incident_type (incident_type_id, document_id) FROM stdin;
-\.
-
-
---
--- Data for Name: document_terms; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.document_terms (term_id, document_id) FROM stdin;
-\.
-
-
---
--- Data for Name: event; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.event (id, uuid, started_at, ended_at, source, description, details, individual_id, incident_id, search_vector, created_at, updated_at) FROM stdin;
-1	651b295a-991d-4a67-991b-c6de0e4b7611	2020-07-24 18:02:38.251956	2020-07-24 18:02:38.251956	Dispatch Core App	Incident created	null	\N	1	\N	2020-07-24 18:02:38.254379	2020-07-24 18:02:38.338948
-4	128f3466-9521-4c89-a3c1-db638328eb57	2020-07-24 18:02:41.168375	2020-07-24 18:02:41.168375	Dispatch Plugin - Participant Resolver	Incident participants resolved	null	\N	1	\N	2020-07-24 18:02:41.168882	2020-07-24 18:02:41.203844
-5	c52ea18f-d198-43ab-8533-15dc2d1dddcf	2020-07-24 18:02:41.220688	2020-07-24 18:02:41.220688	Dispatch Core App	Incident participants added to incident	null	\N	1	\N	2020-07-24 18:02:41.221122	2020-07-24 18:02:41.247507
-6	8cd9ecd5-a564-41fa-a8eb-cd80706307f1	2020-07-24 18:02:41.294686	2020-07-24 18:02:41.294686	Dispatch Plugin - Ticket Management	External ticket created	null	\N	1	\N	2020-07-24 18:02:41.2951	2020-07-24 18:02:41.319984
-7	db9874ef-d192-42db-a549-4534cacc17c2	2020-07-24 18:02:41.350764	2020-07-24 18:02:41.350764	Dispatch Core App	External ticket added to incident	null	\N	1	\N	2020-07-24 18:02:41.3629	2020-07-24 18:02:41.388231
-8	7a57ab3f-a4aa-43c2-8c87-7692e16fd9fc	2020-07-24 18:02:52.450317	2020-07-24 18:02:52.450317	Google Group Plugin - Participant Group Management	Tactical and notification groups created	null	\N	1	\N	2020-07-24 18:02:52.451042	2020-07-24 18:02:52.481715
-9	86f47430-cb16-42df-8e3b-370e28b1c821	2020-07-24 18:02:52.569473	2020-07-24 18:02:52.569473	Dispatch Core App	Tactical and notification groups added to incident	null	\N	1	\N	2020-07-24 18:02:52.58889	2020-07-24 18:02:52.631047
-10	b07f2642-9ff0-4485-b1ae-afad0929630e	2020-07-24 18:02:57.334859	2020-07-24 18:02:57.334859	Dispatch Core App	Storage added to incident	null	\N	1	\N	2020-07-24 18:02:57.343367	2020-07-24 18:02:57.381868
-11	bd92b20d-687b-46ea-b60b-bef59beb02fe	2020-07-24 18:03:12.512639	2020-07-24 18:03:12.512639	Google Drive Plugin - Storage Management	Incident investigation document and sheet created	null	\N	1	\N	2020-07-24 18:03:12.513311	2020-07-24 18:03:12.542486
-12	2e07c681-7717-4e30-82ca-86256e58d757	2020-07-24 18:03:12.603263	2020-07-24 18:03:12.603263	Dispatch Core App	Documents added to incident	null	\N	1	\N	2020-07-24 18:03:12.612236	2020-07-24 18:03:12.636687
-13	4f573dec-e656-4f71-9a06-ac051fff4534	2020-07-24 18:03:14.329539	2020-07-24 18:03:14.329539	Google Calendar Plugin - Conference Management	Incident conference created	null	\N	1	\N	2020-07-24 18:03:14.330012	2020-07-24 18:03:14.355007
-14	410d4b98-212a-4e6c-b96a-6f19e52ab154	2020-07-24 18:03:14.37857	2020-07-24 18:03:14.37857	Dispatch Core App	Conference added to incident	null	\N	1	\N	2020-07-24 18:03:14.382644	2020-07-24 18:03:14.417888
-15	42c79c7f-6ccc-43e1-b126-b91f08040512	2020-07-24 18:03:15.599083	2020-07-24 18:03:15.599083	Slack Plugin - Conversation Management	Incident conversation created	null	\N	1	\N	2020-07-24 18:03:15.600071	2020-07-24 18:03:15.65274
-16	e4056bb2-5adc-48a5-a35a-eb597ed7f7a8	2020-07-24 18:03:15.683537	2020-07-24 18:03:15.683537	Dispatch Core App	Conversation added to incident	null	\N	1	\N	2020-07-24 18:03:15.695182	2020-07-24 18:03:15.731365
-17	5e769ad5-d162-42a9-918f-437317ed6a18	2020-07-24 18:03:20.294338	2020-07-24 18:03:20.294338	Dispatch Core App	Incident notifications sent	null	\N	1	\N	2020-07-24 18:03:20.295182	2020-07-24 18:03:20.322527
-18	6cc06d03-9749-4143-971d-ce11eb1827db	2020-07-24 18:03:20.5327	2020-07-24 18:03:20.5327	Dispatch Core App	Participants announced and welcome messages sent	null	\N	1	\N	2020-07-24 18:03:20.534064	2020-07-24 18:03:20.565531
-2	1c916947-a9cc-4e63-b423-d63e09401653	2020-07-24 18:02:38.78052	2020-07-24 18:02:38.78052	Dispatch Core App	dispatch@example.com added to incident with Reporter role	null	\N	1	\N	2020-07-24 18:02:38.781971	2020-07-24 18:02:39.193046
-3	ea043ea7-9f6e-4adb-8305-f2cbd2b7a3a6	2020-07-24 18:02:40.716362	2020-07-24 18:02:40.716362	Dispatch Core App	dispatch@example.com added to incident with Incident Commander role	null	\N	1	\N	2020-07-24 18:02:40.716998	2020-07-24 18:02:40.745702
-19	89612d6e-e8c7-43dc-a7c9-7d35170c9ff9	2020-07-24 18:09:16.74069	2020-07-24 18:09:16.74069	Dispatch Core App	dispatch@example.com added to incident with Participant role	null	\N	1	\N	2020-07-24 18:09:16.741116	2020-07-24 18:09:16.766514
-21	54cbc6db-e433-4406-8b61-574173995a2a	2020-07-24 18:14:00	2020-07-24 18:14:00	Slack Plugin - Conversation Management	"This is a test event from Slack," said dispatch@example.com	null	1	1	\N	2020-07-24 18:14:24.892976	2020-07-24 18:14:24.93177
-20	13c86150-c8d6-4953-aa2e-24889af517b0	2020-07-24 18:11:55.29751	2020-07-24 18:11:55.29751	Incident Participant	dispatch@example.com created a new tactical report	{"conditions": "List of conditions", "actions": "List of actions", "needs": "List of needs"}	1	1	\N	2020-07-24 18:11:55.29797	2020-07-24 18:11:55.345595
-\.
-
-
---
--- Data for Name: feedback; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.feedback (id, rating, feedback, incident_id, participant_id, updated_at, created_at) FROM stdin;
-\.
-
-
---
--- Data for Name: group; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public."group" (resource_type, resource_id, weblink, id, name, email, incident_id, updated_at, created_at) FROM stdin;
-google-group-participant-tactical-group	01y810tw0m3fgry	https://groups.google.com/a/example.com/forum/#!forum/dispatch-1	1	dispatch-1	dispatch-1@example.com	1	2020-07-24 18:02:52.532217	2020-07-24 18:02:52.506384
-google-group-participant-notifications-group	02250f4o1gns9xu	https://groups.google.com/a/example.com/forum/#!forum/dispatch-1-notifications	2	dispatch-1-notifications	dispatch-1-notifications@example.com	1	2020-07-24 18:02:52.575776	2020-07-24 18:02:52.542604
-\.
-
-
---
--- Data for Name: incident; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.incident (id, name, title, description, status, cost, visibility, reported_at, stable_at, closed_at, search_vector, incident_priority_id, incident_type_id, duplicate_id, updated_at, created_at) FROM stdin;
-1	dispatch-1	Test incident	This is a test incident	Active	0	Open	2020-07-24 18:02:38.193482	\N	\N	'-1':2 'dispatch':1 'incid':4,9 'test':3,8	2	1	\N	2020-07-24 18:14:24.914404	2020-07-24 18:02:38.193491
-\.
-
-
---
--- Data for Name: incident_priority; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.incident_priority (id, name, description, page_commander, tactical_report_reminder, executive_report_reminder, "default", view_order, search_vector) FROM stdin;
-1	Low	Low priority incident.	f	12	9999	f	3	\N
-2	Medium	Medium priority incident.	f	6	12	f	2	\N
-3	High	High priority incident.	t	2	6	f	1	\N
-\.
-
-
---
--- Data for Name: incident_type; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.incident_type (id, name, slug, description, exclude_from_metrics, "default", visibility, plugin_metadata, template_document_id, commander_service_id, search_vector, liaison_service_id) FROM stdin;
-1	Vulnerability	\N	This is an incident involving a misconfiguration or vulnerability.	f	f	Open	[]	1	1	'incid':5 'involv':6 'misconfigur':8 'vulner':1,10	\N
-\.
-
-
---
--- Data for Name: individual_contact; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.individual_contact (is_active, is_external, contact_type, email, company, notes, owner, id, name, mobile_phone, office_phone, title, weblink, team_contact_id, search_vector, created_at, updated_at) FROM stdin;
-t	f	\N	dispatch@example.com	\N	\N	\N	1	dispatch@example.com	\N	\N	\N	Unknown	\N	'dispatch@example.com':1	2020-07-24 18:02:38.463871	2020-07-24 18:02:38.667258
-\.
-
-
---
--- Data for Name: notification; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.notification (id, name, description, type, target, enabled, search_vector, updated_at, created_at) FROM stdin;
-\.
-
-
---
--- Data for Name: participant; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.participant (id, is_active, active_at, inactive_at, team, department, added_by_id, added_reason, location, after_hours_notification, incident_id, individual_contact_id) FROM stdin;
-1	t	2020-07-24 18:02:38.614157	\N	Unknown	Unknown	\N	\N	Unknown	f	1	1
-\.
-
-
---
--- Data for Name: participant_role; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.participant_role (id, assumed_at, renounced_at, role, participant_id) FROM stdin;
-2	2020-07-24 18:02:38.590034	\N	Reporter	1
-4	2020-07-24 18:02:40.638236	\N	Incident Commander	1
-\.
-
-
---
--- Data for Name: plugin; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.plugin (id, title, slug, description, version, author, author_url, type, enabled, required, multiple, configuration, search_vector) FROM stdin;
-1	Dispatch Plugin - Basic Authentication Provider	dispatch-auth-provider-basic	Generic basic authentication provider.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	auth-provider	t	f	f	null	'authent':4 'basic':3 'dispatch':1 'plugin':2 'provid':5
-3	Dispatch Plugin - Document Resolver	dispatch-document-resolver	Uses dispatch itself to resolve incident documents.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	document-resolver	t	f	f	null	'dispatch':1 'document':3 'plugin':2 'resolv':4
-4	Dispatch Plugin - PKCE Authentication Provider	dispatch-auth-provider-pkce	Generic PCKE authentication provider.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	auth-provider	f	f	f	null	'authent':4 'dispatch':1 'pkce':3 'plugin':2 'provid':5
-5	Dispatch Plugin - Participant Resolver	dispatch-participant-resolver	Uses dispatch itself to resolve incident participants.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	participant	t	f	f	null	'dispatch':1 'particip':3 'plugin':2 'resolv':4
-7	Google Calendar Plugin - Conference Management	google-calendar-conference	Uses Google calendar to manage conference rooms/meets.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	conference	t	f	f	null	'calendar':2 'confer':4 'googl':1 'manag':5 'plugin':3
-8	Google Docs Plugin - Document Management	google-docs-document	Uses Google docs to manage document contents.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	document	t	f	f	null	'doc':2 'document':4 'googl':1 'manag':5 'plugin':3
-9	Google Drive Plugin - Storage Management	google-drive-storage	Uses Google Drive to help manage incident storage.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	storage	t	f	f	null	'drive':2 'googl':1 'manag':5 'plugin':3 'storag':4
-10	Google Drive Plugin - Task Management	google-drive-task	Uses Google Drive to help manage incident tasks.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	task	t	f	f	null	'drive':2 'googl':1 'manag':5 'plugin':3 'task':4
-12	Google Group Plugin - Participant Group Management	google-group-participant-group	Uses Google Groups to help manage participant membership.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	participant-group	t	f	f	null	'googl':1 'group':2,5 'manag':6 'particip':4 'plugin':3
-14	PagerDuty Plugin - Oncall Management	pagerduty-oncall	Uses PagerDuty to resolve and page oncall teams.	0.1.0	Netflix	https://github.com/Netflix/dispatch	oncall	t	f	f	null	'manag':4 'oncal':3 'pagerduti':1 'plugin':2
-16	Slack Plugin - Conversation Management	slack-conversation	Uses Slack to facilitate conversations.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	conversation	t	f	f	null	'convers':3 'manag':4 'plugin':2 'slack':1
-2	Dispatch Plugin - Contact plugin	dispatch-contact	Uses dispatch itself to resolve incident participants.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	contact	t	f	f	null	'contact':3 'dispatch':1 'plugin':2,4
-6	Dispatch Plugin - Ticket Management	dispatch-ticket	Uses dispatch itself to create a ticket.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	ticket	t	f	f	null	'dispatch':1 'manag':4 'plugin':2 'ticket':3
-11	Google Gmail Plugin - Email Management	google-gmail-email	Uses gmail to facilitate emails.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	email	t	f	f	null	'email':4 'gmail':2 'googl':1 'manag':5 'plugin':3
-13	Jira Plugin - Ticket Management	jira-ticket	Uses Jira to help manage external tickets.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	ticket	f	f	f	null	'jira':1 'manag':4 'plugin':2 'ticket':3
-15	Slack Plugin - Contact Information Resolver	slack-contact	Uses Slack to resolve contact information details.	0.1.0	Netflix	https://github.com/netflix/dispatch.git	contact	f	f	f	null	'contact':3 'inform':4 'plugin':2 'resolv':5 'slack':1
-\.
-
-
---
--- Data for Name: recommendation; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation (id, text) FROM stdin;
-1	This is a test incident
-2	This is a test incident
-\.
-
-
---
--- Data for Name: recommendation_accuracy; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation_accuracy (id, recommendation_id, correct, resource_id, resource_type) FROM stdin;
-\.
-
-
---
--- Data for Name: recommendation_documents; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation_documents (document_id, recommendation_id) FROM stdin;
-\.
-
-
---
--- Data for Name: recommendation_incident_priorities; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation_incident_priorities (incident_priority_id, recommendation_id) FROM stdin;
-2	1
-2	2
-\.
-
-
---
--- Data for Name: recommendation_incident_types; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation_incident_types (incident_type_id, recommendation_id) FROM stdin;
-1	1
-1	2
-\.
-
-
---
--- Data for Name: recommendation_individual_contacts; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation_individual_contacts (individual_contact_id, recommendation_id) FROM stdin;
-\.
-
-
---
--- Data for Name: recommendation_services; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation_services (service_id, recommendation_id) FROM stdin;
-\.
-
-
---
--- Data for Name: recommendation_team_contacts; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation_team_contacts (team_contact_id, recommendation_id) FROM stdin;
-\.
-
-
---
--- Data for Name: recommendation_terms; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.recommendation_terms (term_id, recommendation_id) FROM stdin;
-\.
-
-
---
--- Data for Name: report; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.report (id, created_at, details, details_raw, type, incident_id, participant_id, search_vector) FROM stdin;
-1	2020-07-24 18:11:55.229674	{"conditions": "List of conditions", "actions": "List of actions", "needs": "List of needs"}	List of conditions List of actions List of needs	Tactical Report	1	1	'action':6 'condit':3 'list':1,4,7 'need':9
-\.
-
-
---
--- Data for Name: search_filter; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.search_filter (id, name, description, expression, creator_id, type, search_vector) FROM stdin;
-\.
-
-
---
--- Data for Name: service; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.service (id, is_active, name, type, description, external_id, search_vector, updated_at, created_at) FROM stdin;
-1	t	PagerDuty Oncall Service	pagerduty-oncall	Oncall service for handling incidents.	P8H4RFG	'oncal':2 'pagerduti':1 'servic':3	2020-07-24 17:25:36.696743	2020-07-24 17:25:36.696737
-\.
-
-
---
--- Data for Name: service_incident; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.service_incident (incident_id, service_id) FROM stdin;
-\.
-
-
---
--- Data for Name: service_incident_priority; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.service_incident_priority (incident_priority_id, service_id) FROM stdin;
-\.
-
-
---
--- Data for Name: service_incident_type; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.service_incident_type (incident_type_id, service_id) FROM stdin;
-\.
-
-
---
--- Data for Name: service_terms; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.service_terms (term_id, service_id) FROM stdin;
-\.
-
-
---
--- Data for Name: storage; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.storage (resource_type, resource_id, weblink, id, incident_id, created_at, updated_at) FROM stdin;
-google-drive-storage	1MAj7cmmpVsKS6M4DQ64x8uJv0p703VTg	https://drive.google.com/drive/folders/1MAj7cmmpVsKS6M4DQ64x8uJv0p703VTg	1	1	2020-07-24 18:02:57.32136	2020-07-24 18:02:57.337322
-\.
-
-
---
--- Data for Name: tag; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.tag (id, name, description, uri, source, discoverable, search_vector, updated_at, created_at, tag_type_id) FROM stdin;
-\.
-
-
---
--- Data for Name: tag_type; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.tag_type (id, name, description, search_vector, updated_at, created_at) FROM stdin;
-\.
-
-
---
--- Data for Name: task; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.task (resource_type, resource_id, weblink, id, resolved_at, resolve_by, last_reminder_at, creator_id, description, source, priority, status, reminders, incident_id, search_vector, created_at, updated_at, owner_id) FROM stdin;
-\.
-
-
---
--- Data for Name: task_assignees; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.task_assignees (participant_id, task_id) FROM stdin;
-\.
-
-
---
--- Data for Name: task_tickets; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.task_tickets (ticket_id, task_id) FROM stdin;
-\.
-
-
---
--- Data for Name: team_contact; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.team_contact (is_active, is_external, contact_type, email, company, owner, id, name, notes, search_vector, created_at, updated_at) FROM stdin;
-\.
-
-
---
--- Data for Name: team_contact_incident; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.team_contact_incident (incident_id, team_contact_id) FROM stdin;
-\.
-
-
---
--- Data for Name: team_contact_incident_priority; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.team_contact_incident_priority (incident_priority_id, team_contact_id) FROM stdin;
-\.
-
-
---
--- Data for Name: team_contact_incident_type; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.team_contact_incident_type (incident_type_id, team_contact_id) FROM stdin;
-\.
-
-
---
--- Data for Name: team_contact_terms; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.team_contact_terms (term_id, team_contact_id) FROM stdin;
-\.
-
-
---
--- Data for Name: term; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.term (id, text, discoverable, search_vector) FROM stdin;
-\.
-
-
---
--- Data for Name: ticket; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.ticket (resource_type, resource_id, weblink, id, incident_id, updated_at, created_at) FROM stdin;
-dispatch-ticket	dispatch-1	http://localhost:8080/incidents/dispatch-1	1	1	2020-07-24 18:02:41.355332	2020-07-24 18:02:41.334229
-\.
-
-
---
--- Data for Name: workflow; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.workflow (id, name, description, parameters, resource_id, search_vector, created_at, updated_at, plugin_id, enabled) FROM stdin;
-\.
-
-
---
--- Data for Name: workflow_incident_priority; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.workflow_incident_priority (incident_priority_id, workflow_id) FROM stdin;
-\.
-
-
---
--- Data for Name: workflow_incident_type; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.workflow_incident_type (incident_type_id, workflow_id) FROM stdin;
-\.
-
-
---
--- Data for Name: workflow_instance; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.workflow_instance (resource_type, resource_id, weblink, id, workflow_id, creator_id, status, incident_id, created_at, updated_at, parameters, run_reason) FROM stdin;
-\.
-
-
---
--- Data for Name: workflow_instance_artifact; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.workflow_instance_artifact (document_id, workflow_instance_id) FROM stdin;
-\.
-
-
---
--- Data for Name: workflow_term; Type: TABLE DATA; Schema: public; Owner: postgres
---
-
-COPY public.workflow_term (term_id, workflow_id) FROM stdin;
-\.
-
-
---
 -- Name: dispatch_user_id_seq; Type: SEQUENCE SET; Schema: dispatch_core; Owner: postgres
 --
 
 SELECT pg_catalog.setval('dispatch_core.dispatch_user_id_seq', 4271, true);
+
+
+--
+-- Name: dispatch_user_settings_id_seq; Type: SEQUENCE SET; Schema: dispatch_core; Owner: postgres
+--
+
+SELECT pg_catalog.setval('dispatch_core.dispatch_user_settings_id_seq', 1, false);
 
 
 --
@@ -9240,6 +7059,13 @@ SELECT pg_catalog.setval('dispatch_organization_default.alert_id_seq', 1, false)
 
 
 --
+-- Name: canvas_id_seq; Type: SEQUENCE SET; Schema: dispatch_organization_default; Owner: postgres
+--
+
+SELECT pg_catalog.setval('dispatch_organization_default.canvas_id_seq', 1, false);
+
+
+--
 -- Name: case_cost_id_seq; Type: SEQUENCE SET; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -9258,6 +7084,13 @@ SELECT pg_catalog.setval('dispatch_organization_default.case_cost_type_id_seq', 
 --
 
 SELECT pg_catalog.setval('dispatch_organization_default.case_id_seq', 1, true);
+
+
+--
+-- Name: case_notes_id_seq; Type: SEQUENCE SET; Schema: dispatch_organization_default; Owner: postgres
+--
+
+SELECT pg_catalog.setval('dispatch_organization_default.case_notes_id_seq', 1, false);
 
 
 --
@@ -9492,6 +7325,13 @@ SELECT pg_catalog.setval('dispatch_organization_default.project_id_seq', 1, true
 
 
 --
+-- Name: prompt_id_seq; Type: SEQUENCE SET; Schema: dispatch_organization_default; Owner: postgres
+--
+
+SELECT pg_catalog.setval('dispatch_organization_default.prompt_id_seq', 1, false);
+
+
+--
 -- Name: query_id_seq; Type: SEQUENCE SET; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -9674,216 +7514,6 @@ SELECT pg_catalog.setval('dispatch_organization_default.workflow_instance_id_seq
 
 
 --
--- Name: conference_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.conference_id_seq', 1, true);
-
-
---
--- Name: conversation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.conversation_id_seq', 1, true);
-
-
---
--- Name: definition_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.definition_id_seq', 1, false);
-
-
---
--- Name: dispatch_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.dispatch_user_id_seq', 3, true);
-
-
---
--- Name: document_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.document_id_seq', 6, true);
-
-
---
--- Name: event_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.event_id_seq', 21, true);
-
-
---
--- Name: feedback_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.feedback_id_seq', 1, false);
-
-
---
--- Name: group_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.group_id_seq', 2, true);
-
-
---
--- Name: incident_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.incident_id_seq', 1, true);
-
-
---
--- Name: incident_priority_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.incident_priority_id_seq', 3, true);
-
-
---
--- Name: incident_type_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.incident_type_id_seq', 1, true);
-
-
---
--- Name: individual_contact_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.individual_contact_id_seq', 3, true);
-
-
---
--- Name: notification_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.notification_id_seq', 1, false);
-
-
---
--- Name: participant_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.participant_id_seq', 3, true);
-
-
---
--- Name: participant_role_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.participant_role_id_seq', 6, true);
-
-
---
--- Name: plugin_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.plugin_id_seq', 16, true);
-
-
---
--- Name: recommendation_accuracy_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.recommendation_accuracy_id_seq', 1, false);
-
-
---
--- Name: recommendation_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.recommendation_id_seq', 2, true);
-
-
---
--- Name: report_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.report_id_seq', 1, true);
-
-
---
--- Name: search_filter_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.search_filter_id_seq', 1, false);
-
-
---
--- Name: service_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.service_id_seq', 1, true);
-
-
---
--- Name: storage_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.storage_id_seq', 1, true);
-
-
---
--- Name: tag_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.tag_id_seq', 1, false);
-
-
---
--- Name: tag_type_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.tag_type_id_seq', 1, false);
-
-
---
--- Name: task_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.task_id_seq', 1, false);
-
-
---
--- Name: team_contact_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.team_contact_id_seq', 1, false);
-
-
---
--- Name: term_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.term_id_seq', 1, false);
-
-
---
--- Name: ticket_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.ticket_id_seq', 1, true);
-
-
---
--- Name: workflow_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.workflow_id_seq', 1, false);
-
-
---
--- Name: workflow_instance_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
---
-
-SELECT pg_catalog.setval('public.workflow_instance_id_seq', 1, false);
-
-
---
 -- Name: alembic_version alembic_version_pkc; Type: CONSTRAINT; Schema: dispatch_core; Owner: postgres
 --
 
@@ -9913,6 +7543,22 @@ ALTER TABLE ONLY dispatch_core.dispatch_user_organization
 
 ALTER TABLE ONLY dispatch_core.dispatch_user
     ADD CONSTRAINT dispatch_user_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: dispatch_user_settings dispatch_user_settings_dispatch_user_id_key; Type: CONSTRAINT; Schema: dispatch_core; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_core.dispatch_user_settings
+    ADD CONSTRAINT dispatch_user_settings_dispatch_user_id_key UNIQUE (dispatch_user_id);
+
+
+--
+-- Name: dispatch_user_settings dispatch_user_settings_pkey; Type: CONSTRAINT; Schema: dispatch_core; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_core.dispatch_user_settings
+    ADD CONSTRAINT dispatch_user_settings_pkey PRIMARY KEY (id);
 
 
 --
@@ -10148,6 +7794,14 @@ ALTER TABLE ONLY dispatch_organization_default.assoc_team_contact_filters
 
 
 --
+-- Name: canvas canvas_pkey; Type: CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.canvas
+    ADD CONSTRAINT canvas_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: case_cost case_cost_pkey; Type: CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -10169,6 +7823,14 @@ ALTER TABLE ONLY dispatch_organization_default.case_cost_type
 
 ALTER TABLE ONLY dispatch_organization_default."case"
     ADD CONSTRAINT case_name_project_id_key UNIQUE (name, project_id);
+
+
+--
+-- Name: case_notes case_notes_pkey; Type: CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.case_notes
+    ADD CONSTRAINT case_notes_pkey PRIMARY KEY (id);
 
 
 --
@@ -10604,6 +8266,14 @@ ALTER TABLE ONLY dispatch_organization_default.project
 
 
 --
+-- Name: prompt prompt_pkey; Type: CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.prompt
+    ADD CONSTRAINT prompt_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: query query_pkey; Type: CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -10940,6 +8610,14 @@ ALTER TABLE ONLY dispatch_organization_default.ticket
 
 
 --
+-- Name: prompt uq_prompt_type_project_enabled; Type: CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.prompt
+    ADD CONSTRAINT uq_prompt_type_project_enabled UNIQUE (genai_type, project_id, enabled) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
 -- Name: workflow_incident_priority workflow_incident_priority_pkey; Type: CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -10984,606 +8662,6 @@ ALTER TABLE ONLY dispatch_organization_default.workflow
 --
 
 ALTER TABLE ONLY dispatch_organization_default.workflow_term
-    ADD CONSTRAINT workflow_term_pkey PRIMARY KEY (term_id, workflow_id);
-
-
---
--- Name: alembic_version alembic_version_pkc; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.alembic_version
-    ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
-
-
---
--- Name: assoc_incident_tags assoc_incident_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_incident_tags
-    ADD CONSTRAINT assoc_incident_tags_pkey PRIMARY KEY (incident_id, tag_id);
-
-
---
--- Name: assoc_incident_terms assoc_incident_terms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_incident_terms
-    ADD CONSTRAINT assoc_incident_terms_pkey PRIMARY KEY (incident_id, term_id);
-
-
---
--- Name: assoc_individual_contact_incident_priority assoc_individual_contact_incident_priority_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_incident_priority
-    ADD CONSTRAINT assoc_individual_contact_incident_priority_pkey PRIMARY KEY (incident_priority_id, individual_contact_id);
-
-
---
--- Name: assoc_individual_contact_incident_type assoc_individual_contact_incident_type_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_incident_type
-    ADD CONSTRAINT assoc_individual_contact_incident_type_pkey PRIMARY KEY (incident_type_id, individual_contact_id);
-
-
---
--- Name: assoc_individual_contact_terms assoc_individual_contact_terms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_terms
-    ADD CONSTRAINT assoc_individual_contact_terms_pkey PRIMARY KEY (term_id, individual_contact_id);
-
-
---
--- Name: assoc_notification_filters assoc_notification_filters_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_notification_filters
-    ADD CONSTRAINT assoc_notification_filters_pkey PRIMARY KEY (notification_id, search_filter_id);
-
-
---
--- Name: conference conference_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.conference
-    ADD CONSTRAINT conference_pkey PRIMARY KEY (id);
-
-
---
--- Name: conversation conversation_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.conversation
-    ADD CONSTRAINT conversation_pkey PRIMARY KEY (id);
-
-
---
--- Name: definition definition_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition
-    ADD CONSTRAINT definition_pkey PRIMARY KEY (id);
-
-
---
--- Name: definition_teams definition_teams_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition_teams
-    ADD CONSTRAINT definition_teams_pkey PRIMARY KEY (definition_id, team_contact_id);
-
-
---
--- Name: definition_terms definition_terms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition_terms
-    ADD CONSTRAINT definition_terms_pkey PRIMARY KEY (definition_id, term_id);
-
-
---
--- Name: definition definition_text_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition
-    ADD CONSTRAINT definition_text_key UNIQUE (text);
-
-
---
--- Name: dispatch_user dispatch_user_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.dispatch_user
-    ADD CONSTRAINT dispatch_user_email_key UNIQUE (email);
-
-
---
--- Name: dispatch_user dispatch_user_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.dispatch_user
-    ADD CONSTRAINT dispatch_user_pkey PRIMARY KEY (id);
-
-
---
--- Name: document_incident_priority document_incident_priority_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_incident_priority
-    ADD CONSTRAINT document_incident_priority_pkey PRIMARY KEY (incident_priority_id, document_id);
-
-
---
--- Name: document_incident_type document_incident_type_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_incident_type
-    ADD CONSTRAINT document_incident_type_pkey PRIMARY KEY (incident_type_id, document_id);
-
-
---
--- Name: document document_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document
-    ADD CONSTRAINT document_pkey PRIMARY KEY (id);
-
-
---
--- Name: document_terms document_terms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_terms
-    ADD CONSTRAINT document_terms_pkey PRIMARY KEY (term_id, document_id);
-
-
---
--- Name: event event_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.event
-    ADD CONSTRAINT event_pkey PRIMARY KEY (id);
-
-
---
--- Name: event event_uuid_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.event
-    ADD CONSTRAINT event_uuid_key UNIQUE (uuid);
-
-
---
--- Name: feedback feedback_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.feedback
-    ADD CONSTRAINT feedback_pkey PRIMARY KEY (id);
-
-
---
--- Name: group group_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public."group"
-    ADD CONSTRAINT group_pkey PRIMARY KEY (id);
-
-
---
--- Name: incident incident_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident
-    ADD CONSTRAINT incident_pkey PRIMARY KEY (id);
-
-
---
--- Name: incident_priority incident_priority_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident_priority
-    ADD CONSTRAINT incident_priority_name_key UNIQUE (name);
-
-
---
--- Name: incident_priority incident_priority_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident_priority
-    ADD CONSTRAINT incident_priority_pkey PRIMARY KEY (id);
-
-
---
--- Name: incident_type incident_type_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident_type
-    ADD CONSTRAINT incident_type_name_key UNIQUE (name);
-
-
---
--- Name: incident_type incident_type_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident_type
-    ADD CONSTRAINT incident_type_pkey PRIMARY KEY (id);
-
-
---
--- Name: individual_contact individual_contact_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.individual_contact
-    ADD CONSTRAINT individual_contact_email_key UNIQUE (email);
-
-
---
--- Name: individual_contact individual_contact_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.individual_contact
-    ADD CONSTRAINT individual_contact_pkey PRIMARY KEY (id);
-
-
---
--- Name: notification notification_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.notification
-    ADD CONSTRAINT notification_pkey PRIMARY KEY (id);
-
-
---
--- Name: participant participant_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.participant
-    ADD CONSTRAINT participant_pkey PRIMARY KEY (id);
-
-
---
--- Name: participant_role participant_role_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.participant_role
-    ADD CONSTRAINT participant_role_pkey PRIMARY KEY (id);
-
-
---
--- Name: plugin plugin_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.plugin
-    ADD CONSTRAINT plugin_pkey PRIMARY KEY (id);
-
-
---
--- Name: plugin plugin_slug_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.plugin
-    ADD CONSTRAINT plugin_slug_key UNIQUE (slug);
-
-
---
--- Name: recommendation_accuracy recommendation_accuracy_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_accuracy
-    ADD CONSTRAINT recommendation_accuracy_pkey PRIMARY KEY (id);
-
-
---
--- Name: recommendation_documents recommendation_documents_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_documents
-    ADD CONSTRAINT recommendation_documents_pkey PRIMARY KEY (document_id, recommendation_id);
-
-
---
--- Name: recommendation_incident_priorities recommendation_incident_priorities_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_incident_priorities
-    ADD CONSTRAINT recommendation_incident_priorities_pkey PRIMARY KEY (incident_priority_id, recommendation_id);
-
-
---
--- Name: recommendation_incident_types recommendation_incident_types_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_incident_types
-    ADD CONSTRAINT recommendation_incident_types_pkey PRIMARY KEY (incident_type_id, recommendation_id);
-
-
---
--- Name: recommendation_individual_contacts recommendation_individual_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_individual_contacts
-    ADD CONSTRAINT recommendation_individual_contacts_pkey PRIMARY KEY (individual_contact_id, recommendation_id);
-
-
---
--- Name: recommendation recommendation_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation
-    ADD CONSTRAINT recommendation_pkey PRIMARY KEY (id);
-
-
---
--- Name: recommendation_services recommendation_services_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_services
-    ADD CONSTRAINT recommendation_services_pkey PRIMARY KEY (service_id, recommendation_id);
-
-
---
--- Name: recommendation_team_contacts recommendation_team_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_team_contacts
-    ADD CONSTRAINT recommendation_team_contacts_pkey PRIMARY KEY (team_contact_id, recommendation_id);
-
-
---
--- Name: recommendation_terms recommendation_terms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_terms
-    ADD CONSTRAINT recommendation_terms_pkey PRIMARY KEY (term_id, recommendation_id);
-
-
---
--- Name: report report_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.report
-    ADD CONSTRAINT report_pkey PRIMARY KEY (id);
-
-
---
--- Name: search_filter search_filter_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.search_filter
-    ADD CONSTRAINT search_filter_name_key UNIQUE (name);
-
-
---
--- Name: search_filter search_filter_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.search_filter
-    ADD CONSTRAINT search_filter_pkey PRIMARY KEY (id);
-
-
---
--- Name: service_incident service_incident_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident
-    ADD CONSTRAINT service_incident_pkey PRIMARY KEY (incident_id, service_id);
-
-
---
--- Name: service_incident_priority service_incident_priority_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident_priority
-    ADD CONSTRAINT service_incident_priority_pkey PRIMARY KEY (incident_priority_id, service_id);
-
-
---
--- Name: service_incident_type service_incident_type_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident_type
-    ADD CONSTRAINT service_incident_type_pkey PRIMARY KEY (incident_type_id, service_id);
-
-
---
--- Name: service service_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service
-    ADD CONSTRAINT service_pkey PRIMARY KEY (id);
-
-
---
--- Name: service_terms service_terms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_terms
-    ADD CONSTRAINT service_terms_pkey PRIMARY KEY (term_id, service_id);
-
-
---
--- Name: storage storage_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.storage
-    ADD CONSTRAINT storage_pkey PRIMARY KEY (id);
-
-
---
--- Name: tag tag_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.tag
-    ADD CONSTRAINT tag_name_key UNIQUE (name);
-
-
---
--- Name: tag tag_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.tag
-    ADD CONSTRAINT tag_pkey PRIMARY KEY (id);
-
-
---
--- Name: tag_type tag_type_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.tag_type
-    ADD CONSTRAINT tag_type_name_key UNIQUE (name);
-
-
---
--- Name: tag_type tag_type_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.tag_type
-    ADD CONSTRAINT tag_type_pkey PRIMARY KEY (id);
-
-
---
--- Name: task_assignees task_assignees_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task_assignees
-    ADD CONSTRAINT task_assignees_pkey PRIMARY KEY (participant_id, task_id);
-
-
---
--- Name: task task_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task
-    ADD CONSTRAINT task_pkey PRIMARY KEY (id);
-
-
---
--- Name: task_tickets task_tickets_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task_tickets
-    ADD CONSTRAINT task_tickets_pkey PRIMARY KEY (ticket_id, task_id);
-
-
---
--- Name: team_contact team_contact_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact
-    ADD CONSTRAINT team_contact_email_key UNIQUE (email);
-
-
---
--- Name: team_contact_incident team_contact_incident_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident
-    ADD CONSTRAINT team_contact_incident_pkey PRIMARY KEY (incident_id, team_contact_id);
-
-
---
--- Name: team_contact_incident_priority team_contact_incident_priority_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident_priority
-    ADD CONSTRAINT team_contact_incident_priority_pkey PRIMARY KEY (incident_priority_id, team_contact_id);
-
-
---
--- Name: team_contact_incident_type team_contact_incident_type_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident_type
-    ADD CONSTRAINT team_contact_incident_type_pkey PRIMARY KEY (incident_type_id, team_contact_id);
-
-
---
--- Name: team_contact team_contact_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact
-    ADD CONSTRAINT team_contact_pkey PRIMARY KEY (id);
-
-
---
--- Name: team_contact_terms team_contact_terms_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_terms
-    ADD CONSTRAINT team_contact_terms_pkey PRIMARY KEY (term_id, team_contact_id);
-
-
---
--- Name: term term_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.term
-    ADD CONSTRAINT term_pkey PRIMARY KEY (id);
-
-
---
--- Name: term term_text_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.term
-    ADD CONSTRAINT term_text_key UNIQUE (text);
-
-
---
--- Name: ticket ticket_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.ticket
-    ADD CONSTRAINT ticket_pkey PRIMARY KEY (id);
-
-
---
--- Name: workflow_incident_priority workflow_incident_priority_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_incident_priority
-    ADD CONSTRAINT workflow_incident_priority_pkey PRIMARY KEY (incident_priority_id, workflow_id);
-
-
---
--- Name: workflow_incident_type workflow_incident_type_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_incident_type
-    ADD CONSTRAINT workflow_incident_type_pkey PRIMARY KEY (incident_type_id, workflow_id);
-
-
---
--- Name: workflow_instance_artifact workflow_instance_artifact_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_instance_artifact
-    ADD CONSTRAINT workflow_instance_artifact_pkey PRIMARY KEY (document_id, workflow_instance_id);
-
-
---
--- Name: workflow_instance workflow_instance_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_instance
-    ADD CONSTRAINT workflow_instance_pkey PRIMARY KEY (id);
-
-
---
--- Name: workflow workflow_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow
-    ADD CONSTRAINT workflow_pkey PRIMARY KEY (id);
-
-
---
--- Name: workflow_term workflow_term_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_term
     ADD CONSTRAINT workflow_term_pkey PRIMARY KEY (term_id, workflow_id);
 
 
@@ -11903,139 +8981,6 @@ CREATE INDEX workflow_search_vector_idx ON dispatch_organization_default.workflo
 
 
 --
--- Name: ix_definition_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_definition_search_vector ON public.definition USING gin (search_vector);
-
-
---
--- Name: ix_dispatch_user_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_dispatch_user_search_vector ON public.dispatch_user USING gin (search_vector);
-
-
---
--- Name: ix_document_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_document_search_vector ON public.document USING gin (search_vector);
-
-
---
--- Name: ix_event_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_event_search_vector ON public.event USING gin (search_vector);
-
-
---
--- Name: ix_incident_priority_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_incident_priority_search_vector ON public.incident_priority USING gin (search_vector);
-
-
---
--- Name: ix_incident_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_incident_search_vector ON public.incident USING gin (search_vector);
-
-
---
--- Name: ix_incident_type_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_incident_type_search_vector ON public.incident_type USING gin (search_vector);
-
-
---
--- Name: ix_individual_contact_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_individual_contact_search_vector ON public.individual_contact USING gin (search_vector);
-
-
---
--- Name: ix_notification_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_notification_search_vector ON public.notification USING gin (search_vector);
-
-
---
--- Name: ix_plugin_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_plugin_search_vector ON public.plugin USING gin (search_vector);
-
-
---
--- Name: ix_report_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_report_search_vector ON public.report USING gin (search_vector);
-
-
---
--- Name: ix_search_filter_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_search_filter_search_vector ON public.search_filter USING gin (search_vector);
-
-
---
--- Name: ix_service_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_service_search_vector ON public.service USING gin (search_vector);
-
-
---
--- Name: ix_tag_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_tag_search_vector ON public.tag USING gin (search_vector);
-
-
---
--- Name: ix_tag_type_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_tag_type_search_vector ON public.tag_type USING gin (search_vector);
-
-
---
--- Name: ix_task_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_task_search_vector ON public.task USING gin (search_vector);
-
-
---
--- Name: ix_team_contact_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_team_contact_search_vector ON public.team_contact USING gin (search_vector);
-
-
---
--- Name: ix_term_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_term_search_vector ON public.term USING gin (search_vector);
-
-
---
--- Name: ix_workflow_search_vector; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX ix_workflow_search_vector ON public.workflow USING gin (search_vector);
-
-
---
 -- Name: dispatch_user dispatch_user_search_vector_trigger; Type: TRIGGER; Schema: dispatch_core; Owner: postgres
 --
 
@@ -12274,111 +9219,6 @@ CREATE TRIGGER workflow_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatc
 
 
 --
--- Name: definition definition_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER definition_search_vector_trigger BEFORE INSERT OR UPDATE ON public.definition FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'text');
-
-
---
--- Name: dispatch_user dispatch_user_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER dispatch_user_search_vector_trigger BEFORE INSERT OR UPDATE ON public.dispatch_user FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'email');
-
-
---
--- Name: document document_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER document_search_vector_trigger BEFORE INSERT OR UPDATE ON public.document FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
-
-
---
--- Name: incident incident_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER incident_search_vector_trigger BEFORE INSERT OR UPDATE ON public.incident FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'title', 'description');
-
-
---
--- Name: incident_type incident_type_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER incident_type_search_vector_trigger BEFORE INSERT OR UPDATE ON public.incident_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description');
-
-
---
--- Name: individual_contact individual_contact_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER individual_contact_search_vector_trigger BEFORE INSERT OR UPDATE ON public.individual_contact FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'title', 'company', 'notes');
-
-
---
--- Name: plugin plugin_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER plugin_search_vector_trigger BEFORE INSERT OR UPDATE ON public.plugin FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'title');
-
-
---
--- Name: report report_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER report_search_vector_trigger BEFORE INSERT OR UPDATE ON public.report FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'details_raw');
-
-
---
--- Name: search_filter search_filter_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER search_filter_search_vector_trigger BEFORE INSERT OR UPDATE ON public.search_filter FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description');
-
-
---
--- Name: service service_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER service_search_vector_trigger BEFORE INSERT OR UPDATE ON public.service FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
-
-
---
--- Name: tag tag_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER tag_search_vector_trigger BEFORE INSERT OR UPDATE ON public.tag FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
-
-
---
--- Name: task task_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER task_search_vector_trigger BEFORE INSERT OR UPDATE ON public.task FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'description');
-
-
---
--- Name: team_contact team_contact_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER team_contact_search_vector_trigger BEFORE INSERT OR UPDATE ON public.team_contact FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'company', 'notes');
-
-
---
--- Name: term term_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER term_search_vector_trigger BEFORE INSERT OR UPDATE ON public.term FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'text');
-
-
---
--- Name: workflow workflow_search_vector_trigger; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER workflow_search_vector_trigger BEFORE INSERT OR UPDATE ON public.workflow FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description');
-
-
---
 -- Name: dispatch_user_organization dispatch_user_organization_dispatch_user_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_core; Owner: postgres
 --
 
@@ -12392,6 +9232,14 @@ ALTER TABLE ONLY dispatch_core.dispatch_user_organization
 
 ALTER TABLE ONLY dispatch_core.dispatch_user_organization
     ADD CONSTRAINT dispatch_user_organization_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES dispatch_core.organization(id);
+
+
+--
+-- Name: dispatch_user_settings dispatch_user_settings_dispatch_user_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_core; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_core.dispatch_user_settings
+    ADD CONSTRAINT dispatch_user_settings_dispatch_user_id_fkey FOREIGN KEY (dispatch_user_id) REFERENCES dispatch_core.dispatch_user(id);
 
 
 --
@@ -12763,6 +9611,30 @@ ALTER TABLE ONLY dispatch_organization_default.assoc_team_contact_filters
 
 
 --
+-- Name: canvas canvas_case_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.canvas
+    ADD CONSTRAINT canvas_case_id_fkey FOREIGN KEY (case_id) REFERENCES dispatch_organization_default."case"(id) ON DELETE CASCADE;
+
+
+--
+-- Name: canvas canvas_incident_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.canvas
+    ADD CONSTRAINT canvas_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES dispatch_organization_default.incident(id) ON DELETE CASCADE;
+
+
+--
+-- Name: canvas canvas_project_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.canvas
+    ADD CONSTRAINT canvas_project_id_fkey FOREIGN KEY (project_id) REFERENCES dispatch_organization_default.project(id) ON DELETE CASCADE;
+
+
+--
 -- Name: case case_assignee_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -12807,7 +9679,7 @@ ALTER TABLE ONLY dispatch_organization_default."case"
 --
 
 ALTER TABLE ONLY dispatch_organization_default.case_cost
-    ADD CONSTRAINT case_cost_case_cost_type_id_fkey FOREIGN KEY (case_cost_type_id) REFERENCES dispatch_organization_default.case_cost_type(id);
+    ADD CONSTRAINT case_cost_case_cost_type_id_fkey FOREIGN KEY (case_cost_type_id) REFERENCES dispatch_organization_default.case_cost_type(id) ON DELETE CASCADE;
 
 
 --
@@ -12840,6 +9712,22 @@ ALTER TABLE ONLY dispatch_organization_default.case_cost_type
 
 ALTER TABLE ONLY dispatch_organization_default."case"
     ADD CONSTRAINT case_duplicate_id_fkey FOREIGN KEY (duplicate_id) REFERENCES dispatch_organization_default."case"(id);
+
+
+--
+-- Name: case_notes case_notes_case_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.case_notes
+    ADD CONSTRAINT case_notes_case_id_fkey FOREIGN KEY (case_id) REFERENCES dispatch_organization_default."case"(id) ON DELETE CASCADE;
+
+
+--
+-- Name: case_notes case_notes_last_updated_by_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.case_notes
+    ADD CONSTRAINT case_notes_last_updated_by_id_fkey FOREIGN KEY (last_updated_by_id) REFERENCES dispatch_organization_default.individual_contact(id);
 
 
 --
@@ -13152,6 +10040,14 @@ ALTER TABLE ONLY dispatch_organization_default.feedback
 
 ALTER TABLE ONLY dispatch_organization_default.feedback
     ADD CONSTRAINT feedback_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES dispatch_organization_default.participant(id);
+
+
+--
+-- Name: case fk_case_resolved_by_id; Type: FK CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default."case"
+    ADD CONSTRAINT fk_case_resolved_by_id FOREIGN KEY (resolved_by_id) REFERENCES dispatch_organization_default.individual_contact(id);
 
 
 --
@@ -13672,6 +10568,14 @@ ALTER TABLE ONLY dispatch_organization_default.plugin_instance
 
 ALTER TABLE ONLY dispatch_organization_default.project
     ADD CONSTRAINT project_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES dispatch_core.organization(id);
+
+
+--
+-- Name: prompt prompt_project_id_fkey; Type: FK CONSTRAINT; Schema: dispatch_organization_default; Owner: postgres
+--
+
+ALTER TABLE ONLY dispatch_organization_default.prompt
+    ADD CONSTRAINT prompt_project_id_fkey FOREIGN KEY (project_id) REFERENCES dispatch_organization_default.project(id) ON DELETE CASCADE;
 
 
 --
@@ -14259,782 +11163,7 @@ ALTER TABLE ONLY dispatch_organization_default.workflow_term
 
 
 --
--- Name: assoc_incident_tags assoc_incident_tags_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_incident_tags
-    ADD CONSTRAINT assoc_incident_tags_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: assoc_incident_tags assoc_incident_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_incident_tags
-    ADD CONSTRAINT assoc_incident_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.tag(id) ON DELETE CASCADE;
-
-
---
--- Name: assoc_incident_terms assoc_incident_terms_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_incident_terms
-    ADD CONSTRAINT assoc_incident_terms_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: assoc_incident_terms assoc_incident_terms_term_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_incident_terms
-    ADD CONSTRAINT assoc_incident_terms_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.term(id) ON DELETE CASCADE;
-
-
---
--- Name: assoc_individual_contact_incident_priority assoc_individual_contact_incident_pr_individual_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_incident_priority
-    ADD CONSTRAINT assoc_individual_contact_incident_pr_individual_contact_id_fkey FOREIGN KEY (individual_contact_id) REFERENCES public.individual_contact(id);
-
-
---
--- Name: assoc_individual_contact_incident_priority assoc_individual_contact_incident_pri_incident_priority_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_incident_priority
-    ADD CONSTRAINT assoc_individual_contact_incident_pri_incident_priority_id_fkey FOREIGN KEY (incident_priority_id) REFERENCES public.incident_priority(id);
-
-
---
--- Name: assoc_individual_contact_incident_type assoc_individual_contact_incident_ty_individual_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_incident_type
-    ADD CONSTRAINT assoc_individual_contact_incident_ty_individual_contact_id_fkey FOREIGN KEY (individual_contact_id) REFERENCES public.individual_contact(id);
-
-
---
--- Name: assoc_individual_contact_incident_type assoc_individual_contact_incident_type_incident_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_incident_type
-    ADD CONSTRAINT assoc_individual_contact_incident_type_incident_type_id_fkey FOREIGN KEY (incident_type_id) REFERENCES public.incident_type(id);
-
-
---
--- Name: assoc_individual_contact_terms assoc_individual_contact_terms_individual_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_terms
-    ADD CONSTRAINT assoc_individual_contact_terms_individual_contact_id_fkey FOREIGN KEY (individual_contact_id) REFERENCES public.individual_contact(id);
-
-
---
--- Name: assoc_individual_contact_terms assoc_individual_contact_terms_term_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_individual_contact_terms
-    ADD CONSTRAINT assoc_individual_contact_terms_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.term(id);
-
-
---
--- Name: assoc_notification_filters assoc_notification_filters_notification_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_notification_filters
-    ADD CONSTRAINT assoc_notification_filters_notification_id_fkey FOREIGN KEY (notification_id) REFERENCES public.notification(id) ON DELETE CASCADE;
-
-
---
--- Name: assoc_notification_filters assoc_notification_filters_search_filter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.assoc_notification_filters
-    ADD CONSTRAINT assoc_notification_filters_search_filter_id_fkey FOREIGN KEY (search_filter_id) REFERENCES public.search_filter(id) ON DELETE CASCADE;
-
-
---
--- Name: conference conference_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.conference
-    ADD CONSTRAINT conference_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: conversation conversation_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.conversation
-    ADD CONSTRAINT conversation_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: definition_teams definition_teams_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition_teams
-    ADD CONSTRAINT definition_teams_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.definition(id);
-
-
---
--- Name: definition_teams definition_teams_team_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition_teams
-    ADD CONSTRAINT definition_teams_team_contact_id_fkey FOREIGN KEY (team_contact_id) REFERENCES public.team_contact(id);
-
-
---
--- Name: definition_terms definition_terms_definition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition_terms
-    ADD CONSTRAINT definition_terms_definition_id_fkey FOREIGN KEY (definition_id) REFERENCES public.definition(id);
-
-
---
--- Name: definition_terms definition_terms_term_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.definition_terms
-    ADD CONSTRAINT definition_terms_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.term(id);
-
-
---
--- Name: document document_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document
-    ADD CONSTRAINT document_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: document_incident_priority document_incident_priority_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_incident_priority
-    ADD CONSTRAINT document_incident_priority_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.document(id);
-
-
---
--- Name: document_incident_priority document_incident_priority_incident_priority_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_incident_priority
-    ADD CONSTRAINT document_incident_priority_incident_priority_id_fkey FOREIGN KEY (incident_priority_id) REFERENCES public.incident_priority(id);
-
-
---
--- Name: document_incident_type document_incident_type_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_incident_type
-    ADD CONSTRAINT document_incident_type_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.document(id);
-
-
---
--- Name: document_incident_type document_incident_type_incident_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_incident_type
-    ADD CONSTRAINT document_incident_type_incident_type_id_fkey FOREIGN KEY (incident_type_id) REFERENCES public.incident_type(id);
-
-
---
--- Name: document document_report_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document
-    ADD CONSTRAINT document_report_id_fkey FOREIGN KEY (report_id) REFERENCES public.report(id);
-
-
---
--- Name: document_terms document_terms_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_terms
-    ADD CONSTRAINT document_terms_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.document(id);
-
-
---
--- Name: document_terms document_terms_term_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.document_terms
-    ADD CONSTRAINT document_terms_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.term(id);
-
-
---
--- Name: event event_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.event
-    ADD CONSTRAINT event_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: event event_individual_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.event
-    ADD CONSTRAINT event_individual_id_fkey FOREIGN KEY (individual_id) REFERENCES public.individual_contact(id) ON DELETE CASCADE;
-
-
---
--- Name: feedback feedback_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.feedback
-    ADD CONSTRAINT feedback_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: feedback feedback_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.feedback
-    ADD CONSTRAINT feedback_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participant(id);
-
-
---
--- Name: group group_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public."group"
-    ADD CONSTRAINT group_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: incident incident_duplicate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident
-    ADD CONSTRAINT incident_duplicate_id_fkey FOREIGN KEY (duplicate_id) REFERENCES public.incident(id);
-
-
---
--- Name: incident incident_incident_priority_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident
-    ADD CONSTRAINT incident_incident_priority_id_fkey FOREIGN KEY (incident_priority_id) REFERENCES public.incident_priority(id);
-
-
---
--- Name: incident incident_incident_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident
-    ADD CONSTRAINT incident_incident_type_id_fkey FOREIGN KEY (incident_type_id) REFERENCES public.incident_type(id);
-
-
---
--- Name: incident_type incident_type_commander_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident_type
-    ADD CONSTRAINT incident_type_commander_service_id_fkey FOREIGN KEY (commander_service_id) REFERENCES public.service(id);
-
-
---
--- Name: incident_type incident_type_liaison_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.incident_type
-    ADD CONSTRAINT incident_type_liaison_service_id_fkey FOREIGN KEY (liaison_service_id) REFERENCES public.service(id);
-
-
---
--- Name: individual_contact individual_contact_team_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.individual_contact
-    ADD CONSTRAINT individual_contact_team_contact_id_fkey FOREIGN KEY (team_contact_id) REFERENCES public.team_contact(id);
-
-
---
--- Name: participant participant_added_by_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.participant
-    ADD CONSTRAINT participant_added_by_id_fkey FOREIGN KEY (added_by_id) REFERENCES public.participant(id);
-
-
---
--- Name: participant participant_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.participant
-    ADD CONSTRAINT participant_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: participant participant_individual_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.participant
-    ADD CONSTRAINT participant_individual_contact_id_fkey FOREIGN KEY (individual_contact_id) REFERENCES public.individual_contact(id);
-
-
---
--- Name: participant_role participant_role_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.participant_role
-    ADD CONSTRAINT participant_role_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participant(id) ON DELETE CASCADE;
-
-
---
--- Name: recommendation_accuracy recommendation_accuracy_recommendation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_accuracy
-    ADD CONSTRAINT recommendation_accuracy_recommendation_id_fkey FOREIGN KEY (recommendation_id) REFERENCES public.recommendation(id);
-
-
---
--- Name: recommendation_documents recommendation_documents_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_documents
-    ADD CONSTRAINT recommendation_documents_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.document(id);
-
-
---
--- Name: recommendation_documents recommendation_documents_recommendation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_documents
-    ADD CONSTRAINT recommendation_documents_recommendation_id_fkey FOREIGN KEY (recommendation_id) REFERENCES public.recommendation(id);
-
-
---
--- Name: recommendation_incident_priorities recommendation_incident_priorities_incident_priority_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_incident_priorities
-    ADD CONSTRAINT recommendation_incident_priorities_incident_priority_id_fkey FOREIGN KEY (incident_priority_id) REFERENCES public.incident_priority(id);
-
-
---
--- Name: recommendation_incident_priorities recommendation_incident_priorities_recommendation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_incident_priorities
-    ADD CONSTRAINT recommendation_incident_priorities_recommendation_id_fkey FOREIGN KEY (recommendation_id) REFERENCES public.recommendation(id);
-
-
---
--- Name: recommendation_incident_types recommendation_incident_types_incident_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_incident_types
-    ADD CONSTRAINT recommendation_incident_types_incident_type_id_fkey FOREIGN KEY (incident_type_id) REFERENCES public.incident_type(id);
-
-
---
--- Name: recommendation_incident_types recommendation_incident_types_recommendation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_incident_types
-    ADD CONSTRAINT recommendation_incident_types_recommendation_id_fkey FOREIGN KEY (recommendation_id) REFERENCES public.recommendation(id);
-
-
---
--- Name: recommendation_individual_contacts recommendation_individual_contacts_individual_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_individual_contacts
-    ADD CONSTRAINT recommendation_individual_contacts_individual_contact_id_fkey FOREIGN KEY (individual_contact_id) REFERENCES public.individual_contact(id);
-
-
---
--- Name: recommendation_individual_contacts recommendation_individual_contacts_recommendation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_individual_contacts
-    ADD CONSTRAINT recommendation_individual_contacts_recommendation_id_fkey FOREIGN KEY (recommendation_id) REFERENCES public.recommendation(id);
-
-
---
--- Name: recommendation_services recommendation_services_recommendation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_services
-    ADD CONSTRAINT recommendation_services_recommendation_id_fkey FOREIGN KEY (recommendation_id) REFERENCES public.recommendation(id);
-
-
---
--- Name: recommendation_services recommendation_services_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_services
-    ADD CONSTRAINT recommendation_services_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.service(id);
-
-
---
--- Name: recommendation_team_contacts recommendation_team_contacts_recommendation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_team_contacts
-    ADD CONSTRAINT recommendation_team_contacts_recommendation_id_fkey FOREIGN KEY (recommendation_id) REFERENCES public.recommendation(id);
-
-
---
--- Name: recommendation_team_contacts recommendation_team_contacts_team_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_team_contacts
-    ADD CONSTRAINT recommendation_team_contacts_team_contact_id_fkey FOREIGN KEY (team_contact_id) REFERENCES public.team_contact(id);
-
-
---
--- Name: recommendation_terms recommendation_terms_recommendation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_terms
-    ADD CONSTRAINT recommendation_terms_recommendation_id_fkey FOREIGN KEY (recommendation_id) REFERENCES public.recommendation(id);
-
-
---
--- Name: recommendation_terms recommendation_terms_term_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.recommendation_terms
-    ADD CONSTRAINT recommendation_terms_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.term(id);
-
-
---
--- Name: report report_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.report
-    ADD CONSTRAINT report_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: report report_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.report
-    ADD CONSTRAINT report_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participant(id);
-
-
---
--- Name: search_filter search_filter_creator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.search_filter
-    ADD CONSTRAINT search_filter_creator_id_fkey FOREIGN KEY (creator_id) REFERENCES public.dispatch_user(id);
-
-
---
--- Name: service_incident service_incident_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident
-    ADD CONSTRAINT service_incident_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id);
-
-
---
--- Name: service_incident_priority service_incident_priority_incident_priority_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident_priority
-    ADD CONSTRAINT service_incident_priority_incident_priority_id_fkey FOREIGN KEY (incident_priority_id) REFERENCES public.incident_priority(id);
-
-
---
--- Name: service_incident_priority service_incident_priority_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident_priority
-    ADD CONSTRAINT service_incident_priority_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.service(id);
-
-
---
--- Name: service_incident service_incident_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident
-    ADD CONSTRAINT service_incident_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.service(id);
-
-
---
--- Name: service_incident_type service_incident_type_incident_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident_type
-    ADD CONSTRAINT service_incident_type_incident_type_id_fkey FOREIGN KEY (incident_type_id) REFERENCES public.incident_type(id);
-
-
---
--- Name: service_incident_type service_incident_type_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_incident_type
-    ADD CONSTRAINT service_incident_type_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.service(id);
-
-
---
--- Name: service_terms service_terms_service_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_terms
-    ADD CONSTRAINT service_terms_service_id_fkey FOREIGN KEY (service_id) REFERENCES public.service(id);
-
-
---
--- Name: service_terms service_terms_term_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.service_terms
-    ADD CONSTRAINT service_terms_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.term(id);
-
-
---
--- Name: storage storage_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.storage
-    ADD CONSTRAINT storage_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: tag tag_tag_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.tag
-    ADD CONSTRAINT tag_tag_type_id_fkey FOREIGN KEY (tag_type_id) REFERENCES public.tag_type(id);
-
-
---
--- Name: task_assignees task_assignees_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task_assignees
-    ADD CONSTRAINT task_assignees_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.participant(id) ON DELETE CASCADE;
-
-
---
--- Name: task_assignees task_assignees_task_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task_assignees
-    ADD CONSTRAINT task_assignees_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.task(id) ON DELETE CASCADE;
-
-
---
--- Name: task task_creator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task
-    ADD CONSTRAINT task_creator_id_fkey FOREIGN KEY (creator_id) REFERENCES public.participant(id);
-
-
---
--- Name: task task_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task
-    ADD CONSTRAINT task_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: task task_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task
-    ADD CONSTRAINT task_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.participant(id);
-
-
---
--- Name: task_tickets task_tickets_task_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task_tickets
-    ADD CONSTRAINT task_tickets_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.task(id) ON DELETE CASCADE;
-
-
---
--- Name: task_tickets task_tickets_ticket_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.task_tickets
-    ADD CONSTRAINT task_tickets_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.ticket(id) ON DELETE CASCADE;
-
-
---
--- Name: team_contact_incident team_contact_incident_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident
-    ADD CONSTRAINT team_contact_incident_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id);
-
-
---
--- Name: team_contact_incident_priority team_contact_incident_priority_incident_priority_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident_priority
-    ADD CONSTRAINT team_contact_incident_priority_incident_priority_id_fkey FOREIGN KEY (incident_priority_id) REFERENCES public.incident_priority(id);
-
-
---
--- Name: team_contact_incident_priority team_contact_incident_priority_team_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident_priority
-    ADD CONSTRAINT team_contact_incident_priority_team_contact_id_fkey FOREIGN KEY (team_contact_id) REFERENCES public.team_contact(id);
-
-
---
--- Name: team_contact_incident team_contact_incident_team_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident
-    ADD CONSTRAINT team_contact_incident_team_contact_id_fkey FOREIGN KEY (team_contact_id) REFERENCES public.team_contact(id);
-
-
---
--- Name: team_contact_incident_type team_contact_incident_type_incident_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident_type
-    ADD CONSTRAINT team_contact_incident_type_incident_type_id_fkey FOREIGN KEY (incident_type_id) REFERENCES public.incident_type(id);
-
-
---
--- Name: team_contact_incident_type team_contact_incident_type_team_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_incident_type
-    ADD CONSTRAINT team_contact_incident_type_team_contact_id_fkey FOREIGN KEY (team_contact_id) REFERENCES public.team_contact(id);
-
-
---
--- Name: team_contact_terms team_contact_terms_team_contact_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_terms
-    ADD CONSTRAINT team_contact_terms_team_contact_id_fkey FOREIGN KEY (team_contact_id) REFERENCES public.team_contact(id);
-
-
---
--- Name: team_contact_terms team_contact_terms_term_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.team_contact_terms
-    ADD CONSTRAINT team_contact_terms_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.term(id);
-
-
---
--- Name: ticket ticket_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.ticket
-    ADD CONSTRAINT ticket_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: workflow_incident_priority workflow_incident_priority_incident_priority_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_incident_priority
-    ADD CONSTRAINT workflow_incident_priority_incident_priority_id_fkey FOREIGN KEY (incident_priority_id) REFERENCES public.incident_priority(id);
-
-
---
--- Name: workflow_incident_priority workflow_incident_priority_workflow_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_incident_priority
-    ADD CONSTRAINT workflow_incident_priority_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflow(id);
-
-
---
--- Name: workflow_incident_type workflow_incident_type_incident_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_incident_type
-    ADD CONSTRAINT workflow_incident_type_incident_type_id_fkey FOREIGN KEY (incident_type_id) REFERENCES public.incident_type(id);
-
-
---
--- Name: workflow_incident_type workflow_incident_type_workflow_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_incident_type
-    ADD CONSTRAINT workflow_incident_type_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflow(id);
-
-
---
--- Name: workflow_instance_artifact workflow_instance_artifact_document_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_instance_artifact
-    ADD CONSTRAINT workflow_instance_artifact_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.document(id);
-
-
---
--- Name: workflow_instance_artifact workflow_instance_artifact_workflow_instance_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_instance_artifact
-    ADD CONSTRAINT workflow_instance_artifact_workflow_instance_id_fkey FOREIGN KEY (workflow_instance_id) REFERENCES public.workflow_instance(id);
-
-
---
--- Name: workflow_instance workflow_instance_creator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_instance
-    ADD CONSTRAINT workflow_instance_creator_id_fkey FOREIGN KEY (creator_id) REFERENCES public.participant(id);
-
-
---
--- Name: workflow_instance workflow_instance_incident_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_instance
-    ADD CONSTRAINT workflow_instance_incident_id_fkey FOREIGN KEY (incident_id) REFERENCES public.incident(id) ON DELETE CASCADE;
-
-
---
--- Name: workflow_instance workflow_instance_workflow_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_instance
-    ADD CONSTRAINT workflow_instance_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflow(id);
-
-
---
--- Name: workflow workflow_plugin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow
-    ADD CONSTRAINT workflow_plugin_id_fkey FOREIGN KEY (plugin_id) REFERENCES public.plugin(id);
-
-
---
--- Name: workflow_term workflow_term_term_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_term
-    ADD CONSTRAINT workflow_term_term_id_fkey FOREIGN KEY (term_id) REFERENCES public.term(id);
-
-
---
--- Name: workflow_term workflow_term_workflow_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.workflow_term
-    ADD CONSTRAINT workflow_term_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.workflow(id);
-
-
---
 -- PostgreSQL database dump complete
 --
+
 
