@@ -49,13 +49,16 @@ enforces locally, and which this migration did not touch).
 
 What this cannot check
 ----------------------
-Rendering. blockkit 2 dropped the ``emoji: true`` field that 1.9.2 emitted on
-every ``plain_text`` object, and Slack decides client-side what a bare
-``plain_text`` does with a shortcode. The exposed strings are the five case
-action buttons -- ``:mag: Triage``, ``:white_check_mark: Resolve``,
-``:pencil: Edit``, ``:slack: Create Channel``, ``:fire: Escalate`` -- so after
-a run, look at the case message and confirm they show glyphs and not literal
-colons. Nothing here can assert that for you.
+Rendering, which is client-side. The case action buttons are the surface to
+eyeball: ``:mag: Triage``, ``:white_check_mark: Resolve``, ``:pencil: Edit``,
+``:slack: Create Channel``, ``:fire: Escalate``.
+
+Those five are the only ``plain_text`` objects in any payload here that carry
+an emoji shortcode, which matters because blockkit 2 dropped the
+``emoji: true`` field that 1.9.2 emitted and ``emoji`` applies to no other text
+type. Verified against a real workspace 2026-08-12: Slack renders the
+shortcodes as glyphs with the field absent, so the omission is inert and the
+labels need no ``emoji=True``. Re-check here if that ever appears to regress.
 
 This posts real messages and does not delete them. Point it at a throwaway
 channel.
