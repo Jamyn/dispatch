@@ -131,7 +131,7 @@ CREATE FUNCTION dispatch_core.dispatch_user_search_vector_update() RETURNS trigg
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = setweight(to_tsvector('pg_catalog.english', coalesce(NEW.email, '')), 'A');
+                NEW.search_vector = setweight(to_tsvector('pg_catalog.simple', coalesce(NEW.email, '')), 'A');
                 RETURN NEW;
             END
             $$;
@@ -154,6 +154,22 @@ CREATE FUNCTION dispatch_core.organization_search_vector_update() RETURNS trigge
 
 
 ALTER FUNCTION dispatch_core.organization_search_vector_update() OWNER TO postgres;
+
+--
+-- Name: plugin_event_search_vector_update(); Type: FUNCTION; Schema: dispatch_core; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_core.plugin_event_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = (setweight(to_tsvector('pg_catalog.english', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.slug, '')), 'B')) || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.description, '')), 'C');
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_core.plugin_event_search_vector_update() OWNER TO postgres;
 
 --
 -- Name: plugin_search_vector_update(); Type: FUNCTION; Schema: dispatch_core; Owner: postgres
@@ -416,7 +432,7 @@ CREATE FUNCTION dispatch_organization_default.alert_search_vector_update() RETUR
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -458,6 +474,102 @@ $_$;
 ALTER FUNCTION dispatch_organization_default.array_nremove(anyarray, anyelement, integer) OWNER TO postgres;
 
 --
+-- Name: case_cost_type_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.case_cost_type_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = setweight(to_tsvector('pg_catalog.english', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.description, '')), 'B');
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.case_cost_type_search_vector_update() OWNER TO postgres;
+
+--
+-- Name: case_priority_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.case_priority_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.description, ''));
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.case_priority_search_vector_update() OWNER TO postgres;
+
+--
+-- Name: case_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.case_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = (setweight(to_tsvector('pg_catalog.english', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.title, '')), 'B')) || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.description, '')), 'C');
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.case_search_vector_update() OWNER TO postgres;
+
+--
+-- Name: case_severity_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.case_severity_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.simple', coalesce(NEW.description, ''));
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.case_severity_search_vector_update() OWNER TO postgres;
+
+--
+-- Name: case_type_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.case_type_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.case_type_search_vector_update() OWNER TO postgres;
+
+--
+-- Name: cost_model_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.cost_model_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = setweight(to_tsvector('pg_catalog.english', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.description, '')), 'B');
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.cost_model_search_vector_update() OWNER TO postgres;
+
+--
 -- Name: definition_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -465,7 +577,7 @@ CREATE FUNCTION dispatch_organization_default.definition_search_vector_update() 
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.text, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.text, ''));
                 RETURN NEW;
             END
             $$;
@@ -481,13 +593,29 @@ CREATE FUNCTION dispatch_organization_default.document_search_vector_update() RE
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
 
 
 ALTER FUNCTION dispatch_organization_default.document_search_vector_update() OWNER TO postgres;
+
+--
+-- Name: entity_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.entity_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = setweight(to_tsvector('pg_catalog.simple', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.simple', coalesce(NEW.description, '')), 'B');
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.entity_search_vector_update() OWNER TO postgres;
 
 --
 -- Name: entity_type_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
@@ -497,7 +625,7 @@ CREATE FUNCTION dispatch_organization_default.entity_type_search_vector_update()
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.description, ''));
+                NEW.search_vector = setweight(to_tsvector('pg_catalog.simple', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.simple', coalesce(NEW.description, '')), 'B');
                 RETURN NEW;
             END
             $$;
@@ -529,7 +657,7 @@ CREATE FUNCTION dispatch_organization_default.feedback_search_vector_update() RE
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.feedback, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.rating, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.feedback, '')) || to_tsvector('pg_catalog.simple', coalesce(NEW.rating, ''));
                 RETURN NEW;
             END
             $$;
@@ -586,6 +714,22 @@ CREATE FUNCTION dispatch_organization_default.incident_search_vector_update() RE
 ALTER FUNCTION dispatch_organization_default.incident_search_vector_update() OWNER TO postgres;
 
 --
+-- Name: incident_severity_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.incident_severity_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.simple', coalesce(NEW.description, ''));
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.incident_severity_search_vector_update() OWNER TO postgres;
+
+--
 -- Name: incident_type_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -593,7 +737,7 @@ CREATE FUNCTION dispatch_organization_default.incident_type_search_vector_update
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.description, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -609,7 +753,7 @@ CREATE FUNCTION dispatch_organization_default.individual_contact_search_vector_u
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = (((to_tsvector('pg_catalog.english', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.title, ''))) || to_tsvector('pg_catalog.english', coalesce(NEW.email, ''))) || to_tsvector('pg_catalog.english', coalesce(NEW.company, ''))) || to_tsvector('pg_catalog.english', coalesce(NEW.notes, ''));
+                NEW.search_vector = (((setweight(to_tsvector('pg_catalog.english', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.title, '')), 'C')) || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.email, '')), 'B')) || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.company, '')), 'D')) || to_tsvector('pg_catalog.english', coalesce(NEW.notes, ''));
                 RETURN NEW;
             END
             $$;
@@ -625,7 +769,7 @@ CREATE FUNCTION dispatch_organization_default.notification_search_vector_update(
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.description, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.simple', coalesce(NEW.description, ''));
                 RETURN NEW;
             END
             $$;
@@ -657,7 +801,7 @@ CREATE FUNCTION dispatch_organization_default.query_search_vector_update() RETUR
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -698,6 +842,22 @@ CREATE FUNCTION dispatch_organization_default.search_filter_search_vector_update
 ALTER FUNCTION dispatch_organization_default.search_filter_search_vector_update() OWNER TO postgres;
 
 --
+-- Name: service_feedback_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.service_feedback_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.feedback, '')) || to_tsvector('pg_catalog.simple', coalesce(NEW.rating, ''));
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.service_feedback_search_vector_update() OWNER TO postgres;
+
+--
 -- Name: service_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
 --
 
@@ -705,13 +865,29 @@ CREATE FUNCTION dispatch_organization_default.service_search_vector_update() RET
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
 
 
 ALTER FUNCTION dispatch_organization_default.service_search_vector_update() OWNER TO postgres;
+
+--
+-- Name: signal_engagement_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE FUNCTION dispatch_organization_default.signal_engagement_search_vector_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+            BEGIN
+                NEW.search_vector = setweight(to_tsvector('pg_catalog.english', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.description, '')), 'B');
+                RETURN NEW;
+            END
+            $$;
+
+
+ALTER FUNCTION dispatch_organization_default.signal_engagement_search_vector_update() OWNER TO postgres;
 
 --
 -- Name: signal_filter_search_vector_update(); Type: FUNCTION; Schema: dispatch_organization_default; Owner: postgres
@@ -721,7 +897,7 @@ CREATE FUNCTION dispatch_organization_default.signal_filter_search_vector_update
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.description, ''));
+                NEW.search_vector = setweight(to_tsvector('pg_catalog.english', coalesce(NEW.name, '')), 'A') || setweight(to_tsvector('pg_catalog.english', coalesce(NEW.description, '')), 'B');
                 RETURN NEW;
             END
             $$;
@@ -737,7 +913,7 @@ CREATE FUNCTION dispatch_organization_default.signal_search_vector_update() RETU
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = (to_tsvector('pg_catalog.english', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.description, ''))) || to_tsvector('pg_catalog.english', coalesce(NEW.variant, ''));
+                NEW.search_vector = (to_tsvector('pg_catalog.simple', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.simple', coalesce(NEW.description, ''))) || to_tsvector('pg_catalog.simple', coalesce(NEW.variant, ''));
                 RETURN NEW;
             END
             $$;
@@ -753,7 +929,7 @@ CREATE FUNCTION dispatch_organization_default.source_data_format_search_vector_u
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -769,7 +945,7 @@ CREATE FUNCTION dispatch_organization_default.source_environment_search_vector_u
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -785,7 +961,7 @@ CREATE FUNCTION dispatch_organization_default.source_search_vector_update() RETU
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -801,7 +977,7 @@ CREATE FUNCTION dispatch_organization_default.source_status_search_vector_update
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -817,7 +993,7 @@ CREATE FUNCTION dispatch_organization_default.source_transport_search_vector_upd
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -833,7 +1009,7 @@ CREATE FUNCTION dispatch_organization_default.source_type_search_vector_update()
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -849,7 +1025,7 @@ CREATE FUNCTION dispatch_organization_default.tag_search_vector_update() RETURNS
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = (to_tsvector('pg_catalog.english', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.english', coalesce(NEW.description, ''))) || to_tsvector('pg_catalog.english', coalesce(NEW.external_id, ''));
+                NEW.search_vector = (to_tsvector('pg_catalog.simple', coalesce(NEW.name, '')) || to_tsvector('pg_catalog.simple', coalesce(NEW.description, ''))) || to_tsvector('pg_catalog.simple', coalesce(NEW.external_id, ''));
                 RETURN NEW;
             END
             $$;
@@ -865,7 +1041,7 @@ CREATE FUNCTION dispatch_organization_default.tag_type_search_vector_update() RE
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.name, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.name, ''));
                 RETURN NEW;
             END
             $$;
@@ -881,7 +1057,7 @@ CREATE FUNCTION dispatch_organization_default.task_search_vector_update() RETURN
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.description, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.description, ''));
                 RETURN NEW;
             END
             $$;
@@ -913,7 +1089,7 @@ CREATE FUNCTION dispatch_organization_default.term_search_vector_update() RETURN
     LANGUAGE plpgsql
     AS $$
             BEGIN
-                NEW.search_vector = to_tsvector('pg_catalog.english', coalesce(NEW.text, ''));
+                NEW.search_vector = to_tsvector('pg_catalog.simple', coalesce(NEW.text, ''));
                 RETURN NEW;
             END
             $$;
@@ -5949,7 +6125,7 @@ ALTER TABLE ONLY dispatch_organization_default.workflow_instance ALTER COLUMN id
 --
 
 COPY dispatch_core.alembic_version (version_num) FROM stdin;
-903183fd9aee
+b7e42c1d9a35
 \.
 
 
@@ -6030,7 +6206,7 @@ COPY dispatch_core.plugin_event (id, name, slug, description, plugin_id, search_
 --
 
 COPY dispatch_organization_default.alembic_version (version_num) FROM stdin;
-ff08d822ef2c
+c3f1a9d24b70
 \.
 
 
@@ -6258,10 +6434,10 @@ COPY dispatch_organization_default.case_notes (id, content, case_id, last_update
 --
 
 COPY dispatch_organization_default.case_priority (id, name, description, color, enabled, "default", view_order, search_vector, project_id, page_assignee, disable_delayed_message_warning) FROM stdin;
-1	Low	Low priority	#558b2f	t	t	-1	\N	1	f	f
-2	Medium	Medium priority	\N	t	f	2	\N	1	f	f
-3	High	High priority	#b71c1c	t	f	3	\N	1	f	f
-4	Critical	Critical priority	\N	t	f	4	\N	1	t	f
+1	Low	Low priority	#558b2f	t	t	-1	'low':1,2 'prioriti':3	1	f	f
+2	Medium	Medium priority	\N	t	f	2	'medium':1,2 'prioriti':3	1	f	f
+3	High	High priority	#b71c1c	t	f	3	'high':1,2 'prioriti':3	1	f	f
+4	Critical	Critical priority	\N	t	f	4	'critic':1,2 'prioriti':3	1	t	f
 \.
 
 
@@ -6270,7 +6446,7 @@ COPY dispatch_organization_default.case_priority (id, name, description, color, 
 --
 
 COPY dispatch_organization_default.case_severity (id, name, description, color, enabled, "default", view_order, search_vector, project_id) FROM stdin;
-1	Low	Low severity	\N	t	t	1	\N	1
+1	Low	Low severity	\N	t	t	1	'low':1,2 'severity':3	1
 \.
 
 
@@ -6279,7 +6455,7 @@ COPY dispatch_organization_default.case_severity (id, name, description, color, 
 --
 
 COPY dispatch_organization_default.case_type (id, name, description, visibility, "default", enabled, exclude_from_metrics, search_vector, project_id, plugin_metadata, case_template_document_id, oncall_service_id, incident_type_id, conversation_target, cost_model_id, auto_close, generate_read_in_summary) FROM stdin;
-1	Security Triage	Triage for security	Open	t	t	f	\N	1	[]	\N	\N	5	\N	\N	f	f
+1	Security Triage	Triage for security	Open	t	t	f	'security':1 'triage':2	1	[]	\N	\N	5	\N	\N	f	f
 \.
 
 
@@ -6328,7 +6504,7 @@ COPY dispatch_organization_default.cost_model_activity (id, plugin_event_id, res
 --
 
 COPY dispatch_organization_default.definition (id, text, source, search_vector, project_id) FROM stdin;
-1	problem exists between chair and keyboard	dispatch	'chair':4 'exist':2 'keyboard':6 'problem':1	1
+1	problem exists between chair and keyboard	dispatch	'and':5 'between':3 'chair':4 'exists':2 'keyboard':6 'problem':1	1
 \.
 
 
@@ -6366,10 +6542,10 @@ COPY dispatch_organization_default.dispatch_user_project (dispatch_user_id, proj
 --
 
 COPY dispatch_organization_default.document (resource_type, resource_id, weblink, id, name, description, report_id, incident_id, evergreen, evergreen_owner, evergreen_reminder_interval, evergreen_last_reminder_at, search_vector, project_id, created_at, updated_at, case_id) FROM stdin;
-dispatch-incident-document-template	1fv--CrGpWJJ4nyPR0N0hq4JchHJPuqsXN4azE9CGQiE	https://docs.google.com/document/d/1fv--CrGpWJJ4nyPR0N0hq4JchHJPuqsXN4azE9CGQiE/edit	1	Generic Incident Template	This is a generic incident template using Google Docs.	\N	\N	\N	\N	90	\N	'generic':1 'incid':2 'templat':3	1	2021-07-27 18:52:03.734208	2021-07-27 18:52:03.734212	\N
-dispatch-executive-report-document-template	1dab6k14p5ageo5B_d1YlB_zS9hMGHDMXy9RUbIZous4	https://docs.google.com/document/d/1dab6k14p5ageo5B_d1YlB_zS9hMGHDMXy9RUbIZous4/edit	2	Generic Executive Report Template	This is a generic executive report template using Google Docs.	\N	\N	\N	\N	90	\N	'execut':2 'generic':1 'report':3 'templat':4	1	2021-07-27 18:52:50.147156	2021-07-27 18:52:50.147161	\N
-dispatch-incident-review-document-template	1-VwcEpVVdymoojdUg9e5XP8QGam0-B5Djxh-guuPpEc	https://docs.google.com/document/d/1-VwcEpVVdymoojdUg9e5XP8QGam0-B5Djxh-guuPpEc/edit	3	Generic Post Incident Review Template	This is a generic incident review template using Google Docs.	\N	\N	\N	\N	90	\N	'generic':1 'incid':3 'post':2 'review':4 'templat':5	1	2021-07-27 18:53:36.491241	2021-07-27 18:53:36.491246	\N
-dispatch-incident-runbook	ky275e8cqydFUJ2-4OXfad498e9lRfeQP9zBLd-qWJU	https://docs.google.com/document/d/1ky275e8cqydFUJ2-4OXfad498e9lRfeQP9zBLd-qWJU/edit	4	Business Data Exposure Runbook	Runbook to be used during a data exposure incident.	\N	\N	f	\N	90	\N	'busi':1 'data':2 'exposur':3 'runbook':4	1	2021-07-27 19:04:08.491801	2021-07-27 19:04:08.491806	\N
+dispatch-incident-document-template	1fv--CrGpWJJ4nyPR0N0hq4JchHJPuqsXN4azE9CGQiE	https://docs.google.com/document/d/1fv--CrGpWJJ4nyPR0N0hq4JchHJPuqsXN4azE9CGQiE/edit	1	Generic Incident Template	This is a generic incident template using Google Docs.	\N	\N	\N	\N	90	\N	'generic':1 'incident':2 'template':3	1	2021-07-27 18:52:03.734208	2021-07-27 18:52:03.734212	\N
+dispatch-executive-report-document-template	1dab6k14p5ageo5B_d1YlB_zS9hMGHDMXy9RUbIZous4	https://docs.google.com/document/d/1dab6k14p5ageo5B_d1YlB_zS9hMGHDMXy9RUbIZous4/edit	2	Generic Executive Report Template	This is a generic executive report template using Google Docs.	\N	\N	\N	\N	90	\N	'executive':2 'generic':1 'report':3 'template':4	1	2021-07-27 18:52:50.147156	2021-07-27 18:52:50.147161	\N
+dispatch-incident-review-document-template	1-VwcEpVVdymoojdUg9e5XP8QGam0-B5Djxh-guuPpEc	https://docs.google.com/document/d/1-VwcEpVVdymoojdUg9e5XP8QGam0-B5Djxh-guuPpEc/edit	3	Generic Post Incident Review Template	This is a generic incident review template using Google Docs.	\N	\N	\N	\N	90	\N	'generic':1 'incident':3 'post':2 'review':4 'template':5	1	2021-07-27 18:53:36.491241	2021-07-27 18:53:36.491246	\N
+dispatch-incident-runbook	ky275e8cqydFUJ2-4OXfad498e9lRfeQP9zBLd-qWJU	https://docs.google.com/document/d/1ky275e8cqydFUJ2-4OXfad498e9lRfeQP9zBLd-qWJU/edit	4	Business Data Exposure Runbook	Runbook to be used during a data exposure incident.	\N	\N	f	\N	90	\N	'business':1 'data':2 'exposure':3 'runbook':4	1	2021-07-27 19:04:08.491801	2021-07-27 19:04:08.491806	\N
 \N	\N	\N	5	000	\N	\N	\N	t	\N	90	2021-07-27 20:52:36.204092	'000':1	\N	2021-07-27 20:52:36.207079	2021-07-27 20:52:36.207083	\N
 \.
 
@@ -6405,59 +6581,59 @@ COPY dispatch_organization_default.entity_type (id, name, description, jpath, re
 COPY dispatch_organization_default.event (id, uuid, started_at, ended_at, source, description, details, individual_id, incident_id, search_vector, updated_at, created_at, signal_id, dispatch_user_id, case_id, type, owner, pinned) FROM stdin;
 29	49557f6b-2628-4b14-88f0-68fce5ecd67f	2021-07-27 19:54:05.75815	2021-07-27 19:54:05.75815	Dispatch Core App	The incident status has been changed from Active to Stable	null	\N	4	'activ':11B 'app':3A 'chang':9B 'core':2A 'dispatch':1A 'incid':5B 'stabl':13B 'status':6B	2021-07-27 19:54:05.772009	2021-07-27 19:54:05.758732	\N	\N	\N	\N	\N	\N
 2	e08315a0-31d6-4437-97fa-8e0e301e9156	2021-07-27 19:47:56.293577	2021-07-27 19:47:56.293577	Dispatch Core App	Incident created	null	\N	2	'app':3A 'core':2A 'creat':5B 'dispatch':1A 'incid':4B	2021-07-27 19:47:56.305149	2021-07-27 19:47:56.294086	\N	\N	\N	\N	\N	\N
-3	bc36af33-865f-4d33-9691-789530899043	2021-07-27 19:47:58.180227	2021-07-27 19:47:58.180227	Dispatch Core App	Kevin Glisson added to incident with Reporter role	null	\N	2	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'report':10B 'role':11B	2021-07-27 19:47:58.193746	2021-07-27 19:47:58.180704	\N	\N	\N	\N	\N	\N
-4	34596f8e-a2ee-47a7-b07b-fd06b0dff034	2021-07-27 19:47:58.244569	2021-07-27 19:47:58.244569	Dispatch Core App	Kevin Glisson added to incident with Incident Commander role	null	\N	2	'ad':6B 'app':3A 'command':11B 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B,10B 'kevin':4B 'role':12B	2021-07-27 19:47:58.25909	2021-07-27 19:47:58.245143	\N	\N	\N	\N	\N	\N
-5	e1c27b93-668f-4515-8211-e5565b7b9cde	2021-07-27 19:47:58.314789	2021-07-27 19:47:58.314789	Dispatch Core App	Kevin Glisson added to incident with Liaison role	null	\N	2	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'liaison':10B 'role':11B	2021-07-27 19:47:58.327942	2021-07-27 19:47:58.315231	\N	\N	\N	\N	\N	\N
+3	bc36af33-865f-4d33-9691-789530899043	2021-07-27 19:47:58.180227	2021-07-27 19:47:58.180227	Dispatch Core App	Kevin Glisson added to incident with Reporter role	null	\N	2	'add':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'report':10B 'role':11B	2021-07-27 19:47:58.193746	2021-07-27 19:47:58.180704	\N	\N	\N	\N	\N	\N
+4	34596f8e-a2ee-47a7-b07b-fd06b0dff034	2021-07-27 19:47:58.244569	2021-07-27 19:47:58.244569	Dispatch Core App	Kevin Glisson added to incident with Incident Commander role	null	\N	2	'add':6B 'app':3A 'command':11B 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B,10B 'kevin':4B 'role':12B	2021-07-27 19:47:58.25909	2021-07-27 19:47:58.245143	\N	\N	\N	\N	\N	\N
+5	e1c27b93-668f-4515-8211-e5565b7b9cde	2021-07-27 19:47:58.314789	2021-07-27 19:47:58.314789	Dispatch Core App	Kevin Glisson added to incident with Liaison role	null	\N	2	'add':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'liaison':10B 'role':11B	2021-07-27 19:47:58.327942	2021-07-27 19:47:58.315231	\N	\N	\N	\N	\N	\N
 6	30c0fbee-6f25-4a13-b58e-d709a153e675	2021-07-27 19:47:58.416893	2021-07-27 19:47:58.416893	Dispatch Plugin - Ticket Management	Ticket created	null	\N	2	'creat':6B 'dispatch':1A 'manag':4A 'plugin':2A 'ticket':3A,5B	2021-07-27 19:47:58.435201	2021-07-27 19:47:58.417773	\N	\N	\N	\N	\N	\N
 7	113e46da-145f-48f9-8bd5-996e094662bd	2021-07-27 19:48:09.864668	2021-07-27 19:48:09.864668	Google Group Plugin - Participant Group Management	Tactical and notification groups created	null	\N	2	'creat':11B 'googl':1A 'group':2A,5A,10B 'manag':6A 'notif':9B 'particip':4A 'plugin':3A 'tactic':7B	2021-07-27 19:48:09.897076	2021-07-27 19:48:09.866061	\N	\N	\N	\N	\N	\N
-8	9e56cb0c-1717-4f98-994c-9b4f719d4be6	2021-07-27 19:48:09.922736	2021-07-27 19:48:09.922736	Dispatch Core App	Tactical and notification groups added to incident	null	\N	2	'ad':8B 'app':3A 'core':2A 'dispatch':1A 'group':7B 'incid':10B 'notif':6B 'tactic':4B	2021-07-27 19:48:09.938657	2021-07-27 19:48:09.924632	\N	\N	\N	\N	\N	\N
+8	9e56cb0c-1717-4f98-994c-9b4f719d4be6	2021-07-27 19:48:09.922736	2021-07-27 19:48:09.922736	Dispatch Core App	Tactical and notification groups added to incident	null	\N	2	'add':8B 'app':3A 'core':2A 'dispatch':1A 'group':7B 'incid':10B 'notif':6B 'tactic':4B	2021-07-27 19:48:09.938657	2021-07-27 19:48:09.924632	\N	\N	\N	\N	\N	\N
 9	c4e9010b-4816-4170-8132-230224247474	2021-07-27 19:48:11.60449	2021-07-27 19:48:11.60449	Google Calendar Plugin - Conference Management	Incident conference created	null	\N	2	'calendar':2A 'confer':4A,7B 'creat':8B 'googl':1A 'incid':6B 'manag':5A 'plugin':3A	2021-07-27 19:48:11.626794	2021-07-27 19:48:11.6052	\N	\N	\N	\N	\N	\N
-10	390cb9fd-6a65-4e20-bd08-fdabb29575cf	2021-07-27 19:48:11.638431	2021-07-27 19:48:11.638431	Dispatch Core App	Conference added to incident	null	\N	2	'ad':5B 'app':3A 'confer':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 19:48:11.653171	2021-07-27 19:48:11.640634	\N	\N	\N	\N	\N	\N
+10	390cb9fd-6a65-4e20-bd08-fdabb29575cf	2021-07-27 19:48:11.638431	2021-07-27 19:48:11.638431	Dispatch Core App	Conference added to incident	null	\N	2	'add':5B 'app':3A 'confer':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 19:48:11.653171	2021-07-27 19:48:11.640634	\N	\N	\N	\N	\N	\N
 11	2f72c7e9-dd0b-4012-8a45-f9a14fd2d292	2021-07-27 19:48:12.750551	2021-07-27 19:48:12.750551	Slack Plugin - Conversation Management	Incident conversation created	null	\N	2	'convers':3A,6B 'creat':7B 'incid':5B 'manag':4A 'plugin':2A 'slack':1A	2021-07-27 19:48:12.765715	2021-07-27 19:48:12.751284	\N	\N	\N	\N	\N	\N
-12	1a1688bf-6a9d-4dbf-85d8-7a7473ce6bd6	2021-07-27 19:48:12.778119	2021-07-27 19:48:12.778119	Dispatch Core App	Conversation added to incident	null	\N	2	'ad':5B 'app':3A 'convers':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 19:48:12.797313	2021-07-27 19:48:12.780851	\N	\N	\N	\N	\N	\N
-13	e466ae85-f69a-4205-88b9-02d38067ae42	2021-07-27 19:48:23.80163	2021-07-27 19:48:23.80163	Dispatch Core App	Incident participants added to incident	null	\N	2	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'incid':4B,8B 'particip':5B	2021-07-27 19:48:23.821511	2021-07-27 19:48:23.802091	\N	\N	\N	\N	\N	\N
+12	1a1688bf-6a9d-4dbf-85d8-7a7473ce6bd6	2021-07-27 19:48:12.778119	2021-07-27 19:48:12.778119	Dispatch Core App	Conversation added to incident	null	\N	2	'add':5B 'app':3A 'convers':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 19:48:12.797313	2021-07-27 19:48:12.780851	\N	\N	\N	\N	\N	\N
+13	e466ae85-f69a-4205-88b9-02d38067ae42	2021-07-27 19:48:23.80163	2021-07-27 19:48:23.80163	Dispatch Core App	Incident participants added to incident	null	\N	2	'add':6B 'app':3A 'core':2A 'dispatch':1A 'incid':4B,8B 'particip':5B	2021-07-27 19:48:23.821511	2021-07-27 19:48:23.802091	\N	\N	\N	\N	\N	\N
 14	98872d38-28d8-447b-8959-3e0f0d5ef967	2021-07-27 19:48:23.847811	2021-07-27 19:48:23.847811	Dispatch Core App	Incident notifications sent	null	\N	2	'app':3A 'core':2A 'dispatch':1A 'incid':4B 'notif':5B 'sent':6B	2021-07-27 19:48:23.868016	2021-07-27 19:48:23.848395	\N	\N	\N	\N	\N	\N
 28	9bdc350c-17dc-4620-a12f-a7caef66d5b9	2021-07-27 19:53:27.379661	2021-07-27 19:53:27.379661	Dispatch Core App	Incident notifications sent	null	\N	4	'app':3A 'core':2A 'dispatch':1A 'incid':4B 'notif':5B 'sent':6B	2021-07-27 19:53:27.404884	2021-07-27 19:53:27.38054	\N	\N	\N	\N	\N	\N
 16	4dbe489a-e720-4c8f-a085-e843d1bf8a44	2021-07-27 19:52:57.762162	2021-07-27 19:52:57.762162	Dispatch Core App	Incident created	null	\N	4	'app':3A 'core':2A 'creat':5B 'dispatch':1A 'incid':4B	2021-07-27 19:52:57.77186	2021-07-27 19:52:57.762571	\N	\N	\N	\N	\N	\N
-17	bf3f08c2-3d94-4783-8181-22952bc0323b	2021-07-27 19:52:59.37065	2021-07-27 19:52:59.37065	Dispatch Core App	Kevin Glisson added to incident with Reporter role	null	\N	4	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'report':10B 'role':11B	2021-07-27 19:52:59.381702	2021-07-27 19:52:59.371169	\N	\N	\N	\N	\N	\N
-18	e9c821c9-4688-459b-b5c3-01d954fb60e5	2021-07-27 19:52:59.426042	2021-07-27 19:52:59.426042	Dispatch Core App	Kevin Glisson added to incident with Incident Commander role	null	\N	4	'ad':6B 'app':3A 'command':11B 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B,10B 'kevin':4B 'role':12B	2021-07-27 19:52:59.4361	2021-07-27 19:52:59.426481	\N	\N	\N	\N	\N	\N
-19	b22a5a27-7490-47e5-97df-cee2cdf704ec	2021-07-27 19:52:59.479856	2021-07-27 19:52:59.479856	Dispatch Core App	Kevin Glisson added to incident with Liaison role	null	\N	4	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'liaison':10B 'role':11B	2021-07-27 19:52:59.489004	2021-07-27 19:52:59.480284	\N	\N	\N	\N	\N	\N
+17	bf3f08c2-3d94-4783-8181-22952bc0323b	2021-07-27 19:52:59.37065	2021-07-27 19:52:59.37065	Dispatch Core App	Kevin Glisson added to incident with Reporter role	null	\N	4	'add':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'report':10B 'role':11B	2021-07-27 19:52:59.381702	2021-07-27 19:52:59.371169	\N	\N	\N	\N	\N	\N
+18	e9c821c9-4688-459b-b5c3-01d954fb60e5	2021-07-27 19:52:59.426042	2021-07-27 19:52:59.426042	Dispatch Core App	Kevin Glisson added to incident with Incident Commander role	null	\N	4	'add':6B 'app':3A 'command':11B 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B,10B 'kevin':4B 'role':12B	2021-07-27 19:52:59.4361	2021-07-27 19:52:59.426481	\N	\N	\N	\N	\N	\N
+19	b22a5a27-7490-47e5-97df-cee2cdf704ec	2021-07-27 19:52:59.479856	2021-07-27 19:52:59.479856	Dispatch Core App	Kevin Glisson added to incident with Liaison role	null	\N	4	'add':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'liaison':10B 'role':11B	2021-07-27 19:52:59.489004	2021-07-27 19:52:59.480284	\N	\N	\N	\N	\N	\N
 20	b3f9a89e-499d-4b13-9307-c0d3f268cd8f	2021-07-27 19:52:59.531497	2021-07-27 19:52:59.531497	Dispatch Plugin - Ticket Management	Ticket created	null	\N	4	'creat':6B 'dispatch':1A 'manag':4A 'plugin':2A 'ticket':3A,5B	2021-07-27 19:52:59.542519	2021-07-27 19:52:59.531965	\N	\N	\N	\N	\N	\N
 21	fdbb0a06-6103-41e0-8928-6717d4d6bdd7	2021-07-27 19:53:10.827467	2021-07-27 19:53:10.827467	Google Group Plugin - Participant Group Management	Tactical and notification groups created	null	\N	4	'creat':11B 'googl':1A 'group':2A,5A,10B 'manag':6A 'notif':9B 'particip':4A 'plugin':3A 'tactic':7B	2021-07-27 19:53:10.837657	2021-07-27 19:53:10.827908	\N	\N	\N	\N	\N	\N
-22	f7db3521-a173-4810-bb8d-906fae813385	2021-07-27 19:53:10.852037	2021-07-27 19:53:10.852037	Dispatch Core App	Tactical and notification groups added to incident	null	\N	4	'ad':8B 'app':3A 'core':2A 'dispatch':1A 'group':7B 'incid':10B 'notif':6B 'tactic':4B	2021-07-27 19:53:10.863075	2021-07-27 19:53:10.854458	\N	\N	\N	\N	\N	\N
+22	f7db3521-a173-4810-bb8d-906fae813385	2021-07-27 19:53:10.852037	2021-07-27 19:53:10.852037	Dispatch Core App	Tactical and notification groups added to incident	null	\N	4	'add':8B 'app':3A 'core':2A 'dispatch':1A 'group':7B 'incid':10B 'notif':6B 'tactic':4B	2021-07-27 19:53:10.863075	2021-07-27 19:53:10.854458	\N	\N	\N	\N	\N	\N
 23	7ee29eb2-eb53-4568-8740-687715fe3244	2021-07-27 19:53:12.690793	2021-07-27 19:53:12.690793	Google Calendar Plugin - Conference Management	Incident conference created	null	\N	4	'calendar':2A 'confer':4A,7B 'creat':8B 'googl':1A 'incid':6B 'manag':5A 'plugin':3A	2021-07-27 19:53:12.735069	2021-07-27 19:53:12.692004	\N	\N	\N	\N	\N	\N
-24	5b5c5178-e215-4b03-9a0f-0eecef30764d	2021-07-27 19:53:12.757005	2021-07-27 19:53:12.757005	Dispatch Core App	Conference added to incident	null	\N	4	'ad':5B 'app':3A 'confer':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 19:53:12.789824	2021-07-27 19:53:12.766925	\N	\N	\N	\N	\N	\N
+24	5b5c5178-e215-4b03-9a0f-0eecef30764d	2021-07-27 19:53:12.757005	2021-07-27 19:53:12.757005	Dispatch Core App	Conference added to incident	null	\N	4	'add':5B 'app':3A 'confer':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 19:53:12.789824	2021-07-27 19:53:12.766925	\N	\N	\N	\N	\N	\N
 25	4ce347ba-8bb3-43cd-aa89-6925a5abe635	2021-07-27 19:53:13.910679	2021-07-27 19:53:13.910679	Slack Plugin - Conversation Management	Incident conversation created	null	\N	4	'convers':3A,6B 'creat':7B 'incid':5B 'manag':4A 'plugin':2A 'slack':1A	2021-07-27 19:53:13.922948	2021-07-27 19:53:13.911156	\N	\N	\N	\N	\N	\N
-26	01f553ab-6076-4b26-885b-d5a663582f36	2021-07-27 19:53:13.931279	2021-07-27 19:53:13.931279	Dispatch Core App	Conversation added to incident	null	\N	4	'ad':5B 'app':3A 'convers':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 19:53:13.944528	2021-07-27 19:53:13.93326	\N	\N	\N	\N	\N	\N
-27	fa5a2de2-55d2-4367-bf45-5af76d66c037	2021-07-27 19:53:27.32766	2021-07-27 19:53:27.32766	Dispatch Core App	Incident participants added to incident	null	\N	4	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'incid':4B,8B 'particip':5B	2021-07-27 19:53:27.349556	2021-07-27 19:53:27.328643	\N	\N	\N	\N	\N	\N
+26	01f553ab-6076-4b26-885b-d5a663582f36	2021-07-27 19:53:13.931279	2021-07-27 19:53:13.931279	Dispatch Core App	Conversation added to incident	null	\N	4	'add':5B 'app':3A 'convers':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 19:53:13.944528	2021-07-27 19:53:13.93326	\N	\N	\N	\N	\N	\N
+27	fa5a2de2-55d2-4367-bf45-5af76d66c037	2021-07-27 19:53:27.32766	2021-07-27 19:53:27.32766	Dispatch Core App	Incident participants added to incident	null	\N	4	'add':6B 'app':3A 'core':2A 'dispatch':1A 'incid':4B,8B 'particip':5B	2021-07-27 19:53:27.349556	2021-07-27 19:53:27.328643	\N	\N	\N	\N	\N	\N
 31	f33e4fe2-2e34-48a5-b5ce-6381f2cef8be	2021-07-27 20:06:15.278243	2021-07-27 20:06:15.278243	Dispatch Core App	Incident created	null	\N	5	'app':3A 'core':2A 'creat':5B 'dispatch':1A 'incid':4B	2021-07-27 20:06:15.312985	2021-07-27 20:06:15.27966	\N	\N	\N	\N	\N	\N
-39	c9635f42-89a6-40a4-9d3f-21d973bbe30c	2021-07-27 20:06:30.176489	2021-07-27 20:06:30.176489	Dispatch Core App	Conference added to incident	null	\N	5	'ad':5B 'app':3A 'confer':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 20:06:30.194772	2021-07-27 20:06:30.178632	\N	\N	\N	\N	\N	\N
+39	c9635f42-89a6-40a4-9d3f-21d973bbe30c	2021-07-27 20:06:30.176489	2021-07-27 20:06:30.176489	Dispatch Core App	Conference added to incident	null	\N	5	'add':5B 'app':3A 'confer':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 20:06:30.194772	2021-07-27 20:06:30.178632	\N	\N	\N	\N	\N	\N
 30	99528494-bd9c-47e2-af62-e2a9fa8cfee2	2021-07-27 19:54:05.78089	2021-07-27 19:54:05.78089	Incident Participant	Kevin Glisson marked the incident as Stable	null	2	4	'glisson':4B 'incid':1A,7B 'kevin':3B 'mark':5B 'particip':2A 'stabl':9B	2021-07-27 19:54:05.799518	2021-07-27 19:54:05.781404	\N	\N	\N	\N	\N	\N
-32	d1fa6a89-2ba9-4d15-89c1-253abf63a3a2	2021-07-27 20:06:16.908774	2021-07-27 20:06:16.908774	Dispatch Core App	Kevin Glisson added to incident with Reporter role	null	\N	5	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'report':10B 'role':11B	2021-07-27 20:06:16.922622	2021-07-27 20:06:16.909275	\N	\N	\N	\N	\N	\N
+32	d1fa6a89-2ba9-4d15-89c1-253abf63a3a2	2021-07-27 20:06:16.908774	2021-07-27 20:06:16.908774	Dispatch Core App	Kevin Glisson added to incident with Reporter role	null	\N	5	'add':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'report':10B 'role':11B	2021-07-27 20:06:16.922622	2021-07-27 20:06:16.909275	\N	\N	\N	\N	\N	\N
 36	f624f934-1d41-474a-8f7b-bba918465582	2021-07-27 20:06:28.35038	2021-07-27 20:06:28.35038	Google Group Plugin - Participant Group Management	Tactical and notification groups created	null	\N	5	'creat':11B 'googl':1A 'group':2A,5A,10B 'manag':6A 'notif':9B 'particip':4A 'plugin':3A 'tactic':7B	2021-07-27 20:06:28.363617	2021-07-27 20:06:28.350863	\N	\N	\N	\N	\N	\N
-42	aff9ebed-f588-42c9-8cde-dcf3c2231561	2021-07-27 20:06:41.583368	2021-07-27 20:06:41.583368	Dispatch Core App	Incident participants added to incident	null	\N	5	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'incid':4B,8B 'particip':5B	2021-07-27 20:06:41.595314	2021-07-27 20:06:41.58404	\N	\N	\N	\N	\N	\N
+42	aff9ebed-f588-42c9-8cde-dcf3c2231561	2021-07-27 20:06:41.583368	2021-07-27 20:06:41.583368	Dispatch Core App	Incident participants added to incident	null	\N	5	'add':6B 'app':3A 'core':2A 'dispatch':1A 'incid':4B,8B 'particip':5B	2021-07-27 20:06:41.595314	2021-07-27 20:06:41.58404	\N	\N	\N	\N	\N	\N
 49	ff5df909-ed07-47bb-9120-3127856f73ad	2021-07-27 20:11:43.928812	2021-07-27 20:11:43.928812	Google Group Plugin - Participant Group Management	Tactical and notification groups created	null	\N	6	'creat':11B 'googl':1A 'group':2A,5A,10B 'manag':6A 'notif':9B 'particip':4A 'plugin':3A 'tactic':7B	2021-07-27 20:11:43.942367	2021-07-27 20:11:43.929272	\N	\N	\N	\N	\N	\N
-50	52e93cc0-1d00-42c5-8e98-6ab7f9775578	2021-07-27 20:11:43.966374	2021-07-27 20:11:43.966374	Dispatch Core App	Tactical and notification groups added to incident	null	\N	6	'ad':8B 'app':3A 'core':2A 'dispatch':1A 'group':7B 'incid':10B 'notif':6B 'tactic':4B	2021-07-27 20:11:43.983846	2021-07-27 20:11:43.971549	\N	\N	\N	\N	\N	\N
-52	ebf60d7f-5740-4fb9-a55f-195b1f995eb6	2021-07-27 20:11:45.396347	2021-07-27 20:11:45.396347	Dispatch Core App	Documents added to incident	null	\N	6	'ad':5B 'app':3A 'core':2A 'dispatch':1A 'document':4B 'incid':7B	2021-07-27 20:11:45.410134	2021-07-27 20:11:45.396813	\N	\N	\N	\N	\N	\N
-54	da58b6e3-05bb-407e-8c4f-bead96ea7564	2021-07-27 20:11:47.206694	2021-07-27 20:11:47.206694	Dispatch Core App	Conference added to incident	null	\N	6	'ad':5B 'app':3A 'confer':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 20:11:47.221122	2021-07-27 20:11:47.208661	\N	\N	\N	\N	\N	\N
-57	2f5d5c41-13e7-4e6a-ab03-40b67b62faba	2021-07-27 20:11:58.989198	2021-07-27 20:11:58.989198	Dispatch Core App	Incident participants added to incident	null	\N	6	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'incid':4B,8B 'particip':5B	2021-07-27 20:11:59.001975	2021-07-27 20:11:58.989674	\N	\N	\N	\N	\N	\N
-33	4dd9a5d8-4bad-4b1c-a3ac-27dafc162394	2021-07-27 20:06:16.987165	2021-07-27 20:06:16.987165	Dispatch Core App	Kevin Glisson added to incident with Incident Commander role	null	\N	5	'ad':6B 'app':3A 'command':11B 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B,10B 'kevin':4B 'role':12B	2021-07-27 20:06:17.002968	2021-07-27 20:06:16.987704	\N	\N	\N	\N	\N	\N
-34	af3eff3c-0342-4aa7-a7ca-23a80dc0fff2	2021-07-27 20:06:17.051194	2021-07-27 20:06:17.051194	Dispatch Core App	Kevin Glisson added to incident with Liaison role	null	\N	5	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'liaison':10B 'role':11B	2021-07-27 20:06:17.062652	2021-07-27 20:06:17.051675	\N	\N	\N	\N	\N	\N
+50	52e93cc0-1d00-42c5-8e98-6ab7f9775578	2021-07-27 20:11:43.966374	2021-07-27 20:11:43.966374	Dispatch Core App	Tactical and notification groups added to incident	null	\N	6	'add':8B 'app':3A 'core':2A 'dispatch':1A 'group':7B 'incid':10B 'notif':6B 'tactic':4B	2021-07-27 20:11:43.983846	2021-07-27 20:11:43.971549	\N	\N	\N	\N	\N	\N
+52	ebf60d7f-5740-4fb9-a55f-195b1f995eb6	2021-07-27 20:11:45.396347	2021-07-27 20:11:45.396347	Dispatch Core App	Documents added to incident	null	\N	6	'add':5B 'app':3A 'core':2A 'dispatch':1A 'document':4B 'incid':7B	2021-07-27 20:11:45.410134	2021-07-27 20:11:45.396813	\N	\N	\N	\N	\N	\N
+54	da58b6e3-05bb-407e-8c4f-bead96ea7564	2021-07-27 20:11:47.206694	2021-07-27 20:11:47.206694	Dispatch Core App	Conference added to incident	null	\N	6	'add':5B 'app':3A 'confer':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 20:11:47.221122	2021-07-27 20:11:47.208661	\N	\N	\N	\N	\N	\N
+57	2f5d5c41-13e7-4e6a-ab03-40b67b62faba	2021-07-27 20:11:58.989198	2021-07-27 20:11:58.989198	Dispatch Core App	Incident participants added to incident	null	\N	6	'add':6B 'app':3A 'core':2A 'dispatch':1A 'incid':4B,8B 'particip':5B	2021-07-27 20:11:59.001975	2021-07-27 20:11:58.989674	\N	\N	\N	\N	\N	\N
+33	4dd9a5d8-4bad-4b1c-a3ac-27dafc162394	2021-07-27 20:06:16.987165	2021-07-27 20:06:16.987165	Dispatch Core App	Kevin Glisson added to incident with Incident Commander role	null	\N	5	'add':6B 'app':3A 'command':11B 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B,10B 'kevin':4B 'role':12B	2021-07-27 20:06:17.002968	2021-07-27 20:06:16.987704	\N	\N	\N	\N	\N	\N
+34	af3eff3c-0342-4aa7-a7ca-23a80dc0fff2	2021-07-27 20:06:17.051194	2021-07-27 20:06:17.051194	Dispatch Core App	Kevin Glisson added to incident with Liaison role	null	\N	5	'add':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'liaison':10B 'role':11B	2021-07-27 20:06:17.062652	2021-07-27 20:06:17.051675	\N	\N	\N	\N	\N	\N
 35	6ee1463f-f308-4992-b479-b3b2b54b44e9	2021-07-27 20:06:17.115146	2021-07-27 20:06:17.115146	Dispatch Plugin - Ticket Management	Ticket created	null	\N	5	'creat':6B 'dispatch':1A 'manag':4A 'plugin':2A 'ticket':3A,5B	2021-07-27 20:06:17.131931	2021-07-27 20:06:17.11566	\N	\N	\N	\N	\N	\N
-37	5c846eae-e681-402d-9c7e-8dc0e359c7d3	2021-07-27 20:06:28.38158	2021-07-27 20:06:28.38158	Dispatch Core App	Tactical and notification groups added to incident	null	\N	5	'ad':8B 'app':3A 'core':2A 'dispatch':1A 'group':7B 'incid':10B 'notif':6B 'tactic':4B	2021-07-27 20:06:28.395437	2021-07-27 20:06:28.383165	\N	\N	\N	\N	\N	\N
+37	5c846eae-e681-402d-9c7e-8dc0e359c7d3	2021-07-27 20:06:28.38158	2021-07-27 20:06:28.38158	Dispatch Core App	Tactical and notification groups added to incident	null	\N	5	'add':8B 'app':3A 'core':2A 'dispatch':1A 'group':7B 'incid':10B 'notif':6B 'tactic':4B	2021-07-27 20:06:28.395437	2021-07-27 20:06:28.383165	\N	\N	\N	\N	\N	\N
 38	db45a35e-93ec-461d-a9b3-ebc4e075d081	2021-07-27 20:06:30.137656	2021-07-27 20:06:30.137656	Google Calendar Plugin - Conference Management	Incident conference created	null	\N	5	'calendar':2A 'confer':4A,7B 'creat':8B 'googl':1A 'incid':6B 'manag':5A 'plugin':3A	2021-07-27 20:06:30.166434	2021-07-27 20:06:30.139734	\N	\N	\N	\N	\N	\N
 40	9e1d954c-7668-4faf-a95a-e25ea4a82e09	2021-07-27 20:06:31.264981	2021-07-27 20:06:31.264981	Slack Plugin - Conversation Management	Incident conversation created	null	\N	5	'convers':3A,6B 'creat':7B 'incid':5B 'manag':4A 'plugin':2A 'slack':1A	2021-07-27 20:06:31.280714	2021-07-27 20:06:31.26551	\N	\N	\N	\N	\N	\N
-41	83288834-75cb-4e44-8be8-cc62347894de	2021-07-27 20:06:31.290579	2021-07-27 20:06:31.290579	Dispatch Core App	Conversation added to incident	null	\N	5	'ad':5B 'app':3A 'convers':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 20:06:31.304529	2021-07-27 20:06:31.29202	\N	\N	\N	\N	\N	\N
+41	83288834-75cb-4e44-8be8-cc62347894de	2021-07-27 20:06:31.290579	2021-07-27 20:06:31.290579	Dispatch Core App	Conversation added to incident	null	\N	5	'add':5B 'app':3A 'convers':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 20:06:31.304529	2021-07-27 20:06:31.29202	\N	\N	\N	\N	\N	\N
 43	0ba2f55e-ec9b-4f9e-95e4-68b0f50c8445	2021-07-27 20:06:41.611774	2021-07-27 20:06:41.611774	Dispatch Core App	Incident notifications sent	null	\N	5	'app':3A 'core':2A 'dispatch':1A 'incid':4B 'notif':5B 'sent':6B	2021-07-27 20:06:41.627956	2021-07-27 20:06:41.612213	\N	\N	\N	\N	\N	\N
 44	74fddbad-1c2e-4620-aab4-5bc341b19fd2	2021-07-27 20:11:30.531955	2021-07-27 20:11:30.531955	Dispatch Core App	Incident created	null	\N	6	'app':3A 'core':2A 'creat':5B 'dispatch':1A 'incid':4B	2021-07-27 20:11:30.543425	2021-07-27 20:11:30.532627	\N	\N	\N	\N	\N	\N
-45	f7ab4553-0c76-4f03-b0d9-fe6171e02cb8	2021-07-27 20:11:32.374781	2021-07-27 20:11:32.374781	Dispatch Core App	Kevin Glisson added to incident with Reporter role	null	\N	6	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'report':10B 'role':11B	2021-07-27 20:11:32.3914	2021-07-27 20:11:32.375392	\N	\N	\N	\N	\N	\N
-46	a5367169-cee2-4070-8acd-e25b586164b0	2021-07-27 20:11:32.452052	2021-07-27 20:11:32.452052	Dispatch Core App	Kevin Glisson added to incident with Incident Commander role	null	\N	6	'ad':6B 'app':3A 'command':11B 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B,10B 'kevin':4B 'role':12B	2021-07-27 20:11:32.467419	2021-07-27 20:11:32.452485	\N	\N	\N	\N	\N	\N
-47	572417cc-ecbc-426a-a28c-48eda55cc560	2021-07-27 20:11:32.514367	2021-07-27 20:11:32.514367	Dispatch Core App	Kevin Glisson added to incident with Liaison role	null	\N	6	'ad':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'liaison':10B 'role':11B	2021-07-27 20:11:32.527335	2021-07-27 20:11:32.514892	\N	\N	\N	\N	\N	\N
+45	f7ab4553-0c76-4f03-b0d9-fe6171e02cb8	2021-07-27 20:11:32.374781	2021-07-27 20:11:32.374781	Dispatch Core App	Kevin Glisson added to incident with Reporter role	null	\N	6	'add':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'report':10B 'role':11B	2021-07-27 20:11:32.3914	2021-07-27 20:11:32.375392	\N	\N	\N	\N	\N	\N
+46	a5367169-cee2-4070-8acd-e25b586164b0	2021-07-27 20:11:32.452052	2021-07-27 20:11:32.452052	Dispatch Core App	Kevin Glisson added to incident with Incident Commander role	null	\N	6	'add':6B 'app':3A 'command':11B 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B,10B 'kevin':4B 'role':12B	2021-07-27 20:11:32.467419	2021-07-27 20:11:32.452485	\N	\N	\N	\N	\N	\N
+47	572417cc-ecbc-426a-a28c-48eda55cc560	2021-07-27 20:11:32.514367	2021-07-27 20:11:32.514367	Dispatch Core App	Kevin Glisson added to incident with Liaison role	null	\N	6	'add':6B 'app':3A 'core':2A 'dispatch':1A 'glisson':5B 'incid':8B 'kevin':4B 'liaison':10B 'role':11B	2021-07-27 20:11:32.527335	2021-07-27 20:11:32.514892	\N	\N	\N	\N	\N	\N
 48	7ae8bd56-d996-4da2-9f0c-68f11c970661	2021-07-27 20:11:32.600598	2021-07-27 20:11:32.600598	Dispatch Plugin - Ticket Management	Ticket created	null	\N	6	'creat':6B 'dispatch':1A 'manag':4A 'plugin':2A 'ticket':3A,5B	2021-07-27 20:11:32.616295	2021-07-27 20:11:32.601402	\N	\N	\N	\N	\N	\N
 51	f2d13f13-2236-4408-a242-50ab2a714730	2021-07-27 20:11:45.348881	2021-07-27 20:11:45.348881	Dispatch Core App	Creation of incident storage failed. Reason: Request failed. Errors: {'error': {'errors': [{'domain': 'global', 'reason': 'notFound', 'message': 'File not found: 1rxGkxQFdKxtwEKN-p-k5Fe8JC6f5uNg8.', 'locationType': 'parameter', 'location': 'fileId'}], 'code': 404, 'message': 'File not found: 1rxGkxQFdKxtwEKN-p-k5Fe8JC6f5uNg8.'}}	null	\N	6	'1rxgkxqfdkxtwekn':24B,38B '1rxgkxqfdkxtwekn-p-k5fe8jc6f5ung8':23B,37B '404':32B 'app':3A 'code':31B 'core':2A 'creation':4B 'dispatch':1A 'domain':15B 'error':12B,13B,14B 'fail':8B,11B 'file':20B,34B 'fileid':30B 'found':22B,36B 'global':16B 'incid':6B 'k5fe8jc6f5ung8':26B,40B 'locat':29B 'locationtyp':27B 'messag':19B,33B 'notfound':18B 'p':25B,39B 'paramet':28B 'reason':9B,17B 'request':10B 'storag':7B	2021-07-27 20:11:45.382849	2021-07-27 20:11:45.350277	\N	\N	\N	\N	\N	\N
 53	0fad1b80-d626-4c97-b535-dfdf0098485e	2021-07-27 20:11:47.168067	2021-07-27 20:11:47.168067	Google Calendar Plugin - Conference Management	Incident conference created	null	\N	6	'calendar':2A 'confer':4A,7B 'creat':8B 'googl':1A 'incid':6B 'manag':5A 'plugin':3A	2021-07-27 20:11:47.1984	2021-07-27 20:11:47.168696	\N	\N	\N	\N	\N	\N
 55	6c0b289e-5dff-470a-aed7-0caf9405c082	2021-07-27 20:11:48.26168	2021-07-27 20:11:48.26168	Slack Plugin - Conversation Management	Incident conversation created	null	\N	6	'convers':3A,6B 'creat':7B 'incid':5B 'manag':4A 'plugin':2A 'slack':1A	2021-07-27 20:11:48.278603	2021-07-27 20:11:48.26263	\N	\N	\N	\N	\N	\N
-56	6fe13da1-de96-41dd-ba9a-29a752060b46	2021-07-27 20:11:48.28756	2021-07-27 20:11:48.28756	Dispatch Core App	Conversation added to incident	null	\N	6	'ad':5B 'app':3A 'convers':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 20:11:48.307412	2021-07-27 20:11:48.290557	\N	\N	\N	\N	\N	\N
+56	6fe13da1-de96-41dd-ba9a-29a752060b46	2021-07-27 20:11:48.28756	2021-07-27 20:11:48.28756	Dispatch Core App	Conversation added to incident	null	\N	6	'add':5B 'app':3A 'convers':4B 'core':2A 'dispatch':1A 'incid':7B	2021-07-27 20:11:48.307412	2021-07-27 20:11:48.290557	\N	\N	\N	\N	\N	\N
 58	d66ec104-af72-46df-80a8-2b32a6fa8944	2021-07-27 20:11:59.021607	2021-07-27 20:11:59.021607	Dispatch Core App	Incident notifications sent	null	\N	6	'app':3A 'core':2A 'dispatch':1A 'incid':4B 'notif':5B 'sent':6B	2021-07-27 20:11:59.04991	2021-07-27 20:11:59.022365	\N	\N	\N	\N	\N	\N
 59	7e011a9d-9bb9-4770-b5e3-1a21197e60c2	2021-07-28 17:13:49.192243	2021-07-28 17:13:49.192243	Dispatch Core App	New incident task created by Kevin Glisson	{"weblink": null}	\N	4	'app':3A 'core':2A 'creat':7B 'dispatch':1A 'glisson':10B 'incid':5B 'kevin':9B 'new':4B 'task':6B	2021-07-28 17:13:49.218153	2021-07-28 17:13:49.199624	\N	\N	\N	\N	\N	\N
 \.
@@ -6585,7 +6761,7 @@ COPY dispatch_organization_default.incident_role_tag (incident_role_id, tag_id) 
 --
 
 COPY dispatch_organization_default.incident_severity (id, name, description, color, enabled, "default", view_order, search_vector, project_id, allowed_for_stable_incidents) FROM stdin;
-1	Undetermined	The severity of the incident has not yet been determined.	#9e9e9e	t	t	1	\N	1	t
+1	Undetermined	The severity of the incident has not yet been determined.	#9e9e9e	t	t	1	'been':10 'determined':11 'has':7 'incident':6 'not':8 'of':4 'severity':3 'the':2,5 'undetermined':1 'yet':9	1	t
 \.
 
 
@@ -6594,12 +6770,12 @@ COPY dispatch_organization_default.incident_severity (id, name, description, col
 --
 
 COPY dispatch_organization_default.incident_type (id, name, slug, description, exclude_from_metrics, enabled, "default", visibility, plugin_metadata, exclude_from_reminders, exclude_from_review, incident_template_document_id, executive_template_document_id, review_template_document_id, tracking_template_document_id, commander_service_id, liaison_service_id, search_vector, project_id, cost_model_id, channel_description, description_service_id, task_plugin_metadata, generate_read_in_summary) FROM stdin;
-6	Other	\N	This is a miscellaneous incident.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':6 'involv':7 'misc':2,9 'oth':1,8	1	\N	\N	\N	[]	f
-5	Denial of Service	\N	This is an incident involving a Denial of Service attack on a compute resource or service.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'ddos':1,8 'den':2,9 'incid':6 'involv':7	1	\N	\N	\N	[]	f
-4	Malware	\N	This is an incident involving malware on a host.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':6 'involv':7 'mal':1,8	1	\N	\N	\N	[]	f
-3	Customer Data	\N	This is an incident involving customer data.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'custom':1,8 'data':2,9 'incid':6 'involv':7	1	\N	\N	\N	[]	f
-2	Employee Investigation	\N	This is an employee investigation.	f	t	f	Restricted	[]	\N	\N	1	2	3	\N	\N	\N	'employe':1,6 'investig':2,7	1	\N	\N	\N	[]	f
-1	Vulnerability	\N	This is an incident involving a misconfiguration or vulnerability.	f	t	t	Open	[]	\N	\N	1	2	3	\N	\N	\N	'incid':5 'involv':6 'misconfigur':8 'vulner':1,10	1	\N	\N	\N	[]	f
+6	Other	\N	This is a miscellaneous incident.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'other':1	1	\N	\N	\N	[]	f
+5	Denial of Service	\N	This is an incident involving a Denial of Service attack on a compute resource or service.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'denial':1 'of':2 'service':3	1	\N	\N	\N	[]	f
+4	Malware	\N	This is an incident involving malware on a host.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'malware':1	1	\N	\N	\N	[]	f
+3	Customer Data	\N	This is an incident involving customer data.	f	t	f	Open	[]	\N	\N	1	2	3	\N	\N	\N	'customer':1 'data':2	1	\N	\N	\N	[]	f
+2	Employee Investigation	\N	This is an employee investigation.	f	t	f	Restricted	[]	\N	\N	1	2	3	\N	\N	\N	'employee':1 'investigation':2	1	\N	\N	\N	[]	f
+1	Vulnerability	\N	This is an incident involving a misconfiguration or vulnerability.	f	t	t	Open	[]	\N	\N	1	2	3	\N	\N	\N	'vulnerability':1	1	\N	\N	\N	[]	f
 \.
 
 
@@ -6608,9 +6784,9 @@ COPY dispatch_organization_default.incident_type (id, name, slug, description, e
 --
 
 COPY dispatch_organization_default.individual_contact (is_active, is_external, contact_type, email, company, notes, owner, id, name, mobile_phone, office_phone, title, weblink, external_id, team_contact_id, search_vector, project_id, created_at, updated_at) FROM stdin;
-t	f	\N	klibby@hackers.com	NA	\N	\N	1	Kate Libby	\N	\N	\N	\N	\N	\N	'kate':1 'klibby@hackers.com':3 'libbi':2 'na':4	1	2021-07-27 19:20:56.65442	2021-07-27 19:20:56.654425
-t	f	\N	kglisson@example.com	\N	\N	\N	2	Kevin Glisson	\N	\N	\N	\N	\N	\N	'glisson':2 'kevin':1 'kglisson@example.com':3	1	2021-07-27 19:47:58.101502	2021-07-27 20:11:32.504414
-t	f	\N	3p1t6@example.com	\N	\N	\N	3	3p1t6@example.com	\N	\N	\N		\N	\N	'3p1t6@example.com':1,2	1	2024-02-04 02:51:26.417963	2024-02-04 02:51:27.068243
+t	f	\N	klibby@hackers.com	NA	\N	\N	1	Kate Libby	\N	\N	\N	\N	\N	\N	'kate':1A 'klibby@hackers.com':3B 'libbi':2A 'na':4	1	2021-07-27 19:20:56.65442	2021-07-27 19:20:56.654425
+t	f	\N	kglisson@example.com	\N	\N	\N	2	Kevin Glisson	\N	\N	\N	\N	\N	\N	'glisson':2A 'kevin':1A 'kglisson@example.com':3B	1	2021-07-27 19:47:58.101502	2021-07-27 20:11:32.504414
+t	f	\N	3p1t6@example.com	\N	\N	\N	3	3p1t6@example.com	\N	\N	\N		\N	\N	'3p1t6@example.com':1A,2B	1	2024-02-04 02:51:26.417963	2024-02-04 02:51:27.068243
 \.
 
 
@@ -6635,7 +6811,7 @@ COPY dispatch_organization_default.monitor (resource_type, resource_id, weblink,
 --
 
 COPY dispatch_organization_default.notification (id, name, description, type, target, enabled, search_vector, project_id, updated_at, created_at, evergreen, evergreen_owner, evergreen_reminder_interval, evergreen_last_reminder_at) FROM stdin;
-1	Management	Send incident notifications to management but don't involve them directly.	email	c-suite@example.com	t	'direct':12 'incid':3 'involv':10 'manag':1,6 'notif':4 'send':2	1	2021-07-28 17:18:18.486176	2021-07-28 17:18:18.486182	\N	\N	\N	\N
+1	Management	Send incident notifications to management but don't involve them directly.	email	c-suite@example.com	t	'but':7 'directly':12 'don':8 'incident':3 'involve':10 'management':1,6 'notifications':4 'send':2 't':9 'them':11 'to':5	1	2021-07-28 17:18:18.486176	2021-07-28 17:18:18.486182	\N	\N	\N	\N
 \.
 
 
@@ -6721,7 +6897,7 @@ COPY dispatch_organization_default.prompt (id, genai_type, genai_prompt, genai_s
 --
 
 COPY dispatch_organization_default.query (id, name, description, text, language, source_id, search_vector, project_id, created_at, updated_at) FROM stdin;
-1	User Logins Last 30days	This query queries the login data source for logins in the last 30days.	select * from logins where date > current_date - interval '10' day	sql	1	'30days':4 'last':3 'login':2 'user':1	1	2022-03-04 18:28:08.843309	2022-03-04 18:28:08.843312
+1	User Logins Last 30days	This query queries the login data source for logins in the last 30days.	select * from logins where date > current_date - interval '10' day	sql	1	'30days':4 'last':3 'logins':2 'user':1	1	2022-03-04 18:28:08.843309	2022-03-04 18:28:08.843312
 \.
 
 
@@ -6844,8 +7020,8 @@ COPY dispatch_organization_default.source_data_format (id, name, description, se
 --
 
 COPY dispatch_organization_default.source_environment (id, name, description, search_vector, project_id) FROM stdin;
-1	Production	This data source contains data from the production environment.	'product':1	1
-2	Staging	This data source contains information from the staging environment.	'stage':1	1
+1	Production	This data source contains data from the production environment.	'production':1	1
+2	Staging	This data source contains information from the staging environment.	'staging':1	1
 \.
 
 
@@ -6854,9 +7030,9 @@ COPY dispatch_organization_default.source_environment (id, name, description, se
 --
 
 COPY dispatch_organization_default.source_status (id, name, description, search_vector, project_id) FROM stdin;
-1	Production	This data source is fully supported and can be used for investigations.	'product':1	1
-2	Testing	This data source is not yet production ready.	'test':1	1
-3	Deprecated	This data source is no longer in active use and is being phased out.	'deprec':1	1
+1	Production	This data source is fully supported and can be used for investigations.	'production':1	1
+2	Testing	This data source is not yet production ready.	'testing':1	1
+3	Deprecated	This data source is no longer in active use and is being phased out.	'deprecated':1	1
 \.
 
 
@@ -6904,8 +7080,8 @@ COPY dispatch_organization_default.tag (id, name, description, uri, source, disc
 
 COPY dispatch_organization_default.tag_type (id, name, description, search_vector, project_id, created_at, updated_at, exclusive, discoverable_case, discoverable_incident, discoverable_query, discoverable_signal, discoverable_source, color, icon, required, use_for_project_folder, discoverable_document, genai_suggestions) FROM stdin;
 2	email	Represents an email address.	'email':1	1	2021-07-27 18:59:15.242081	2021-07-27 18:59:15.242077	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
-3	domain-name	Represents a domain name.	'domain':2 'domain-nam':1 'name':3	1	2021-07-27 18:59:27.697621	2021-07-27 18:59:27.697617	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
-4	handle	Represents an internet handle.	'handl':1	1	2021-07-27 18:59:49.885602	2021-07-27 18:59:49.885596	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
+3	domain-name	Represents a domain name.	'domain':2 'domain-name':1 'name':3	1	2021-07-27 18:59:27.697621	2021-07-27 18:59:27.697617	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
+4	handle	Represents an internet handle.	'handle':1	1	2021-07-27 18:59:49.885602	2021-07-27 18:59:49.885596	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
 1	default	Default dispatch tag type.	'default':1	1	2021-07-27 18:59:02.975601	2021-07-27 19:00:23.284092	\N	t	t	t	t	t	\N	\N	\N	f	\N	\N
 \.
 
@@ -6915,7 +7091,7 @@ COPY dispatch_organization_default.tag_type (id, name, description, search_vecto
 --
 
 COPY dispatch_organization_default.task (resource_type, resource_id, weblink, id, resolved_at, resolve_by, last_reminder_at, creator_id, owner_id, incident_id, description, source, priority, status, reminders, search_vector, created_at, updated_at) FROM stdin;
-google-docs-incident-task	\N	\N	1	\N	2021-07-30 17:13:17	\N	2	2	4	This is a task related to the resolution of the incident.	Incident	Low	Open	t	'incid':11 'relat':5 'resolut':8 'task':4	2021-07-28 17:13:49.20327	2021-07-28 17:13:49.203262
+google-docs-incident-task	\N	\N	1	\N	2021-07-30 17:13:17	\N	2	2	4	This is a task related to the resolution of the incident.	Incident	Low	Open	t	'a':3 'incident':11 'is':2 'of':9 'related':5 'resolution':8 'task':4 'the':7,10 'this':1 'to':6	2021-07-28 17:13:49.20327	2021-07-28 17:13:49.203262
 \.
 
 
@@ -8995,6 +9171,13 @@ CREATE TRIGGER organization_search_vector_trigger BEFORE INSERT OR UPDATE ON dis
 
 
 --
+-- Name: plugin_event plugin_event_search_vector_trigger; Type: TRIGGER; Schema: dispatch_core; Owner: postgres
+--
+
+CREATE TRIGGER plugin_event_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_core.plugin_event FOR EACH ROW EXECUTE FUNCTION dispatch_core.plugin_event_search_vector_update();
+
+
+--
 -- Name: plugin plugin_search_vector_trigger; Type: TRIGGER; Schema: dispatch_core; Owner: postgres
 --
 
@@ -9005,28 +9188,77 @@ CREATE TRIGGER plugin_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_
 -- Name: alert alert_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER alert_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.alert FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER alert_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.alert FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
+
+
+--
+-- Name: case_cost_type case_cost_type_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER case_cost_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.case_cost_type FOR EACH ROW EXECUTE FUNCTION dispatch_organization_default.case_cost_type_search_vector_update();
+
+
+--
+-- Name: case_priority case_priority_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER case_priority_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.case_priority FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description');
+
+
+--
+-- Name: case case_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER case_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default."case" FOR EACH ROW EXECUTE FUNCTION dispatch_organization_default.case_search_vector_update();
+
+
+--
+-- Name: case_severity case_severity_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER case_severity_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.case_severity FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name', 'description');
+
+
+--
+-- Name: case_type case_type_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER case_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.case_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
+
+
+--
+-- Name: cost_model cost_model_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER cost_model_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.cost_model FOR EACH ROW EXECUTE FUNCTION dispatch_organization_default.cost_model_search_vector_update();
 
 
 --
 -- Name: definition definition_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER definition_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.definition FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'text');
+CREATE TRIGGER definition_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.definition FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'text');
 
 
 --
 -- Name: document document_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER document_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.document FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER document_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.document FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
+
+
+--
+-- Name: entity entity_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER entity_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.entity FOR EACH ROW EXECUTE FUNCTION dispatch_organization_default.entity_search_vector_update();
 
 
 --
 -- Name: entity_type entity_type_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER entity_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.entity_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description');
+CREATE TRIGGER entity_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.entity_type FOR EACH ROW EXECUTE FUNCTION dispatch_organization_default.entity_type_search_vector_update();
 
 
 --
@@ -9040,7 +9272,7 @@ CREATE TRIGGER event_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_o
 -- Name: feedback feedback_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER feedback_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.feedback FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'feedback', 'rating');
+CREATE TRIGGER feedback_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.feedback FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'feedback', 'rating');
 
 
 --
@@ -9065,24 +9297,31 @@ CREATE TRIGGER incident_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatc
 
 
 --
+-- Name: incident_severity incident_severity_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER incident_severity_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.incident_severity FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name', 'description');
+
+
+--
 -- Name: incident_type incident_type_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER incident_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.incident_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description');
+CREATE TRIGGER incident_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.incident_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
 -- Name: individual_contact individual_contact_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER individual_contact_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.individual_contact FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'title', 'email', 'company', 'notes');
+CREATE TRIGGER individual_contact_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.individual_contact FOR EACH ROW EXECUTE FUNCTION dispatch_organization_default.individual_contact_search_vector_update();
 
 
 --
 -- Name: notification notification_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER notification_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.notification FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description');
+CREATE TRIGGER notification_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.notification FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name', 'description');
 
 
 --
@@ -9096,7 +9335,7 @@ CREATE TRIGGER project_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch
 -- Name: query query_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER query_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.query FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER query_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.query FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
@@ -9114,87 +9353,101 @@ CREATE TRIGGER search_filter_search_vector_trigger BEFORE INSERT OR UPDATE ON di
 
 
 --
+-- Name: service_feedback service_feedback_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER service_feedback_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.service_feedback FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'feedback', 'rating');
+
+
+--
 -- Name: service service_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER service_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.service FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER service_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.service FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
+
+
+--
+-- Name: signal_engagement signal_engagement_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
+--
+
+CREATE TRIGGER signal_engagement_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.signal_engagement FOR EACH ROW EXECUTE FUNCTION dispatch_organization_default.signal_engagement_search_vector_update();
 
 
 --
 -- Name: signal_filter signal_filter_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER signal_filter_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.signal_filter FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description');
+CREATE TRIGGER signal_filter_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.signal_filter FOR EACH ROW EXECUTE FUNCTION dispatch_organization_default.signal_filter_search_vector_update();
 
 
 --
 -- Name: signal signal_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER signal_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.signal FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description', 'variant');
+CREATE TRIGGER signal_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.signal FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name', 'description', 'variant');
 
 
 --
 -- Name: source_data_format source_data_format_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER source_data_format_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_data_format FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER source_data_format_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_data_format FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
 -- Name: source_environment source_environment_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER source_environment_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_environment FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER source_environment_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_environment FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
 -- Name: source source_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER source_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER source_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
 -- Name: source_status source_status_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER source_status_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_status FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER source_status_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_status FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
 -- Name: source_transport source_transport_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER source_transport_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_transport FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER source_transport_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_transport FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
 -- Name: source_type source_type_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER source_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER source_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.source_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
 -- Name: tag tag_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER tag_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.tag FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name', 'description', 'external_id');
+CREATE TRIGGER tag_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.tag FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name', 'description', 'external_id');
 
 
 --
 -- Name: tag_type tag_type_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER tag_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.tag_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'name');
+CREATE TRIGGER tag_type_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.tag_type FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'name');
 
 
 --
 -- Name: task task_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER task_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.task FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'description');
+CREATE TRIGGER task_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.task FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'description');
 
 
 --
@@ -9208,7 +9461,7 @@ CREATE TRIGGER team_contact_search_vector_trigger BEFORE INSERT OR UPDATE ON dis
 -- Name: term term_search_vector_trigger; Type: TRIGGER; Schema: dispatch_organization_default; Owner: postgres
 --
 
-CREATE TRIGGER term_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.term FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.english', 'text');
+CREATE TRIGGER term_search_vector_trigger BEFORE INSERT OR UPDATE ON dispatch_organization_default.term FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('search_vector', 'pg_catalog.simple', 'text');
 
 
 --

@@ -33,12 +33,13 @@ DUMP = Path(
     )
 )
 SAMPLE_DB = "dispatch-sample-data-test"
+RESTORED_DB = "dispatch-sample-data-restored-test"
 TENANT_SCHEMA = "dispatch_organization_default"
 CORE_SCHEMA = "dispatch_core"
 
 
-def _sample_uri() -> str:
-    return str(config.SQLALCHEMY_DATABASE_URI).rsplit("/", 1)[0] + f"/{SAMPLE_DB}"
+def _sample_uri(name: str = SAMPLE_DB) -> str:
+    return str(config.SQLALCHEMY_DATABASE_URI).rsplit("/", 1)[0] + f"/{name}"
 
 
 def _load_dump(engine, dump: Path) -> None:
@@ -120,6 +121,28 @@ def sample_data_engine():
     yield engine
     engine.dispose()
     drop_database(uri)
+
+
+@pytest.fixture(scope="module")
+def restored_sample_engine():
+    """The dump as committed, restored but deliberately not upgraded.
+
+    Its own database rather than a phase of sample_data_engine: a fixture that
+    upgraded in place would leave what "pre-upgrade" means depending on which
+    test ran first.
+    """
+    uri = _sample_uri(RESTORED_DB)
+    if database_exists(uri):
+        drop_database(uri)
+    create_database(uri)
+
+    engine = create_engine(uri)
+    try:
+        _load_dump(engine, DUMP)
+        yield engine
+    finally:
+        engine.dispose()
+        drop_database(uri)
 
 
 def _build_model_metadata() -> MetaData:
@@ -412,6 +435,84 @@ def test_upgraded_sample_data_search_matches_on_description(sample_data_engine):
             "an updated row's search_vector was not recomputed"
         )
         session.rollback()
+
+
+_TRIGGERED_SEARCH_TABLES = """
+SELECT n.nspname AS schema_name, c.relname AS table_name
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_attribute a ON a.attrelid = c.oid
+                   AND a.attname = 'search_vector'
+                   AND a.attnum > 0
+                   AND NOT a.attisdropped
+JOIN pg_trigger t ON t.tgrelid = c.oid AND NOT t.tgisinternal
+WHERE c.relkind IN ('r', 'p')
+  AND starts_with(n.nspname, 'dispatch')
+GROUP BY 1, 2
+ORDER BY 1, 2
+"""
+
+
+def test_committed_dump_search_vectors_match_its_own_triggers(restored_sample_engine):
+    """Every stored search_vector must be what the dump's own triggers produce.
+
+    pg_dump writes data before triggers, so a value typed into a COPY block is
+    stored verbatim and never recomputed -- and because regenerating the fixture
+    is restore, upgrade, dump, a hand-written vector is laundered back out
+    unchanged on every run. That is how three incident_type rows carried vectors
+    stemmed from text they do not contain (issue #96).
+
+    Recomputes by assigning every column to itself: the builtin
+    tsvector_update_trigger skips an UPDATE that touches none of the columns it
+    indexes, so the more obvious `SET id = id` silently checks nothing.
+
+    Deliberately runs before `database upgrade`. A migration that repairs
+    triggers rewrites these rows, which fixes the restored database but not the
+    committed file the next regeneration reads.
+
+    Also fails when the server's stemmer moves under the fixture: snowball
+    stemmed "added" to 'ad' when this dump was first generated and to 'add' by
+    Postgres 18. That is a real staleness -- the answer is to regenerate.
+    """
+    preparer = restored_sample_engine.dialect.identifier_preparer
+    stale = []
+
+    with restored_sample_engine.connect() as connection:
+        tables = list(connection.exec_driver_sql(_TRIGGERED_SEARCH_TABLES))
+        assert tables, "no triggered search_vector tables found; the query stopped matching"
+
+        for schema_name, table_name in tables:
+            table = f"{preparer.quote(schema_name)}.{preparer.quote(table_name)}"
+            columns = [
+                row[0]
+                for row in connection.exec_driver_sql(
+                    "SELECT attname FROM pg_attribute WHERE attrelid = %s::regclass"
+                    " AND attnum > 0 AND NOT attisdropped AND attgenerated = ''",
+                    (table,),
+                )
+            ]
+            assignments = ", ".join(f"{preparer.quote(c)} = {preparer.quote(c)}" for c in columns)
+
+            connection.exec_driver_sql(
+                f"CREATE TEMP TABLE _stored AS SELECT id, search_vector FROM {table}"
+            )
+            connection.exec_driver_sql(f"UPDATE {table} SET {assignments}")
+            for row in connection.exec_driver_sql(
+                f"SELECT t.id, s.search_vector, t.search_vector FROM {table} t"
+                " JOIN _stored s USING (id)"
+                " WHERE t.search_vector IS DISTINCT FROM s.search_vector ORDER BY t.id"
+            ):
+                stale.append(f"{schema_name}.{table_name} id={row[0]}: {row[1]!r} != {row[2]!r}")
+            connection.exec_driver_sql("DROP TABLE _stored")
+
+        # Recomputing is a probe, not a repair: leaving it committed would let
+        # the assertion below pass against a database this test just fixed.
+        connection.rollback()
+
+    assert not stale, (
+        "search_vector values in the dump disagree with the triggers that should"
+        " have produced them (stored != recomputed):\n" + "\n".join(stale)
+    )
 
 
 def test_sample_data_retains_the_rows_e2e_depends_on(sample_data_engine):
