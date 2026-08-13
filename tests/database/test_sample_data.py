@@ -182,6 +182,191 @@ def test_sample_data_is_queryable(sample_data_engine):
     assert not failures, "models that cannot query the sample data:\n" + "\n".join(failures)
 
 
+# Sequences reachable from the column they feed, so a sequence that is merely
+# OWNED BY a client-assigned column is not compared. deptype 'a' is a serial
+# default, 'i' an identity column; only the former appears here today.
+_OWNED_SEQUENCES = """
+SELECT seq_ns.nspname AS sequence_schema,
+       seq.relname    AS sequence_name,
+       tab_ns.nspname AS table_schema,
+       tab.relname    AS table_name,
+       att.attname    AS column_name,
+       pg_sequence_last_value(seq.oid) AS last_value,
+       s.seqstart     AS start_value,
+       s.seqincrement AS increment
+FROM pg_class seq
+JOIN pg_namespace seq_ns ON seq_ns.oid = seq.relnamespace
+JOIN pg_sequence s ON s.seqrelid = seq.oid
+JOIN pg_depend dep ON dep.classid = 'pg_class'::regclass
+                 AND dep.objid = seq.oid
+                 AND dep.refclassid = 'pg_class'::regclass
+                 AND dep.deptype IN ('a', 'i')
+JOIN pg_class tab ON tab.oid = dep.refobjid
+JOIN pg_namespace tab_ns ON tab_ns.oid = tab.relnamespace
+JOIN pg_attribute att ON att.attrelid = tab.oid AND att.attnum = dep.refobjsubid
+WHERE seq.relkind = 'S'
+  AND tab.relkind IN ('r', 'p')
+  AND att.atttypid IN ('smallint'::regtype, 'integer'::regtype, 'bigint'::regtype)
+  AND s.seqincrement > 0
+  AND starts_with(tab_ns.nspname, 'dispatch')
+ORDER BY seq_ns.nspname, seq.relname
+"""
+
+
+def test_sample_data_sequences_lead_their_tables(sample_data_engine):
+    """No sequence may hand out an id that already exists in its table.
+
+    A sequence left behind its table's data is invisible until the first insert,
+    which then fails on the primary key -- and because each collision still
+    consumes a value, it recovers by itself after as many attempts as the gap is
+    wide. That makes it read as flakiness rather than as a broken fixture, so
+    assert on the catalog rather than by inserting a row.
+    """
+    preparer = sample_data_engine.dialect.identifier_preparer
+    collisions = []
+
+    with sample_data_engine.connect() as connection:
+        for seq in connection.exec_driver_sql(_OWNED_SEQUENCES).mappings():
+            table = f"{preparer.quote(seq['table_schema'])}.{preparer.quote(seq['table_name'])}"
+            highest = connection.exec_driver_sql(
+                f"SELECT max({preparer.quote(seq['column_name'])}) FROM {table}"
+            ).scalar()
+            if highest is None:
+                continue  # an empty table constrains nothing
+
+            # pg_sequence_last_value is NULL until the sequence is first read,
+            # which is the is_called=false case: nothing has been handed out yet.
+            last = seq["last_value"]
+            if last is None:
+                last = seq["start_value"] - seq["increment"]
+            following = last + seq["increment"]
+            if following <= highest:
+                collisions.append(
+                    f"{seq['sequence_schema']}.{seq['sequence_name']}: next value "
+                    f"{following} collides with {table}.{seq['column_name']} "
+                    f"(max {highest})"
+                )
+
+    assert not collisions, "sequences behind their table's data:\n" + "\n".join(collisions)
+
+
+# Triggers are per-table objects, so a table with no row in pg_trigger has no
+# trigger at all. tgisinternal is load-bearing: without it every table carrying
+# a foreign key looks like it has one.
+_SEARCH_VECTOR_TRIGGERS = """
+SELECT n.nspname AS schema_name,
+       c.relname AS table_name,
+       count(t.oid) FILTER (WHERE NOT t.tgisinternal) AS triggers
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_attribute a ON a.attrelid = c.oid
+                   AND a.attname = 'search_vector'
+                   AND a.attnum > 0
+                   AND NOT a.attisdropped
+LEFT JOIN pg_trigger t ON t.tgrelid = c.oid
+WHERE c.relkind = 'r'
+  AND starts_with(n.nspname, 'dispatch')
+GROUP BY 1, 2
+"""
+
+
+def _searchable_tables() -> set[tuple[str, str]]:
+    """(schema, table) for every model column the trigger machinery covers."""
+    expected = set()
+    for schema, tables in ((CORE_SCHEMA, get_core_tables()), (TENANT_SCHEMA, get_tenant_tables())):
+        for table in tables:
+            for column in table.columns:
+                # setup_fulltext_search only installs a trigger when the
+                # TSVectorType names the columns to index.
+                if column.name.endswith("search_vector") and hasattr(column.type, "columns"):
+                    expected.add((schema, table.name))
+    return expected
+
+
+def test_upgraded_sample_data_has_every_search_vector_trigger(sample_data_engine):
+    """`database upgrade` must leave no search_vector column unpopulated.
+
+    Trigger installation used to happen only in init_schema, so a table added by
+    a migration got its column and its GIN index but nothing to fill them. The
+    result is invisible: `database.service.search` ORs the vector match with a
+    `name ILIKE` fallback, so search keeps returning plausible rows.
+    """
+    with sample_data_engine.connect() as connection:
+        found = {
+            (row.schema_name, row.table_name): row.triggers
+            for row in connection.exec_driver_sql(_SEARCH_VECTOR_TRIGGERS)
+        }
+
+    untriggered = sorted(
+        f"{schema}.{table}"
+        for schema, table in _searchable_tables()
+        if found.get((schema, table)) == 0
+    )
+    assert not untriggered, "search_vector columns with no trigger to populate them:\n" + "\n".join(
+        untriggered
+    )
+
+
+def test_upgraded_sample_data_search_matches_on_description(sample_data_engine):
+    """The repaired triggers must actually make full-text search work.
+
+    Searches a token carried only by `description`. Every case_priority is named
+    Low/Medium/High/Critical, so `name ILIKE '%priority%'` cannot satisfy this
+    query and only a populated search_vector can -- a search by name would pass
+    with the triggers entirely absent.
+    """
+    from dispatch.case.priority.models import CasePriority
+    from dispatch.database.service import search
+
+    engine = sample_data_engine.execution_options(
+        schema_translate_map={None: TENANT_SCHEMA, CORE_SCHEMA: CORE_SCHEMA}
+    )
+    with Session(engine) as session:
+        backfilled = search(
+            query_str="priority",
+            query=session.query(CasePriority),
+            model="CasePriority",
+            sort=False,
+        ).all()
+        assert {row.name for row in backfilled} == {"Low", "Medium", "High", "Critical"}, (
+            "existing rows were not backfilled by the repaired trigger"
+        )
+
+        # Insert and update go through the same BEFORE INSERT OR UPDATE trigger,
+        # but only the insert path is exercised above. Rolled back so the
+        # module-scoped fixture stays as the other tests found it.
+        session.add(
+            CasePriority(
+                name="Zzz Fixture Priority",
+                description="quarklike escalation",
+                project_id=backfilled[0].project_id,
+            )
+        )
+        session.flush()
+        inserted = search(
+            query_str="quarklike",
+            query=session.query(CasePriority),
+            model="CasePriority",
+            sort=False,
+        ).all()
+        assert [row.name for row in inserted] == ["Zzz Fixture Priority"], (
+            "an inserted row's search_vector was not populated"
+        )
+
+        inserted[0].description = "gluonic escalation"
+        session.flush()
+        updated = search(
+            query_str="gluonic",
+            query=session.query(CasePriority),
+            model="CasePriority",
+            sort=False,
+        ).all()
+        assert [row.name for row in updated] == ["Zzz Fixture Priority"], (
+            "an updated row's search_vector was not recomputed"
+        )
+        session.rollback()
+
+
 def test_sample_data_retains_the_rows_e2e_depends_on(sample_data_engine):
     """The e2e specs select these by name; regenerating must not drop them."""
     with sample_data_engine.connect() as connection:
