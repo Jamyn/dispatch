@@ -1,0 +1,183 @@
+name: Image smoke
+
+# Builds docker/Dockerfile from the PR and proves the resulting image actually
+# serves the API.
+#
+# Why this exists here and not only in dispatch-docker: that repo's
+# `image-checks` builds from a *pinned commit SHA*, so it can only run after a
+# change has been merged, tagged, and picked up by a pin bump. Everything the
+# image build owns -- the Debian 13 base, the node 22 frontend build, the
+# hashed lockfile install, wheel packaging, mjml -- is therefore unguarded on
+# the PR that changes it.
+#
+# It also runs the app on the runtime it actually ships on. python-ci uses
+# ubuntu-latest + actions/setup-python, which is a different distribution,
+# glibc, OpenSSL and CA bundle than python:3.14.0-slim-trixie.
+#
+# Not a required status check: it is the slowest gate here, and per the repo's
+# rule a check must be observed green on main before being required.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: dispatch-smoke:${{ github.sha }}
+  # dispatch.config resolves at import time and none of these have defaults,
+  # so even `import dispatch` needs them. Passed into the containers below
+  # with a bare `-e NAME`, which forwards the runner's value.
+  # None are credentials: the cluster is created and destroyed in this job.
+  DISPATCH_ENCRYPTION_KEY: not-a-real-key-ci-only
+  DISPATCH_JWT_SECRET: not-a-real-key-ci-only
+  DISPATCH_UI_URL: https://example.com
+  DATABASE_HOSTNAME: pg
+  DATABASE_NAME: dispatch
+  DATABASE_CREDENTIALS: postgres:not-a-real-password-ci-only
+  PGPASSWORD: not-a-real-password-ci-only
+  STATIC_DIR: ""
+
+jobs:
+  image-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Plain docker build, not buildx/bake: docker/Dockerfile is what
+      # dispatch-docker builds through a remote git context, and this gate is
+      # only meaningful while it runs the same thing.
+      - name: Build the image
+        run: docker build -f docker/Dockerfile -t "$IMAGE" .
+
+      - name: Start a PostgreSQL 18 server
+        run: |
+          docker network create dispatch-smoke
+          docker run -d --name pg --network dispatch-smoke \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD="$PGPASSWORD" \
+            -e POSTGRES_DB="$DATABASE_NAME" \
+            postgres:18
+          # -h forces TCP: a bare pg_isready succeeds against the temporary
+          # bootstrap server the entrypoint runs over the unix socket during
+          # initdb, so it reports ready before the real server is listening.
+          for _ in $(seq 1 60); do
+            docker exec pg pg_isready -h 127.0.0.1 -U postgres && break
+            sleep 2
+          done
+          docker exec pg pg_isready -h 127.0.0.1 -U postgres
+
+      # Packaging failures here are silent: hatchling drops the frontend dist/
+      # if its force-include regresses, and `uv build` without --wheel produces
+      # a wheel with no package in it at all. Both still `import dispatch`
+      # fine, so they have to be asserted directly.
+      #
+      # `-i` is required on every stdin-fed run below. Without it docker does
+      # not attach stdin, python reads an empty script and exits 0 having
+      # asserted nothing -- a green step that checked nothing.
+      - name: Assert the package and its frontend assets are present
+        run: |
+          docker run --rm -i --entrypoint python \
+            -e DISPATCH_ENCRYPTION_KEY -e DISPATCH_JWT_SECRET -e DISPATCH_UI_URL \
+            -e DATABASE_HOSTNAME -e DATABASE_NAME -e DATABASE_CREDENTIALS -e STATIC_DIR \
+            "$IMAGE" - <<'PY'
+          import pathlib, dispatch, dispatch.main
+          root = pathlib.Path(dispatch.__file__).parent
+          dist = root / "static" / "dispatch" / "dist"
+          assert dist.is_dir(), f"frontend dist/ missing from the wheel at {dist}"
+          assert (dist / "index.html").is_file(), "dist/index.html missing"
+          assert any(dist.rglob("*.js")), "dist/ contains no JS bundle"
+          print("package OK:", root)
+          PY
+
+      # The mjml CLI is installed into /node_modules and reached via MJML_PATH.
+      # A node-major bump or a missed MJML_PATH edit breaks email rendering
+      # only at send time, which nothing else in CI reaches.
+      - name: Assert mjml renders inside the image
+        run: |
+          docker run --rm -i --entrypoint python \
+            -e DISPATCH_ENCRYPTION_KEY -e DISPATCH_JWT_SECRET -e DISPATCH_UI_URL \
+            -e DATABASE_HOSTNAME -e DATABASE_NAME -e DATABASE_CREDENTIALS -e STATIC_DIR \
+            "$IMAGE" - <<'PY'
+          from dispatch.messaging.email.utils import render_html
+          html = render_html(
+              "<mjml><mj-body><mj-section><mj-column>"
+              "<mj-text>Dispatch canary</mj-text>"
+              "</mj-column></mj-section></mj-body></mjml>"
+          )
+          assert "Dispatch canary" in html and "<table" in html, html[:400]
+          print("mjml OK")
+          PY
+
+      # `dispatch database dump`/`restore` shell out to pg_dump/psql. pg_dump
+      # refuses to dump from a server newer than itself, which is why the image
+      # carries postgresql-client-18 -- a client older than the deployed server
+      # breaks backups only when someone finally tries to take one.
+      - name: Assert the bundled postgres client can dump from an 18 server
+        run: |
+          docker run --rm --network dispatch-smoke --entrypoint pg_dump \
+            -e PGPASSWORD "$IMAGE" \
+            -h pg -U postgres --schema-only "$DATABASE_NAME" > /dev/null
+          echo "pg_dump against an 18 server OK"
+
+      # Against a database with no schema every API route 500s with no
+      # traceback, which reads exactly like an import failure. `database init`
+      # prompts for the hostname and database name and compares them to the
+      # environment, so the piped values must match it.
+      - name: Initialise the schema with the shipped CLI
+        run: |
+          printf '%s\n%s\n' "$DATABASE_HOSTNAME" "$DATABASE_NAME" | \
+            docker run -i --rm --network dispatch-smoke \
+              -e DISPATCH_ENCRYPTION_KEY -e DISPATCH_JWT_SECRET -e DISPATCH_UI_URL \
+              -e DATABASE_HOSTNAME -e DATABASE_NAME -e DATABASE_CREDENTIALS \
+              "$IMAGE" database init
+
+      - name: Boot the image and serve a real request
+        run: |
+          docker run -d --name web --network dispatch-smoke -p 8011:8011 \
+            -e DISPATCH_ENCRYPTION_KEY -e DISPATCH_JWT_SECRET -e DISPATCH_UI_URL \
+            -e DATABASE_HOSTNAME -e DATABASE_NAME -e DATABASE_CREDENTIALS \
+            -e DISPATCH_AUTHENTICATION_PROVIDER_SLUG=dispatch-auth-provider-basic \
+            "$IMAGE" server start dispatch.main:app --host=0.0.0.0 --port=8011
+
+          for _ in $(seq 1 60); do
+            curl -fsS -o /dev/null "http://127.0.0.1:8011/" && break
+            sleep 2
+          done
+
+          # `/` and `/healthcheck` are served by the SPA catch-all and return
+          # 200 even with the database unreachable, so neither proves the app
+          # works. An API route is the only thing that exercises the router,
+          # the per-request session and a real query.
+          code=$(curl -s -o /tmp/openapi.json -w '%{http_code}' \
+            "http://127.0.0.1:8011/api/v1/docs/openapi.json")
+          if [ "$code" != "200" ]; then
+            echo "::error::/api/v1/docs/openapi.json returned $code, expected 200"
+            docker logs web
+            exit 1
+          fi
+          python3 -c "import json; d=json.load(open('/tmp/openapi.json')); assert d['paths'], 'openapi document has no paths'; print('openapi paths:', len(d['paths']))"
+
+          # An unauthenticated read of a protected collection must be rejected,
+          # not 500 and not 200. This is the one place the shipped auth stack,
+          # the per-request DB session and the error handlers run together
+          # against a real database.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "http://127.0.0.1:8011/api/v1/default/incidents")
+          echo "unauthenticated /incidents -> $code"
+          case "$code" in
+            401|403) ;;
+            *) echo "::error::expected 401/403 unauthenticated, got $code"; docker logs web; exit 1 ;;
+          esac
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs web || true

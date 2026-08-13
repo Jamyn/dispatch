@@ -33,3 +33,14 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run lint
       - run: npx vitest run --dom
+      # The production vite build. Neither lint nor vitest resolves the
+      # `exports` maps that a bundler enforces, so a dependency bump can pass
+      # both and still fail here -- monaco-editor 0.56 did exactly that, and
+      # until now the first thing to notice would have been the image build in
+      # dispatch-docker, which only runs after a release is tagged.
+      # Takes ~45s; deliberately not gated behind a paths: filter.
+      # Note `npm run build` also rewrites components.d.ts: unplugin-vue-
+      # components regenerates it from a production scan, which differs from
+      # the committed copy (generated from a dev-server run). That drift is
+      # pre-existing and not asserted here -- doing so would fail on main.
+      - run: npm run build
