@@ -40,6 +40,14 @@ class ZoomClient:
             timeout=self.timeout,
         )
 
+    def patch(self, path, data):
+        return requests.patch(
+            "{}/{}".format(API_BASE_URI, path),
+            data=json.dumps(data),
+            headers=self.headers,
+            timeout=self.timeout,
+        )
+
     def delete(self, path, data=None, params=None):
         return requests.delete(
             "{}/{}".format(API_BASE_URI, path),

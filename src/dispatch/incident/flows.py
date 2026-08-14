@@ -1097,6 +1097,18 @@ def incident_add_or_reactivate_participant_flow(
             incident=incident, participant_emails=[user_email], db_session=db_session
         )
 
+        # we add the participant to the conference roster. The conference is a
+        # secondary integration -- the group and the conversation above are what
+        # actually get a responder into the incident -- so it must not be able to
+        # abort this flow. The helper contains plugin failures itself; this
+        # guards the resolution around them.
+        try:
+            conference_flows.add_conference_participant(
+                incident=incident, participant_email=user_email, db_session=db_session
+            )
+        except Exception as e:
+            log.exception(f"Failed to add user to the incident conference: {e}")
+
         # log event for adding the participant
         try:
             slack_conversation_plugin = plugin_service.get_active_instance(
@@ -1206,6 +1218,18 @@ def incident_remove_participant_flow(
         group_member=user_email,
         db_session=db_session,
     )
+
+    # we remove the participant from the conference roster. This precedes the
+    # conversation block below, which returns early when no conversation plugin
+    # is enabled -- placing it after would skip the conference entirely there.
+    # Scoped exception handling for the same reason as the add flow: a roster
+    # update must not cost the participant their removal.
+    try:
+        conference_flows.remove_conference_participant(
+            incident=incident, participant_email=user_email, db_session=db_session
+        )
+    except Exception as e:
+        log.exception(f"Failed to remove user from the incident conference: {e}")
 
     # Update the participants canvas since a participant was removed
     try:

@@ -34,6 +34,26 @@ def build_challenge(meeting: dict) -> str:
     return f"{passcode} (meeting ID {meeting_id})" if meeting_id else passcode
 
 
+def current_attendees(meeting: dict) -> list[dict]:
+    """The meeting's attendees, for a meeting that may carry none.
+
+    Graph sends an explicit null for both keys rather than omitting them, so
+    `.get(key, [])` returns the null instead of the default.
+    """
+    participants = meeting.get("participants") or {}
+    return list(participants.get("attendees") or [])
+
+
+def matches(attendee: dict, participant: str) -> bool:
+    """Whether an attendee is the given participant. UPNs are case-insensitive."""
+    upn = attendee.get("upn")
+    return bool(upn) and upn.casefold() == participant.casefold()
+
+
+def find_attendee(attendees: list[dict], participant: str) -> dict | None:
+    return next((a for a in attendees if matches(a, participant)), None)
+
+
 # `apply` rewrites the entries of cls.__dict__, so it must decorate the class.
 # Decorating a method instead is a silent no-op -- a function's __dict__ is
 # empty, so the loop body never runs and no metric is ever emitted.
@@ -96,9 +116,45 @@ class MicrosoftTeamsConferencePlugin(ConferencePlugin):
         self._client().delete_meeting(event_id)
 
     def add_participant(self, event_id: str, participant: str):
-        """Adds a new participant to event."""
-        return
+        """Add a participant to the meeting's attendee roster.
+
+        Roster metadata only: the join link works without this, and this does not
+        grant access. Graph requires the complete attendee list on every update,
+        so this reads the meeting first and resends the existing attendees
+        untouched -- including the identity Graph resolved for them, which a
+        upn-only round trip would discard.
+        """
+        client = self._client()
+        attendees = current_attendees(client.get_meeting(event_id))
+
+        if find_attendee(attendees, participant) is not None:
+            return
+
+        # `attendee` is the only role safe to assign unconditionally: presenter
+        # and coorganizer are unsupported for identities Entra cannot resolve,
+        # and responders may be external.
+        #
+        # A new attendee is identified by `upn` alone. Graph documents `identity`
+        # as optional and we cannot populate it without resolving the address to
+        # an Entra object id, which would need User.Read.All on top of the
+        # permissions this plugin asks for. Unverified against a live tenant, and
+        # there are reports of Graph answering 200 to an attendee update made
+        # with application permissions without applying it -- so the live suite
+        # asserts by reading the meeting back rather than trusting the status.
+        client.update_attendees(event_id, attendees + [{"upn": participant, "role": "attendee"}])
 
     def remove_participant(self, event_id: str, participant: str):
-        """Removes a participant from event."""
-        return
+        """Remove a participant from the meeting's attendee roster.
+
+        This does not evict anyone or revoke the join link; it only updates the
+        roster. Absent participants are left alone rather than treated as errors,
+        so a retried removal is a no-op.
+        """
+        client = self._client()
+        attendees = current_attendees(client.get_meeting(event_id))
+
+        remaining = [a for a in attendees if not matches(a, participant)]
+        if len(remaining) == len(attendees):
+            return
+
+        client.update_attendees(event_id, remaining)

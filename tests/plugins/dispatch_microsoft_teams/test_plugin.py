@@ -299,36 +299,20 @@ def test_delete_propagates_a_graph_failure(graph, teams_plugin):
     assert "No access policy." in str(excinfo.value)
 
 
-def test_participant_management_is_a_no_op_like_zoom(graph, teams_plugin):
-    """Neither platform's plugin manages participants; say so rather than crash."""
-    assert teams_plugin.add_participant(MEETING_ID, "someone@example.com") is None
-    assert teams_plugin.remove_participant(MEETING_ID, "someone@example.com") is None
-    assert graph.graph_requests() == []
+def test_participant_management_reaches_graph(graph, teams_plugin):
+    """Both were no-op stubs until issue #106; the roster is now really updated.
+
+    Behaviour lives in ``test_participants.py``; this only guards against a
+    regression to ``return``, which no assertion on the return value would catch.
+    """
+    graph.get = (200, graph.meeting_with_attendees(), {})
+
+    teams_plugin.add_participant(MEETING_ID, "someone@example.com")
+
+    assert [r.method for r in graph.graph_requests()] == ["GET", "PATCH"]
 
 
 # --- instrumentation --------------------------------------------------------
-
-
-class RecordingMetrics:
-    def __init__(self):
-        self.counters = []
-        self.timers = []
-
-    def counter(self, name, value=None, tags=None):
-        self.counters.append((name, tags))
-
-    def timer(self, name, value=None, tags=None):
-        self.timers.append((name, tags))
-
-    def gauge(self, name, value=None, tags=None):
-        pass
-
-
-@pytest.fixture
-def metrics(monkeypatch):
-    recorder = RecordingMetrics()
-    monkeypatch.setattr("dispatch.decorators.metrics_provider", recorder)
-    return recorder
 
 
 def test_create_emits_a_call_counter_and_a_timer(graph, teams_plugin, metrics):

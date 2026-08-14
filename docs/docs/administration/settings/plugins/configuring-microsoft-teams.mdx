@@ -98,7 +98,10 @@ Microsoft documents a limit of **2,000 meetings per user per month** for meeting
 
 ## Notes
 
-- `add_participant` and `remove_participant` are no-ops, as they are in the Zoom plugin. Participants join through the link Dispatch publishes.
+- `add_participant` and `remove_participant` keep the meeting's attendee list in step with the incident's participants. This is **roster metadata, not access control**: the join link works for anyone who holds it, so being added grants nothing that the published link does not already grant, and being removed neither evicts a participant from a meeting in progress nor invalidates the link. Attendees are added with the `attendee` role — Microsoft does not support assigning `presenter` or `coorganizer` to identities Entra cannot resolve, and responders may be external.
+- Graph replaces the whole attendee list on every update, so Dispatch reads the meeting before each change and resends the existing attendees unchanged. A failure is recorded on the incident timeline and does not interrupt adding or removing the participant everywhere else.
+- Lobby admission and presenter rights are a separate concern this plugin does not manage.
+- **Unverified against a live tenant.** Attendees are identified by user principal name alone; Graph documents the richer `identity` object as optional, and resolving one would require `User.Read.All` in addition to the permissions above. There are also reports of Graph answering `200` to an attendee update made with application permissions without applying it. Because a roster failure never interrupts the incident, a deployment where this silently does nothing looks identical to one where it works. Run the opt-in live suite (`tests/plugins/dispatch_microsoft_teams/test_teams_live.py` with `DISPATCH_MSTEAMS_TEST_ATTENDEE_UPN` set) against your own tenant to confirm before relying on the roster being accurate.
 - Nothing in Dispatch currently calls `delete` for a conference; it is implemented for interface parity.
 - `description` and `participants` are accepted by the plugin and unused: an `onlineMeeting` has no agenda field, and responders join through the published link rather than being invited.
 

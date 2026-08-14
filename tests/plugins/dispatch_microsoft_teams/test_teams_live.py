@@ -17,6 +17,10 @@ Configuration
 
 All four are required; the suite skips unless every one is set.
 
+``DISPATCH_MSTEAMS_TEST_ATTENDEE_UPN`` is optional and gates the attendee tests
+only: a real user principal name in the same tenant that Entra can resolve. The
+organizer's own UPN works. Without it those tests skip and the rest still run.
+
 Creating the app registration
 -----------------------------
 1. Microsoft Entra admin center -> App registrations -> New registration, against
@@ -45,6 +49,8 @@ What this covers that the mocked suite cannot
   the claim issue #81 could only mark inferred.
 - A real ``joinWebUrl`` and passcode come back.
 - ``delete`` really removes the meeting.
+- Graph accepts the ``participants.attendees`` payload built for issue #106, and
+  a re-added attendee is not duplicated.
 
 This creates real meetings in the configured tenant. Point it at a throwaway
 one. Every test cleans up after itself, and the cleanup is best-effort: a failed
@@ -275,3 +281,134 @@ def test_no_secret_appears_in_the_logs(client, cleanup, caplog):
     cleanup.append(meeting["id"])
 
     assert SECRET not in caplog.text
+
+
+# --- attendees (issue #106) --------------------------------------------------
+#
+# The mocked suite proves what we send; only Graph can say whether it accepts
+# the `participants.attendees` shape we build, and the docs are ambiguous about
+# whether a bare `upn` is enough to identify an attendee. That is the one claim
+# these tests exist to settle.
+#
+# Every assertion below reads the meeting back rather than trusting the status
+# code, because the failure mode reported against application permissions is a
+# 200 that changes nothing. A test that stopped at "the call did not raise"
+# would pass against exactly the bug worth finding.
+#
+# Roster metadata only: none of this grants or revokes access to the meeting.
+
+
+ATTENDEE_UPN = os.environ.get("DISPATCH_MSTEAMS_TEST_ATTENDEE_UPN")
+
+needs_attendee = pytest.mark.skipif(
+    not ATTENDEE_UPN,
+    reason=(
+        "needs DISPATCH_MSTEAMS_TEST_ATTENDEE_UPN, a real user in the test tenant "
+        "that Microsoft Entra can resolve"
+    ),
+)
+
+
+def _attendee_upns(meeting: dict) -> list[str]:
+    participants = meeting.get("participants") or {}
+    return [a.get("upn") for a in (participants.get("attendees") or [])]
+
+
+@needs_attendee
+def test_graph_accepts_the_attendee_payload_we_build(client, plugin, cleanup):
+    """The claim the fakes cannot make: Graph takes this body.
+
+    Asserted by reading the meeting back rather than trusting the 200, because
+    Graph accepts an unresolvable attendee and silently stores nothing.
+    """
+    conference = plugin.create("dispatch-live-test", title=_subject())
+    cleanup.append(conference["id"])
+
+    plugin.add_participant(conference["id"], ATTENDEE_UPN)
+
+    meeting = client.get_meeting(conference["id"])
+    assert ATTENDEE_UPN.casefold() in [u.casefold() for u in _attendee_upns(meeting) if u]
+
+
+@needs_attendee
+def test_graph_removes_the_attendee_again(client, plugin, cleanup):
+    conference = plugin.create("dispatch-live-test", title=_subject())
+    cleanup.append(conference["id"])
+    plugin.add_participant(conference["id"], ATTENDEE_UPN)
+
+    plugin.remove_participant(conference["id"], ATTENDEE_UPN)
+
+    meeting = client.get_meeting(conference["id"])
+    assert ATTENDEE_UPN.casefold() not in [u.casefold() for u in _attendee_upns(meeting) if u]
+
+
+@needs_attendee
+def test_adding_the_same_attendee_twice_is_accepted_and_does_not_duplicate(client, plugin, cleanup):
+    """Participant flows retry, so this is a real production path."""
+    conference = plugin.create("dispatch-live-test", title=_subject())
+    cleanup.append(conference["id"])
+
+    plugin.add_participant(conference["id"], ATTENDEE_UPN)
+    plugin.add_participant(conference["id"], ATTENDEE_UPN)
+
+    upns = [u.casefold() for u in _attendee_upns(client.get_meeting(conference["id"])) if u]
+    assert upns.count(ATTENDEE_UPN.casefold()) == 1
+
+
+@needs_attendee
+def test_removing_an_attendee_who_is_not_there_is_not_an_error(plugin, cleanup):
+    conference = plugin.create("dispatch-live-test", title=_subject())
+    cleanup.append(conference["id"])
+
+    plugin.remove_participant(conference["id"], ATTENDEE_UPN)
+
+
+@needs_attendee
+def test_the_organizer_survives_an_attendee_update(client, plugin, cleanup):
+    """`organizer` can't be updated; sending or dropping it is a 400 or a loss."""
+    conference = plugin.create("dispatch-live-test", title=_subject())
+    cleanup.append(conference["id"])
+
+    plugin.add_participant(conference["id"], ATTENDEE_UPN)
+
+    participants = client.get_meeting(conference["id"])["participants"]
+    assert participants.get("organizer")
+
+
+@needs_attendee
+def test_an_existing_attendee_is_not_lost_when_another_is_added(client, plugin, cleanup):
+    """Graph replaces the whole list, so this is the defect most worth catching.
+
+    Uses the meeting's own organizer as the second attendee -- any second
+    resolvable identity would do, and the tenant is guaranteed to have this one.
+    Read from the meeting under test rather than a throwaway one, which would
+    leak a meeting in the tenant on every run.
+    """
+    conference = plugin.create("dispatch-live-test", title=_subject())
+    cleanup.append(conference["id"])
+
+    organizer_upn = client.get_meeting(conference["id"])["participants"]["organizer"]["upn"]
+
+    plugin.add_participant(conference["id"], ATTENDEE_UPN)
+    plugin.add_participant(conference["id"], organizer_upn)
+
+    upns = [u.casefold() for u in _attendee_upns(client.get_meeting(conference["id"])) if u]
+    assert ATTENDEE_UPN.casefold() in upns
+
+
+@needs_attendee
+def test_an_unresolvable_attendee_is_reported_rather_than_silently_dropped(plugin, cleanup):
+    """Establishes which of the two Graph does; the mocks cannot know.
+
+    If Graph raises, our exception carries the reason. If it accepts and stores
+    nothing, that is worth knowing too -- so this asserts only that the call does
+    not corrupt the meeting, and records the observed behaviour in the failure
+    message when it diverges.
+    """
+    conference = plugin.create("dispatch-live-test", title=_subject())
+    cleanup.append(conference["id"])
+
+    try:
+        plugin.add_participant(conference["id"], "definitely-not-a-user@invalid.example")
+    except DispatchPluginException as e:
+        assert "HTTP" in str(e), str(e)

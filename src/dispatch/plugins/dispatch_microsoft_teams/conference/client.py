@@ -195,3 +195,23 @@ class MSTeamsClient:
     def delete_meeting(self, meeting_id: str) -> None:
         """Delete an online meeting."""
         self._request("DELETE", f"/users/{self.user_id}/onlineMeetings/{meeting_id}")
+
+    def get_meeting(self, meeting_id: str) -> dict:
+        """Read an online meeting."""
+        response = self._request("GET", f"/users/{self.user_id}/onlineMeetings/{meeting_id}")
+        return self._parse(response)
+
+    def update_attendees(self, meeting_id: str, attendees: list[dict]) -> dict:
+        """Replace the meeting's attendee list.
+
+        Graph has no incremental form: adjusting `attendees` "always requires the
+        full list of attendees in the request body", so a caller that sends only
+        the delta silently removes everyone else. `organizer` is deliberately
+        absent -- it cannot be updated and sending it is rejected.
+        """
+        response = self._request(
+            "PATCH",
+            f"/users/{self.user_id}/onlineMeetings/{meeting_id}",
+            json={"participants": {"attendees": attendees}},
+        )
+        return self._parse(response)

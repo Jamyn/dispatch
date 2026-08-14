@@ -45,6 +45,28 @@ def teams_configuration():
     )
 
 
+class RecordingMetrics:
+    def __init__(self):
+        self.counters = []
+        self.timers = []
+
+    def counter(self, name, value=None, tags=None):
+        self.counters.append((name, tags))
+
+    def timer(self, name, value=None, tags=None):
+        self.timers.append((name, tags))
+
+    def gauge(self, name, value=None, tags=None):
+        pass
+
+
+@pytest.fixture
+def metrics(monkeypatch):
+    recorder = RecordingMetrics()
+    monkeypatch.setattr("dispatch.decorators.metrics_provider", recorder)
+    return recorder
+
+
 @pytest.fixture
 def teams_plugin(teams_configuration):
     from dispatch.plugins.dispatch_microsoft_teams.conference.plugin import (
