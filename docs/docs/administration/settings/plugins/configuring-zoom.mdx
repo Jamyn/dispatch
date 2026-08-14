@@ -5,35 +5,88 @@ description: Configuration options for the Zoom plugin.
 # Configuring Zoom
 
 :::info
-Dispatch ships with Zoom conference support. The Zoom plugin creates a conference call with a valid time of 6 weeks and generates a password to protect the call. The Web URL returned by the plugin to the messaging is created such that you need to click it and not worry about entering the password.
+Dispatch ships with Zoom conference support. The Zoom plugin creates a conference call lasting up to 24 hours (Zoom's maximum) and generates a password to protect the call. The Web URL returned by the plugin to the messaging is created such that you need to click it and not worry about entering the password.
 :::
 
-:::caution
-Zoom disabled JWT app authorization on 2023-09-01 in favor of Server-to-Server OAuth. The setup steps below (JWT app creation) can no longer be completed on the Zoom Marketplace, and the plugin's own auth code (`generate_jwt()` in `dispatch_zoom/client.py`) still implements the removed JWT flow, so this plugin cannot currently authenticate against the live Zoom API. Tracked for a code + doc fix together; see [Jamyn/dispatch#70](https://github.com/Jamyn/dispatch/issues/70).
+:::caution Upgrading from an older Dispatch
+This plugin used to authenticate with a Zoom JWT app, a flow Zoom disabled on 2023-09-01. It now uses **Server-to-Server OAuth**, and the old **API Key** / **API Secret** fields are gone.
+
+An existing Zoom plugin instance therefore carries configuration this version cannot read, and Dispatch treats unreadable plugin configuration as absent rather than raising. The plugin keeps showing as enabled, and every incident records *"The Zoom plugin configuration could not be read…"* on its timeline instead of getting a bridge. The old JWT key and secret cannot be converted and are useless against Zoom regardless.
+
+To recover:
+
+1. Create a Server-to-Server OAuth app and configure the plugin as described below — **once per project, in every organization**. Plugin instances are per-project, so a deployment with five projects across two organizations needs ten.
+2. Re-enter **every** field, including **Zoom API User Id**. Because the stored configuration cannot be parsed, the edit form opens blank even for fields that did not change.
+3. Delete or deactivate the old JWT app in the Marketplace if one still exists.
 :::
+
+:::warning Re-opening the plugin form clears the client secret
+Dispatch returns the stored client secret to the UI masked as `**********`, and saving the form writes back whatever it holds. Opening the Zoom plugin to change any other field — the API User Id, say — and saving will overwrite the client secret with those asterisks, and authentication then fails with `Invalid client_id or client_secret`. **Re-enter the Client Secret every time you save this form.** This affects every plugin with a secret field, not just Zoom.
+:::
+
+## Creating the Zoom app
+
+1. In the [Zoom App Marketplace](https://marketplace.zoom.us/), sign in as an account admin and choose **Develop → Build App → Server-to-Server OAuth**. (The JWT app type this plugin once required can no longer be created.)
+2. Give the app a name, fill in the required basic information, and activate it.
+3. Under **Scopes**, add the scopes for all four operations the plugin performs — create, read, update and delete a meeting.
+
+   Zoom offers two scope families, and which one you see depends on the app. Newly created apps are generally offered **granular** scopes only; the classic names may be unavailable:
+
+   | Operation | Classic | Granular |
+   | --- | --- | --- |
+   | Create the meeting | `meeting:write:admin` | `meeting:write:meeting:admin` |
+   | Read the meeting | `meeting:read:admin` | `meeting:read:meeting:admin` |
+   | Update the invitee roster | `meeting:write:admin` | `meeting:update:meeting:admin` |
+   | Delete the meeting | `meeting:write:admin` | `meeting:delete:meeting:admin` |
+
+   Granular scopes split what classic `meeting:write:admin` covered into three. Selecting only the granular read and write pair is the common mistake: meetings are created successfully and then every roster update and deletion fails.
+
+   A missing scope is not reported when the token is issued — the token is granted and the API call fails afterwards, so add the scopes before configuring Dispatch.
+4. From **App Credentials**, copy the **Account ID**, **Client ID** and **Client Secret**.
 
 ## Dispatch Configuration
 
 The Zoom plugin is configured in the Dispatch Web UI under Settings -> Project -> Plugins. Add the plugin using the `NEW` button and then edit its configuration by clicking on the three vertical dots.
 
+Enter the credentials through that form only. Do not pass them on a command line or place them in a URL — Dispatch stores the client secret in an encrypted column, and either of those would leak it to shell history, process listings or proxy logs.
+
 ### Zoom API User Id
 
-> Email / User ID attached to the API credentials.
+> Email or user ID that meetings are created on behalf of.
 
-### API Key
+### Account ID
 
-> API Key. (Currently a JWT app key — see the caution above.)
+> Account ID of the Server-to-Server OAuth app, from its App Credentials page.
 
-### API Secret
+### Client ID
 
-> API Secret. (Currently a JWT app secret — see the caution above.)
+> Client ID of the Server-to-Server OAuth app.
+
+### Client Secret
+
+> Client secret of the Server-to-Server OAuth app. **Treat this as a credential** — anyone holding it can act on the account through the app's scopes. Rotate it in the Marketplace if it is ever exposed.
 
 ### Default Meeting Duration (Minutes)
 
 > Default duration in minutes for conference meetings. Defaults to 1440 minutes (1 day).
 
+## Validating the configuration
+
+Create a test incident in a project with the plugin enabled and confirm a conference link appears. Any failure — authenticating, or the meeting call itself — is recorded on the incident timeline with the reason Zoom gave, and no conference is attached.
+
+| Symptom | Cause |
+| --- | --- |
+| `HTTP 400: Invalid client_id or client_secret` | Client ID or Client Secret is wrong, or the app was deactivated. Note Zoom answers the token endpoint with `400`, not `401`. |
+| `HTTP 400: Invalid account_id` (or a 400 naming the account) | The Account ID does not match the app's account. |
+| `HTTP 400: grant type … is not supported` | The token request used a grant Zoom does not accept here. Server-to-Server OAuth uses `account_credentials`. |
+| `Zoom creation of the meeting failed with HTTP 400` and a message naming a scope | A required scope is missing from the app — most often an update or delete scope under the granular family. |
+| `This API does not support client credentials for authorization` | Returned by the API, not the token endpoint: a `client_credentials` token was presented to an endpoint requiring account authorization. |
+| `The Zoom plugin configuration could not be read` | The plugin still holds the retired API Key / API Secret. See the upgrade note above. |
+
 ## Notes
 
+- Access tokens live one hour and Zoom issues no refresh token. Dispatch acquires a token per operation and reuses it for the calls that operation makes; tokens are never written to disk. Nothing needs rotating on a schedule apart from the client secret itself, at whatever interval your policy requires.
+- Zoom rate-limits meeting creation to **100 per day** against the configured API user, and meeting updates to **100 per day per meeting**. The first caps how many conference bridges a deployment can open in 24 hours account-wide; the second caps roster changes on a single long-running incident. Both surface as timeline errors rather than silent failures.
 - `add_participant` and `remove_participant` keep the meeting's `meeting_invitees` list in step with the incident's participants. This is **roster metadata, not access control**: the join URL works for anyone who holds it, so being added grants nothing beyond the published link, and being removed neither evicts anyone nor invalidates the link. Waiting-room behaviour is a separate concern this plugin does not manage.
 - Zoom replaces the invitee list wholesale, so Dispatch reads the meeting before each change and resends the existing invitees. A failure is recorded on the incident timeline and does not interrupt adding or removing the participant everywhere else.
-- Zoom support has stated on the developer forum that `meeting_invitees` is consumed only by their calendar integrations, so an invitee added this way may never appear in the Zoom client. Dispatch sends what the API documents; because the plugin cannot authenticate at all until [#70](https://github.com/Jamyn/dispatch/issues/70) is fixed, this has not been confirmed against a live account.
+- Zoom support has stated on the developer forum that `meeting_invitees` is consumed only by their calendar integrations, so an invitee added this way may never appear in the Zoom client. Dispatch sends what the API documents.

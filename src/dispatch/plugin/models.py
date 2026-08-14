@@ -1,7 +1,7 @@
 import logging
 import json
 
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 from pydantic.json import pydantic_encoder
 
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
@@ -13,6 +13,7 @@ from sqlalchemy_utils.types.encrypted.encrypted_type import AesEngine
 
 from dispatch.config import DISPATCH_ENCRYPTION_KEY
 from dispatch.database.core import Base
+from dispatch.exceptions import InvalidConfigurationError
 from dispatch.models import DispatchBase, ProjectMixin, Pagination, PrimaryKey, NameStr
 from dispatch.plugins.base import plugins
 from dispatch.project.models import ProjectRead
@@ -26,6 +27,37 @@ def show_secrets_encoder(obj):
         return obj.get_secret_value()
     else:
         return pydantic_encoder(obj)
+
+
+def redacted_error(e: Exception) -> str:
+    """Describe an exception without quoting any value it carries.
+
+    A stored plugin configuration is decrypted before it is validated, so a
+    pydantic ValidationError over it holds real credentials: `str(e)` renders
+    `input_value={...}` with the submitted dict, and the tail of that repr
+    survives pydantic's truncation. Only the failing field names are safe to
+    log, and only pydantic reports those -- anything else is reduced to its
+    type.
+
+    Safe today because no plugin configuration schema uses a mapping field: for
+    `extra_forbidden` and for `dict[str, X]`, `loc` carries an operator-supplied
+    *key* rather than a schema field name. Keep it that way, or filter `loc`.
+    """
+    errors = getattr(e, "errors", None)
+    if not callable(errors):
+        return type(e).__name__
+
+    try:
+        fields = sorted(
+            {".".join(str(p) for p in detail.get("loc", ())) for detail in errors()} - {""}
+        )
+    except Exception:
+        return type(e).__name__
+
+    if not fields:
+        return type(e).__name__
+
+    return f"{type(e).__name__} on {', '.join(fields)}"
 
 
 class Plugin(Base):
@@ -140,8 +172,10 @@ class PluginInstance(Base, ProjectMixin):
                 plugin = plugins.get(self.plugin.slug)
                 return plugin.configuration_schema.parse_raw(self._configuration)
         except Exception as e:
+            # Redacted: this exception can carry the decrypted configuration.
             logger.warning(
-                f"Error trying to load plugin {self.plugin.title} {self.plugin.description} with error {e}"
+                f"Error trying to load the configuration for plugin {self.plugin.title}: "
+                f"{redacted_error(e)}"
             )
             return None
 
@@ -150,7 +184,19 @@ class PluginInstance(Base, ProjectMixin):
         """Property that correctly sets a plugins configuration object."""
         if configuration:
             plugin = plugins.get(self.plugin.slug)
-            config_object = plugin.configuration_schema.parse_obj(configuration)
+            try:
+                config_object = plugin.configuration_schema.parse_obj(configuration)
+            except ValidationError as e:
+                # Re-raised without the submitted values. A `missing` error
+                # embeds the whole input dict, and this exception reaches both
+                # `log.exception` and the API response body -- so a rejected
+                # save would publish the very secret it failed to store.
+                raise InvalidConfigurationError(
+                    msg=(
+                        f"The configuration submitted for plugin {self.plugin.title} is not "
+                        f"valid: {redacted_error(e)}"
+                    )
+                ) from None
             self._configuration = json.dumps(
                 config_object.model_dump(), default=show_secrets_encoder
             )

@@ -108,6 +108,13 @@ jobs:
           DISPATCH_MSTEAMS_TEST_CLIENT_ID: ${{ secrets.DISPATCH_MSTEAMS_TEST_CLIENT_ID }}
           DISPATCH_MSTEAMS_TEST_SECRET: ${{ secrets.DISPATCH_MSTEAMS_TEST_SECRET }}
           DISPATCH_MSTEAMS_TEST_USER_ID: ${{ secrets.DISPATCH_MSTEAMS_TEST_USER_ID }}
+          # Same arrangement for tests/plugins/dispatch_zoom/test_zoom_live.py,
+          # which is read-only: it authenticates and lists meetings, creating
+          # nothing in the configured Zoom account.
+          DISPATCH_ZOOM_TEST_ACCOUNT_ID: ${{ secrets.DISPATCH_ZOOM_TEST_ACCOUNT_ID }}
+          DISPATCH_ZOOM_TEST_CLIENT_ID: ${{ secrets.DISPATCH_ZOOM_TEST_CLIENT_ID }}
+          DISPATCH_ZOOM_TEST_CLIENT_SECRET: ${{ secrets.DISPATCH_ZOOM_TEST_CLIENT_SECRET }}
+          DISPATCH_ZOOM_TEST_API_USER_ID: ${{ secrets.DISPATCH_ZOOM_TEST_API_USER_ID }}
         run: |
           coverage run -m pytest -q
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true

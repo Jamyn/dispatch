@@ -5,15 +5,62 @@ Zoom is the parity baseline for the Microsoft Teams plugin and the two share
 exist so a change made for Teams cannot quietly alter Zoom.
 """
 
-from tests.plugins.dispatch_zoom.conftest import API_KEY, API_SECRET
+import pytest
+
+from dispatch.exceptions import DispatchPluginException
 
 
 def test_create_returns_the_weblink_id_and_challenge(zoom, zoom_plugin):
     conference = zoom_plugin.create("dispatch-incident-1")
 
     assert conference["weblink"] == "https://zoom.us/j/987654321"
-    assert conference["id"] == 987654321
+    # A *string*, though Zoom sends the id as a JSON number -- see
+    # test_the_conference_the_plugin_returns_is_accepted_by_the_flow.
+    assert conference["id"] == "987654321"
     assert conference["challenge"] == "zoompass"
+
+
+def test_the_conference_the_plugin_returns_is_accepted_by_the_flow(zoom, zoom_plugin):
+    """The plugin's output must satisfy the model the flow builds from it.
+
+    `conference/flows.py` constructs `ConferenceCreate` *outside* the try/except
+    that guards the plugin call, so a type it rejects does not degrade to "no
+    conference" -- it propagates out of `create_conference` and aborts
+    `incident_create_flow` before the Slack channel is ever made.
+
+    Zoom sends `id` as a JSON number and both fields are typed `str`; pydantic
+    v2 does not coerce. Asserting the plugin's dict in isolation cannot catch
+    this, which is why this test builds the real model.
+    """
+    from dispatch.conference.models import ConferenceCreate
+
+    conference = zoom_plugin.create("dispatch-incident-1")
+
+    # Exactly what conference/flows.py does with the returned dict.
+    model = ConferenceCreate(
+        resource_id=conference["id"],
+        resource_type="zoom-conference",
+        weblink=conference["weblink"],
+        conference_id=conference["id"],
+        conference_challenge=conference["challenge"],
+    )
+
+    assert model.conference_id == "987654321"
+    assert model.resource_id == "987654321"
+
+
+def test_a_meeting_without_a_passcode_still_yields_a_conference(zoom, zoom_plugin):
+    """Account policy can disable passcodes; the join_url is still good.
+
+    Requiring `password` here would turn a usable bridge into no bridge at all.
+    Teams behaves the same way, returning an empty challenge.
+    """
+    zoom.response = (201, {"id": 987654321, "join_url": "https://zoom.us/j/987654321"})
+
+    conference = zoom_plugin.create("dispatch-incident-1")
+
+    assert conference["weblink"] == "https://zoom.us/j/987654321"
+    assert conference["challenge"] == ""
 
 
 def test_the_title_becomes_the_meeting_topic(zoom, zoom_plugin):
@@ -116,13 +163,101 @@ def test_gen_conference_challenge_actually_varies():
     assert len({gen_conference_challenge(8) for _ in range(20)}) > 15
 
 
-def test_the_zoom_token_is_not_born_expired(zoom, zoom_plugin):
-    """FakeZoom never inspects the header, so assert on the token itself."""
-    import time
+def test_creating_a_meeting_authenticates_first(zoom, zoom_plugin):
+    """The old self-signed JWT is gone; a token is now fetched from Zoom.
 
-    from jose import jwt
+    Asserts the exact token, not a ``Bearer `` prefix -- the retired flow sent
+    ``Bearer <self-signed jwt>`` too, so a prefix check cannot tell the two
+    schemes apart.
+    """
+    from tests.plugins.dispatch_zoom.conftest import ACCESS_TOKEN, OAUTH_TOKEN_URL
 
-    from dispatch.plugins.dispatch_zoom.client import generate_jwt
+    zoom_plugin.create("dispatch-incident-1")
 
-    claims = jwt.get_unverified_claims(generate_jwt(API_KEY, API_SECRET))
-    assert claims["exp"] > time.time() + 60
+    assert zoom.requests[0].url.split("?")[0] == OAUTH_TOKEN_URL, "the token was not fetched first"
+    assert zoom.last_api_request().headers["authorization"] == f"Bearer {ACCESS_TOKEN}"
+
+
+# --- failures are reported, never papered over ------------------------------
+
+
+def test_a_rejected_creation_raises_rather_than_inventing_a_conference(zoom, zoom_plugin):
+    """The defect this guards is silent, and worse than a crash.
+
+    Reading Zoom's error body through ``.get(key, default)`` produced a
+    conference pointing at zoom.us with id "1" and challenge "123", which the
+    flow then committed and announced as success.
+    """
+    zoom.response = (
+        401,
+        {"code": 4711, "message": "Invalid access token, does not contain scopes:[meeting:write]"},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        zoom_plugin.create("dispatch-incident-1")
+
+    message = str(excinfo.value)
+    assert "meeting:write" in message, "Zoom's own reason was dropped"
+    assert "zoom.us/j/" not in message
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 429, 500])
+def test_no_failure_status_yields_a_usable_looking_conference(zoom, zoom_plugin, status):
+    zoom.response = (status, {"message": "nope"})
+
+    with pytest.raises(DispatchPluginException):
+        zoom_plugin.create("dispatch-incident-1")
+
+
+def test_a_creation_missing_the_join_url_raises(zoom, zoom_plugin):
+    """A 2xx is not enough; the fields the incident needs must be present."""
+    zoom.response = (201, {"id": 987654321, "password": "zoompass"})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        zoom_plugin.create("dispatch-incident-1")
+
+    assert "join_url" in str(excinfo.value)
+
+
+def test_a_failure_body_is_not_echoed_into_the_timeline(zoom, zoom_plugin):
+    """The API request carries a live bearer token.
+
+    An intermediary answering in Zoom's place may quote the request back, and
+    this message reaches the incident timeline, which is broadly readable. Only
+    Zoom's structured `message` is ever repeated.
+    """
+    zoom.response = (403, b"Blocked. Authorization: Bearer test-access-token")
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        zoom_plugin.create("dispatch-incident-1")
+
+    message = str(excinfo.value)
+    assert "403" in message
+    assert "Bearer" not in message
+    assert "test-access-token" not in message
+
+
+def test_a_rejected_deletion_raises(zoom, zoom_plugin):
+    zoom.response = (404, {"message": "Meeting does not exist"})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        zoom_plugin.delete("987654321")
+
+    assert "Meeting does not exist" in str(excinfo.value)
+
+
+def test_an_unreadable_configuration_says_what_to_do(zoom, zoom_plugin):
+    """A config predating the OAuth migration parses to None.
+
+    This message is what reaches the incident timeline, so it names the fix
+    rather than surfacing an AttributeError on NoneType.
+    """
+    zoom_plugin.configuration = None
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        zoom_plugin.create("dispatch-incident-1")
+
+    message = str(excinfo.value)
+    assert "Server-to-Server OAuth" in message
+    assert "Plugins" in message
+    assert zoom.requests == [], "a token was requested with no credentials"

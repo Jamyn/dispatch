@@ -10,8 +10,8 @@ properties of Zoom rather than of this code:
   forum to be consumed only by their calendar integrations, so an invitee added
   through it may never appear in the Zoom client. The plugin sends what issue
   #106 specifies; whether Zoom acts on it is not something these tests can say.
-- Zoom's JWT app type was retired in 2023 and this plugin still authenticates
-  with it (issue #70), so there is no live suite to settle the question either.
+- The live suite (``test_zoom_live.py``) is deliberately read-only and creates
+  no meeting, so it cannot settle the question either.
 
 What the tests below *do* establish is that the request we build is the one the
 API documents: the right verb, the right path, and a complete invitee list.
@@ -36,7 +36,7 @@ def test_add_participant_patches_the_meeting(zoom, zoom_plugin):
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    request = zoom.requests[-1]
+    request = zoom.last_api_request()
     assert request.method == "PATCH"
     assert request.url == f"https://api.zoom.us/v2/meetings/{MEETING_ID}"
 
@@ -47,7 +47,7 @@ def test_add_participant_reads_the_meeting_before_patching_it(zoom, zoom_plugin)
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    assert [r.method for r in zoom.requests] == ["GET", "PATCH"]
+    assert [r.method for r in zoom.api_requests()] == ["GET", "PATCH"]
 
 
 def test_add_participant_sends_the_invitee(zoom, zoom_plugin):
@@ -55,7 +55,7 @@ def test_add_participant_sends_the_invitee(zoom, zoom_plugin):
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    invitees = zoom.requests[-1].json["settings"]["meeting_invitees"]
+    invitees = zoom.last_api_request().json["settings"]["meeting_invitees"]
     assert invitees == [{"email": "responder@example.com"}]
 
 
@@ -69,7 +69,7 @@ def test_add_participant_sends_only_the_invitee_setting(zoom, zoom_plugin):
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    body = zoom.requests[-1].json
+    body = zoom.last_api_request().json
     assert body == {"settings": {"meeting_invitees": [{"email": "responder@example.com"}]}}
 
 
@@ -89,7 +89,7 @@ def test_add_participant_preserves_the_existing_invitees(zoom, zoom_plugin):
 
     zoom_plugin.add_participant(MEETING_ID, "third@example.com")
 
-    assert emails(zoom.requests[-1]) == [
+    assert emails(zoom.last_api_request()) == [
         "first@example.com",
         "second@example.com",
         "third@example.com",
@@ -104,7 +104,7 @@ def test_adding_an_already_present_invitee_sends_no_patch(zoom, zoom_plugin):
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    assert [r.method for r in zoom.requests] == ["GET"]
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
 
 
 def test_an_invitee_present_under_another_casing_is_not_re_added(zoom, zoom_plugin):
@@ -112,7 +112,7 @@ def test_an_invitee_present_under_another_casing_is_not_re_added(zoom, zoom_plug
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    assert [r.method for r in zoom.requests] == ["GET"]
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
 
 
 def test_a_duplicated_invitee_list_is_not_multiplied(zoom, zoom_plugin):
@@ -121,7 +121,7 @@ def test_a_duplicated_invitee_list_is_not_multiplied(zoom, zoom_plugin):
 
     zoom_plugin.add_participant(MEETING_ID, "dupe@example.com")
 
-    assert [r.method for r in zoom.requests] == ["GET"]
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
 
 
 # --- remove -----------------------------------------------------------------
@@ -132,7 +132,7 @@ def test_remove_participant_patches_the_meeting(zoom, zoom_plugin):
 
     zoom_plugin.remove_participant(MEETING_ID, "responder@example.com")
 
-    request = zoom.requests[-1]
+    request = zoom.last_api_request()
     assert request.method == "PATCH"
     assert request.url == f"https://api.zoom.us/v2/meetings/{MEETING_ID}"
 
@@ -145,7 +145,7 @@ def test_remove_participant_drops_only_that_invitee(zoom, zoom_plugin):
 
     zoom_plugin.remove_participant(MEETING_ID, "leaving@example.com")
 
-    assert emails(zoom.requests[-1]) == ["first@example.com", "third@example.com"]
+    assert emails(zoom.last_api_request()) == ["first@example.com", "third@example.com"]
 
 
 def test_removing_the_last_invitee_sends_an_empty_list(zoom, zoom_plugin):
@@ -153,7 +153,7 @@ def test_removing_the_last_invitee_sends_an_empty_list(zoom, zoom_plugin):
 
     zoom_plugin.remove_participant(MEETING_ID, "responder@example.com")
 
-    assert zoom.requests[-1].json["settings"]["meeting_invitees"] == []
+    assert zoom.last_api_request().json["settings"]["meeting_invitees"] == []
 
 
 def test_remove_participant_matches_case_insensitively(zoom, zoom_plugin):
@@ -161,7 +161,7 @@ def test_remove_participant_matches_case_insensitively(zoom, zoom_plugin):
 
     zoom_plugin.remove_participant(MEETING_ID, "responder@example.com")
 
-    assert zoom.requests[-1].json["settings"]["meeting_invitees"] == []
+    assert zoom.last_api_request().json["settings"]["meeting_invitees"] == []
 
 
 def test_remove_participant_drops_every_duplicate_of_that_invitee(zoom, zoom_plugin):
@@ -170,7 +170,7 @@ def test_remove_participant_drops_every_duplicate_of_that_invitee(zoom, zoom_plu
 
     zoom_plugin.remove_participant(MEETING_ID, "dupe@example.com")
 
-    assert zoom.requests[-1].json["settings"]["meeting_invitees"] == []
+    assert zoom.last_api_request().json["settings"]["meeting_invitees"] == []
 
 
 def test_removing_an_absent_invitee_sends_no_patch(zoom, zoom_plugin):
@@ -178,7 +178,7 @@ def test_removing_an_absent_invitee_sends_no_patch(zoom, zoom_plugin):
 
     zoom_plugin.remove_participant(MEETING_ID, "notthere@example.com")
 
-    assert [r.method for r in zoom.requests] == ["GET"]
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
 
 
 def test_removing_from_a_meeting_with_no_invitees_sends_no_patch(zoom, zoom_plugin):
@@ -186,7 +186,7 @@ def test_removing_from_a_meeting_with_no_invitees_sends_no_patch(zoom, zoom_plug
 
     zoom_plugin.remove_participant(MEETING_ID, "notthere@example.com")
 
-    assert [r.method for r in zoom.requests] == ["GET"]
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
 
 
 # --- shapes Zoom really returns ---------------------------------------------
@@ -197,7 +197,7 @@ def test_a_meeting_with_no_settings_can_still_be_added_to(zoom, zoom_plugin):
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    assert emails(zoom.requests[-1]) == ["responder@example.com"]
+    assert emails(zoom.last_api_request()) == ["responder@example.com"]
 
 
 def test_a_null_invitee_list_is_treated_as_empty(zoom, zoom_plugin):
@@ -205,7 +205,7 @@ def test_a_null_invitee_list_is_treated_as_empty(zoom, zoom_plugin):
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    assert emails(zoom.requests[-1]) == ["responder@example.com"]
+    assert emails(zoom.last_api_request()) == ["responder@example.com"]
 
 
 def test_an_invitee_without_an_email_is_preserved_rather_than_dropped(zoom, zoom_plugin):
@@ -213,7 +213,7 @@ def test_an_invitee_without_an_email_is_preserved_rather_than_dropped(zoom, zoom
 
     zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    invitees = zoom.requests[-1].json["settings"]["meeting_invitees"]
+    invitees = zoom.last_api_request().json["settings"]["meeting_invitees"]
     assert invitees == [{"email": None}, {"email": "responder@example.com"}]
 
 
@@ -228,7 +228,7 @@ def test_a_failed_read_raises_and_sends_no_patch(zoom, zoom_plugin):
         zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
     assert "Meeting does not exist." in str(excinfo.value)
-    assert [r.method for r in zoom.requests] == ["GET"]
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
 
 
 def test_a_failed_add_raises(zoom, zoom_plugin):
@@ -252,7 +252,7 @@ def test_a_failed_remove_raises(zoom, zoom_plugin):
 
 
 def test_an_authentication_failure_is_reported_as_such(zoom, zoom_plugin):
-    """Zoom's JWT app type was retired in 2023; this is the expected live error."""
+    """Code 124 is what Zoom's API returns for a token it will not accept."""
     zoom.get = (401, {"code": 124, "message": "Invalid access token."})
 
     with pytest.raises(DispatchPluginException) as excinfo:
@@ -317,3 +317,42 @@ def test_the_participant_email_is_not_logged(zoom, zoom_plugin, caplog):
         zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
     assert "responder@example.com" not in caplog.text
+
+
+# --- one token per operation ------------------------------------------------
+
+
+def test_adding_a_participant_acquires_exactly_one_token(zoom, zoom_plugin):
+    """The read and the write share a client, so they share a token.
+
+    Asserted at the plugin level on purpose: the client-level caching test
+    builds its own ``ZoomClient`` and so cannot see a refactor that gave
+    ``get_meeting`` and ``update_invitees`` a client each -- which would double
+    the token traffic with every existing test still green.
+    """
+    zoom.get = (200, zoom.meeting_with_invitees())
+
+    zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert len(zoom.token_requests()) == 1
+    assert [r.method for r in zoom.api_requests()] == ["GET", "PATCH"]
+
+
+def test_removing_a_participant_acquires_exactly_one_token(zoom, zoom_plugin):
+    zoom.get = (200, zoom.meeting_with_invitees("responder@example.com"))
+
+    zoom_plugin.remove_participant(MEETING_ID, "responder@example.com")
+
+    assert len(zoom.token_requests()) == 1
+    assert [r.method for r in zoom.api_requests()] == ["GET", "PATCH"]
+
+
+def test_a_no_op_participant_update_makes_no_extra_request(zoom, zoom_plugin):
+    """An already-present invitee costs one token and one read, never a write."""
+    zoom.get = (200, zoom.meeting_with_invitees("responder@example.com"))
+
+    zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert len(zoom.token_requests()) == 1
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
+    assert len(zoom.requests) == 2, "unexpected traffic to a third host"

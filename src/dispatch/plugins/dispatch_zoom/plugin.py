@@ -31,23 +31,29 @@ def gen_conference_challenge(length: int):
 
 
 def delete_meeting(client, event_id: int):
-    return client.delete("/meetings/{}".format(event_id))
+    return request(client, "delete", "meetings/{}".format(event_id), "deletion of the meeting")
 
 
 def check(response, operation: str):
     """Raise unless Zoom accepted the request.
 
-    The pre-existing create/delete calls ignore the status entirely; the
-    participant operations cannot, because a failed read followed by a write
-    would replace the invitee list with a truncated one.
+    Every call goes through here. Scopes are not validated when the token is
+    issued, so an under-scoped app authenticates and then fails per operation --
+    without this, `create` would read Zoom's error body through `.get(key,
+    default)` and hand back a conference that does not exist.
     """
     if 200 <= response.status_code < 300:
         return response
 
+    # Only Zoom's structured `message` is repeated. The raw body is never
+    # echoed: this request carries a live bearer token, and an intermediary
+    # answering in Zoom's place may quote the request -- headers included --
+    # back at us. This string reaches the incident timeline, which is broadly
+    # readable and exportable.
     try:
         detail = response.json()["message"]
     except (ValueError, KeyError, TypeError):
-        detail = response.text.strip()[:200] or "no response body"
+        detail = "no reason given"
 
     raise DispatchPluginException(
         f"Zoom {operation} failed with HTTP {response.status_code}: {detail}"
@@ -111,9 +117,13 @@ def create_meeting(
     name: str,
     description: str = None,
     title: str = None,
-    duration: int = 60000,  # duration in mins ~6 weeks
+    duration: int = 1440,
 ):
-    """Create a Zoom Meeting."""
+    """Create a Zoom Meeting.
+
+    Zoom caps `duration` at 1440 minutes (24 hours); the previous default of
+    60000 claimed six weeks and was rejected by the API.
+    """
     body = {
         "topic": title if title else f"Situation Room for {name}",
         "agenda": description if description else f"Situation Room for {name}. Please join.",
@@ -122,7 +132,13 @@ def create_meeting(
         "settings": {"join_before_host": True},
     }
 
-    return client.post("/users/{}/meetings".format(user_id), data=body)
+    return request(
+        client,
+        "post",
+        "users/{}/meetings".format(user_id),
+        "creation of the meeting",
+        data=body,
+    )
 
 
 @apply(timer, exclude=["__init__", "_zoom_client"])
@@ -140,8 +156,21 @@ class ZoomConferencePlugin(ConferencePlugin):
         self.configuration_schema = ZoomConfiguration
 
     def _zoom_client(self) -> ZoomClient:
+        # `PluginInstance.configuration` returns None when the stored JSON does
+        # not satisfy the schema, logging a warning and nothing else. A config
+        # written before the OAuth migration always lands here, so say what to
+        # do -- this message is what reaches the incident timeline.
+        if self.configuration is None:
+            raise DispatchPluginException(
+                "The Zoom plugin configuration could not be read. It may still hold the "
+                "retired API Key and API Secret; re-enter the Server-to-Server OAuth "
+                "credentials under Settings > Project > Plugins."
+            )
+
         return ZoomClient(
-            self.configuration.api_key, self.configuration.api_secret.get_secret_value()
+            account_id=self.configuration.account_id,
+            client_id=self.configuration.client_id,
+            client_secret=self.configuration.client_secret.get_secret_value(),
         )
 
     def create(
@@ -159,12 +188,33 @@ class ZoomConferencePlugin(ConferencePlugin):
             duration=self.configuration.default_duration_minutes,
         )
 
-        conference_json = conference_response.json()
+        try:
+            conference_json = conference_response.json()
+        except ValueError as e:
+            raise DispatchPluginException(
+                "Zoom accepted the meeting creation but returned a body that is not JSON."
+            ) from e
+
+        # Deliberately not `.get(key, default)`. Defaulting here is how an error
+        # response became a conference pointing at zoom.us with id "1".
+        #
+        # `password` is not required: an account whose policy disables meeting
+        # passcodes returns a perfectly good join_url without one, and an empty
+        # challenge is representable downstream. Teams behaves the same way.
+        missing = [k for k in ("join_url", "id") if not conference_json.get(k)]
+        if missing:
+            raise DispatchPluginException(
+                f"Zoom created the meeting but omitted {', '.join(missing)}."
+            )
 
         return {
-            "weblink": conference_json.get("join_url", "https://zoom.us"),
-            "id": conference_json.get("id", "1"),
-            "challenge": conference_json.get("password", "123"),
+            "weblink": conference_json["join_url"],
+            # Zoom sends the meeting id as a JSON number. `ConferenceCreate`
+            # types both resource_id and conference_id as str, and pydantic v2
+            # does not coerce int to str -- passing it through raises outside
+            # the caller's try/except and aborts the whole incident flow.
+            "id": str(conference_json["id"]),
+            "challenge": conference_json.get("password") or "",
         }
 
     def delete(self, event_id: str):
@@ -180,9 +230,8 @@ class ZoomConferencePlugin(ConferencePlugin):
 
         Zoom support has stated that `meeting_invitees` is consumed only by their
         calendar integrations, so the invitee may never surface in the Zoom
-        client. This sends what the API documents; issue #70 (the retired JWT auth
-        this plugin still uses) blocks confirming the behaviour against a real
-        account.
+        client. This sends what the API documents; the live suite is read-only
+        and creates no meeting, so that behaviour remains unconfirmed here.
         """
         client = self._zoom_client()
         invitees = meeting_invitees(get_meeting(client, event_id))
