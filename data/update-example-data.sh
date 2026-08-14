@@ -38,7 +38,11 @@ dispatch database restore --dump-file ./dispatch-sample-data.dump
 echo "Running database migrations..."
 dispatch database upgrade
 echo "Dumping sql to file..."
-dispatch database dump --dump-file ./.dump.raw
+# --no-owner because this fixture is loaded by dispatch-docker's install.sh as
+# POSTGRES_USER (dispatch), not as the role that generated it. Ownership
+# statements naming a role the target cluster has never heard of abort the load
+# under psql's ON_ERROR_STOP=1.
+dispatch database dump --no-owner --dump-file ./.dump.raw
 
 # pg_dump 18 brackets its output in \restrict/\unrestrict psql meta-commands
 # keyed on a token it regenerates every run. Keeping them would churn the
