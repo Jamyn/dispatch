@@ -1,0 +1,110 @@
+---
+description: Configuration options for the Microsoft Teams conference plugin.
+---
+
+# Configuring Microsoft Teams
+
+:::info
+The Microsoft Teams plugin creates a Teams online meeting to act as the incident bridge. It authenticates to Microsoft Graph with the OAuth2 client-credentials flow and creates the meeting on behalf of a nominated user. Teams meetings expire 60 days after the meeting's start or end time (extended by another 60 days if the meeting is updated or activated), so the join link stays usable for the life of an incident regardless of the configured duration.
+:::
+
+## Azure Setup
+
+The plugin acts as an application, not as a signed-in user, so it needs an app registration with an **application** permission and a Teams policy that names the user it creates meetings for. Both halves are required — a valid token without the policy returns `403`.
+
+### 1. Register an application
+
+In the [Microsoft Entra admin center](https://entra.microsoft.com), go to **App registrations → New registration**. Note the **Application (client) ID** and the **Directory (tenant) ID**.
+
+### 2. Grant the Graph permission
+
+Under **API permissions**, add **Microsoft Graph → Application permissions → `OnlineMeetings.ReadWrite.All`**, then **Grant admin consent**.
+
+:::caution
+It must be an *application* permission. Delegated permissions apply to a signed-in user and are not used by this plugin.
+:::
+
+### 3. Create a client secret
+
+Under **Certificates & secrets → New client secret**, copy the secret **value** (not the ID). It is only shown once. Client secrets expire — set a reminder, because an expired secret surfaces as `invalid_client` in the incident timeline.
+
+### 4. Allow the application to create meetings for a user
+
+This is the step that is easy to miss. Grant the application access to the user whose calendar the meetings are created under:
+
+```powershell
+Import-Module MicrosoftTeams
+Connect-MicrosoftTeams
+
+New-CsApplicationAccessPolicy -Identity Dispatch-Conference `
+    -AppIds "<application-client-id>" -Description "Dispatch conference plugin"
+
+Grant-CsApplicationAccessPolicy -PolicyName Dispatch-Conference `
+    -Identity "<user-object-id>"
+```
+
+Policy assignment can take up to 30 minutes to take effect. See [Allow applications to access online meetings on behalf of a user](https://learn.microsoft.com/en-us/graph/cloud-communication-online-meeting-application-access-policy).
+
+## Dispatch Configuration
+
+The Microsoft Teams plugin is configured in the Dispatch Web UI under Settings -> Project -> Plugins. Add the plugin using the `NEW` button and then edit its configuration by clicking on the three vertical dots.
+
+### MS team Authority URL
+
+> `https://login.microsoftonline.com/<directory-tenant-id>`. Use a specific tenant; `common` and `organizations` are not supported for the client-credentials flow.
+
+### client id
+
+> The Application (client) ID from step 1.
+
+### Azure Client Secret
+
+> The client secret value from step 3.
+
+### User id
+
+> The **object ID** of the user the application creates meetings on behalf of — not their email address. This must be the same user named in the application access policy in step 4.
+
+### Allow Auto Recording
+
+> Enable if you would like to record the meetings by default. Defaults to disabled.
+
+### Default Meeting Duration (Minutes)
+
+> Default duration in minutes for conference meetings. Defaults to 1440 minutes (1 day). Teams meetings stay joinable past their scheduled end, so this mainly sets when the meeting expires rather than cutting the bridge off.
+
+### Require a Meeting Passcode
+
+> Require a passcode when joining by meeting ID. Defaults to enabled.
+>
+> The passcode applies **only** to joining by meeting ID. The join link carries the meeting's own authentication context, so responders who click the link in Slack are never prompted — enabling this adds no friction to the normal path. Dial-in callers use a separate conference ID (`audioConferencing.conferenceId`), which this setting does not affect.
+>
+> Because the passcode is useless without the meeting ID it pairs with, Dispatch publishes both together: the conference description reads `Password: aB3dEf7h (meeting ID 123 456 789)`.
+
+## Troubleshooting
+
+Failures are recorded on the incident timeline with the reason Graph gave.
+
+| Symptom | Cause |
+| --- | --- |
+| `invalid_client` | Wrong or expired client secret. |
+| `403` with a valid token | No application access policy for the configured user, or it has not propagated yet. |
+| `404` on create | The **User id** is not an object ID, or the user does not exist in the tenant. |
+| `429` | Graph is throttling the application. The message carries the `Retry-After` value verbatim (Graph sends either a seconds count or an HTTP date). Dispatch does not retry — a retry on a write endpoint risks creating a second bridge for one incident. |
+
+## Limits
+
+Microsoft documents a limit of **2,000 meetings per user per month** for meeting information. Because Dispatch creates every bridge under the single user configured above, that is the ceiling this plugin will reach first. Microsoft does not publish a per-second rate for `/onlineMeetings` in its service-specific throttling table; if the application is throttled, Graph answers `429` with `Retry-After` and Dispatch surfaces both on the incident timeline.
+
+## Notes
+
+- `add_participant` and `remove_participant` are no-ops, as they are in the Zoom plugin. Participants join through the link Dispatch publishes.
+- Nothing in Dispatch currently calls `delete` for a conference; it is implemented for interface parity.
+- `description` and `participants` are accepted by the plugin and unused: an `onlineMeeting` has no agenda field, and responders join through the published link rather than being invited.
+
+## Upgrading
+
+Before the fixes in [Jamyn/dispatch#81](https://github.com/Jamyn/dispatch/issues/81) this plugin could not authenticate at all — it passed a string where MSAL requires a list of scopes, so every attempt raised before reaching Graph and was swallowed. Any existing deployment was therefore producing no bridges, and there is no prior working behaviour to preserve. Two things nonetheless differ from what the old code *attempted*:
+
+- The meeting subject is now the incident **title** (falling back to `Situation Room for <incident name>`), matching the Zoom plugin. Previously it was the incident's code name. Incident titles are more descriptive than code names, and the subject is visible to anyone in the tenant with calendar access to the configured user.
+- A passcode is requested by default. See **Require a Meeting Passcode** above; set it to disabled to restore the old intent.
