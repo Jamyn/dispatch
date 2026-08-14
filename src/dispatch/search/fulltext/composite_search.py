@@ -36,9 +36,10 @@ Adding other objects::
 """
 
 from collections import defaultdict
+from sqlalchemy import desc, func
 from sqlalchemy.sql.expression import literal
 
-from . import inspect_search_vectors, search
+from . import inspect_search_vectors, search_manager
 
 
 class CompositeSearch(object):
@@ -46,25 +47,37 @@ class CompositeSearch(object):
         self.session = session
         self.model_classes = model_classes
 
-    def union_query(self):
+    def union_query(self, search_query):
+        """Matches and ranks each model under its own regconfig.
+
+        The union collapses vectors from models that declare different
+        regconfigs into one column, so a single tsquery applied afterwards is
+        necessarily wrong for some arm. Both the predicate and the rank are
+        therefore built per model, before the union.
+        """
         qs = None
         for model_class in self.model_classes:
             search_vectors = inspect_search_vectors(model_class)
             vector = search_vectors[0]
+            regconfig = search_manager.option(vector, "regconfig")
+            tsquery = func.tsq_parse(regconfig, search_query)
             q = self.session.query(
                 model_class.id.label("id"),
                 vector.label("vector"),
                 literal(model_class.__name__).label("type"),
-            )
+                func.ts_rank_cd(vector, tsquery).label("rank"),
+            ).filter(vector.op("@@")(tsquery))
             if qs is None:
                 qs = q
             else:
                 qs = qs.union(q)
         return qs
 
-    def build_query(self, search_query, vector=None, regconfig=None, sort=False):
-        qs = self.union_query()
-        return search(qs, search_query, vector, regconfig, sort)
+    def build_query(self, search_query, sort=False):
+        qs = self.union_query(search_query)
+        if sort:
+            qs = qs.order_by(desc("rank"))
+        return qs
 
     def split_filter(self, model_class, obj):
         return obj.type == model_class.__name__
