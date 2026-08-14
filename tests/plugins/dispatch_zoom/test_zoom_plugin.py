@@ -101,21 +101,47 @@ def test_the_configured_duration_is_sent(zoom, zoom_plugin):
 
 
 def test_the_meeting_is_password_protected(zoom, zoom_plugin):
+    """Truthiness alone would accept a one-character constant."""
     zoom_plugin.create("dispatch-incident-1")
 
-    assert zoom.requests[-1].json["password"]
+    password = zoom.requests[-1].json["password"]
+    assert len(password) == 8
+    assert len(set(password)) > 1, "a constant-character password"
+
+
+def test_each_meeting_gets_a_different_password(zoom, zoom_plugin):
+    passwords = set()
+    for _ in range(10):
+        zoom_plugin.create("dispatch-incident-1")
+        passwords.add(zoom.requests[-1].json["password"])
+
+    assert len(passwords) > 8, "passwords are not being regenerated"
+
+
+def test_responders_can_enter_the_bridge_before_the_host(zoom, zoom_plugin):
+    """Without this the bridge is unusable until the API user dials in."""
+    zoom_plugin.create("dispatch-incident-1")
+
+    assert zoom.requests[-1].json["settings"]["join_before_host"] is True
+
+
+def test_the_description_becomes_the_agenda(zoom, zoom_plugin):
+    zoom_plugin.create("dispatch-incident-1", description="Payments are failing")
+
+    assert zoom.requests[-1].json["agenda"] == "Payments are failing"
 
 
 def test_the_zoom_call_has_a_timeout(zoom, zoom_plugin):
     zoom_plugin.create("dispatch-incident-1")
 
-    assert zoom.requests[-1].timeout
+    assert zoom.requests[-1].timeout == 15
 
 
 def test_delete_calls_zoom(zoom, zoom_plugin):
     zoom_plugin.delete("987654321")
 
     assert zoom.requests[-1].method == "DELETE"
+    assert zoom.requests[-1].timeout == 15, "delete was sent without a timeout"
 
 
 def test_create_is_still_instrumented(zoom, zoom_plugin, monkeypatch):
@@ -146,3 +172,22 @@ def test_gen_conference_challenge_is_within_zooms_length_limit():
 
     assert len(gen_conference_challenge(8)) == 8
     assert len(gen_conference_challenge(50)) == 10
+
+
+def test_gen_conference_challenge_actually_varies():
+    """Length alone would accept a generator returning a constant."""
+    from dispatch.plugins.dispatch_zoom.plugin import gen_conference_challenge
+
+    assert len({gen_conference_challenge(8) for _ in range(20)}) > 15
+
+
+def test_the_zoom_token_is_not_born_expired(zoom, zoom_plugin):
+    """FakeZoom never inspects the header, so assert on the token itself."""
+    import time
+
+    from jose import jwt
+
+    from dispatch.plugins.dispatch_zoom.client import generate_jwt
+
+    claims = jwt.get_unverified_claims(generate_jwt(API_KEY, API_SECRET))
+    assert claims["exp"] > time.time() + 60

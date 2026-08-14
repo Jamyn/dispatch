@@ -31,6 +31,7 @@ class MicrosoftTeamsConfiguration(BaseConfigurationModel):
     )
     default_duration_minutes: int = Field(
         default=1440,  # 1 day
+        ge=1,
         title="Default Meeting Duration (Minutes)",
         description=(
             "Default duration in minutes for conference meetings. Defaults to 1440 minutes "

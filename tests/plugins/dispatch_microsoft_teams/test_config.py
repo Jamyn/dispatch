@@ -69,6 +69,20 @@ def test_a_non_numeric_duration_is_rejected():
         MicrosoftTeamsConfiguration(**REQUIRED, default_duration_minutes="a while")
 
 
+@pytest.mark.parametrize("duration", [0, -60])
+def test_a_non_positive_duration_is_rejected(duration):
+    """Otherwise endDateTime lands at or before startDateTime and Graph 400s."""
+    with pytest.raises(ValidationError):
+        MicrosoftTeamsConfiguration(**REQUIRED, default_duration_minutes=duration)
+
+
+def test_the_secret_is_masked_in_the_json_the_admin_ui_stores():
+    """`model_dump_json` is the path plugin configuration is persisted through."""
+    configuration = MicrosoftTeamsConfiguration(**REQUIRED)
+
+    assert SECRET not in configuration.model_dump_json()
+
+
 def test_the_zoom_plugin_declares_the_same_shared_options():
     """Parity check on the configuration surface, not just on behaviour."""
     from dispatch.plugins.dispatch_zoom.config import ZoomConfiguration

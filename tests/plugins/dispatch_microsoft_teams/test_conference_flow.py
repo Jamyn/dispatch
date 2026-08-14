@@ -10,7 +10,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.plugins.dispatch_microsoft_teams.graph_fake import JOIN_URL, MEETING_ID
+from tests.plugins.dispatch_microsoft_teams.graph_fake import (
+    JOIN_MEETING_ID,
+    JOIN_URL,
+    MEETING_ID,
+    PASSCODE,
+)
 
 
 @pytest.fixture
@@ -40,7 +45,7 @@ def test_a_successful_create_stores_the_conference_on_the_incident(
     assert conference is not None
     assert conference.weblink == JOIN_URL
     assert conference.conference_id == MEETING_ID
-    assert conference.conference_challenge == "aB3dEf7h"
+    assert conference.conference_challenge == f"{PASSCODE} (meeting ID {JOIN_MEETING_ID})"
     assert incident.conference == conference
 
 

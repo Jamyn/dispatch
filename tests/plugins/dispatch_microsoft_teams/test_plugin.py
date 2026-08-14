@@ -9,8 +9,10 @@ import pytest
 from dispatch.exceptions import DispatchPluginException
 
 from tests.plugins.dispatch_microsoft_teams.graph_fake import (
+    JOIN_MEETING_ID,
     JOIN_URL,
     MEETING_ID,
+    PASSCODE,
     USER_ID,
 )
 
@@ -23,7 +25,7 @@ def test_create_returns_the_weblink_id_and_challenge(graph, teams_plugin):
 
     assert conference["weblink"] == JOIN_URL
     assert conference["id"] == MEETING_ID
-    assert conference["challenge"] == "aB3dEf7h"
+    assert conference["challenge"] == f"{PASSCODE} (meeting ID {JOIN_MEETING_ID})"
 
 
 def test_create_returns_every_key_the_conference_flow_reads(graph, teams_plugin):
@@ -40,13 +42,97 @@ def test_the_challenge_is_empty_when_no_passcode_is_required(graph, teams_plugin
     assert teams_plugin.create("dispatch-incident-1")["challenge"] == ""
 
 
-def test_a_meeting_without_a_join_url_raises_rather_than_returning_a_partial(graph, teams_plugin):
-    graph.meeting = (201, {"id": MEETING_ID}, {})
+@pytest.mark.parametrize("require_passcode", [True, False])
+def test_the_passcode_setting_reaches_the_graph_request(graph, teams_plugin, require_passcode):
+    """Asserting on the returned challenge alone lets the config be ignored."""
+    teams_plugin.configuration.require_passcode = require_passcode
+    teams_plugin.create("dispatch-incident-1")
+
+    settings = graph.last_graph_request().json["joinMeetingIdSettings"]
+    assert settings["isPasscodeRequired"] is require_passcode
+
+
+def test_a_null_passcode_becomes_an_empty_challenge(graph, teams_plugin):
+    """Graph sends an explicit null rather than omitting the settings object."""
+    graph.meeting = (
+        201,
+        {
+            "id": MEETING_ID,
+            "joinWebUrl": JOIN_URL,
+            "joinMeetingIdSettings": {"isPasscodeRequired": False, "passcode": None},
+        },
+        {},
+    )
+
+    assert teams_plugin.create("dispatch-incident-1")["challenge"] == ""
+
+
+def test_a_null_join_meeting_id_settings_does_not_crash(graph, teams_plugin):
+    """`.get(k, {})` returns the default only when the key is absent."""
+    graph.meeting = (
+        201,
+        {"id": MEETING_ID, "joinWebUrl": JOIN_URL, "joinMeetingIdSettings": None},
+        {},
+    )
+
+    assert teams_plugin.create("dispatch-incident-1")["challenge"] == ""
+
+
+def test_a_passcode_without_a_meeting_id_is_returned_alone(graph, teams_plugin):
+    graph.meeting = (
+        201,
+        {
+            "id": MEETING_ID,
+            "joinWebUrl": JOIN_URL,
+            "joinMeetingIdSettings": {"isPasscodeRequired": True, "passcode": PASSCODE},
+        },
+        {},
+    )
+
+    assert teams_plugin.create("dispatch-incident-1")["challenge"] == PASSCODE
+
+
+@pytest.mark.parametrize(
+    "body,missing",
+    [
+        ({"id": MEETING_ID}, "joinWebUrl"),
+        ({"joinWebUrl": JOIN_URL}, "id"),
+        ({"id": MEETING_ID, "joinWebUrl": None}, "joinWebUrl"),
+        ({"id": "", "joinWebUrl": JOIN_URL}, "id"),
+    ],
+)
+def test_an_incomplete_meeting_raises_rather_than_returning_a_partial(
+    graph, teams_plugin, body, missing
+):
+    """Otherwise conference/flows.py fails later with a bare KeyError."""
+    graph.meeting = (201, body, {})
 
     with pytest.raises(DispatchPluginException) as excinfo:
         teams_plugin.create("dispatch-incident-1")
 
-    assert "joinWebUrl" in str(excinfo.value)
+    assert missing in str(excinfo.value)
+
+
+def test_the_failure_message_does_not_quote_the_meeting_body(graph, teams_plugin):
+    """This message reaches the incident timeline, which is exported and AI-fed.
+
+    A Graph meeting body carries the passcode and the dial-in conference id.
+    """
+    graph.meeting = (
+        201,
+        {
+            "id": MEETING_ID,
+            "joinMeetingIdSettings": {"passcode": "s3cr3tpass"},
+            "audioConferencing": {"conferenceId": "9876543"},
+        },
+        {},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        teams_plugin.create("dispatch-incident-1")
+
+    assert "s3cr3tpass" not in str(excinfo.value)
+    assert "9876543" not in str(excinfo.value)
 
 
 # --- subject construction (Zoom parity) -------------------------------------
@@ -142,13 +228,36 @@ def test_delete_removes_the_meeting(graph, teams_plugin):
 
 @pytest.mark.parametrize("method", ["create", "delete", "add_participant", "remove_participant"])
 def test_the_plugin_implements_the_same_surface_as_zoom(method):
+    """Compares signatures, not just presence.
+
+    ``hasattr`` alone is satisfied by ``ConferencePlugin.create`` on the base
+    class, so it would pass for a plugin that implements nothing.
+    """
+    import inspect
+
     from dispatch.plugins.dispatch_microsoft_teams.conference.plugin import (
         MicrosoftTeamsConferencePlugin,
     )
     from dispatch.plugins.dispatch_zoom.plugin import ZoomConferencePlugin
 
-    assert hasattr(ZoomConferencePlugin, method), "baseline changed; update this test"
-    assert hasattr(MicrosoftTeamsConferencePlugin, method)
+    assert method in ZoomConferencePlugin.__dict__, "baseline changed; update this test"
+    assert method in MicrosoftTeamsConferencePlugin.__dict__
+
+    def parameters(cls):
+        func = inspect.unwrap(cls.__dict__[method])
+        return list(inspect.signature(func).parameters)
+
+    assert parameters(MicrosoftTeamsConferencePlugin) == parameters(ZoomConferencePlugin)
+
+
+def test_delete_propagates_a_graph_failure(graph, teams_plugin):
+    """A swallowed delete leaks a meeting on every incident close, silently."""
+    graph.delete = (403, {"error": {"code": "Forbidden", "message": "No access policy."}}, {})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        teams_plugin.delete(MEETING_ID)
+
+    assert "No access policy." in str(excinfo.value)
 
 
 def test_participant_management_is_a_no_op_like_zoom(graph, teams_plugin):

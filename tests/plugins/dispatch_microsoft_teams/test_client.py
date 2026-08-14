@@ -11,6 +11,9 @@ import pytest
 from dispatch.exceptions import DispatchPluginException
 
 from tests.plugins.dispatch_microsoft_teams.graph_fake import (
+    MEETINGS_URL as MEETINGS_URL_FOR_TEST,
+)
+from tests.plugins.dispatch_microsoft_teams.graph_fake import (
     ACCESS_TOKEN,
     AUTHORITY,
     CLIENT_ID,
@@ -29,7 +32,6 @@ def build_client(**overrides):
         "authority": AUTHORITY,
         "credential": SECRET,
         "user_id": USER_ID,
-        "record_automatically": False,
     }
     kwargs.update(overrides)
     return MSTeamsClient(**kwargs)
@@ -109,7 +111,9 @@ def test_record_automatically_is_sent_as_a_boolean(graph, record_automatically):
 
     It used to be sent as the strings ``"true"``/``"false"``.
     """
-    build_client(record_automatically=record_automatically).create_meeting(subject="Situation Room")
+    build_client().create_meeting(
+        subject="Situation Room", record_automatically=record_automatically
+    )
 
     assert graph.last_graph_request().json["recordAutomatically"] is record_automatically
 
@@ -136,18 +140,27 @@ def test_the_meeting_is_given_an_explicit_start_and_end(graph):
     assert start.tzinfo is not None, "Graph expects the timestamps in UTC"
 
 
-def test_the_graph_call_has_a_timeout(graph):
-    """A request with no timeout hangs the incident-creation flow forever."""
+def test_every_outbound_call_has_the_configured_timeout(graph):
+    """A request with no timeout hangs the incident-creation flow forever.
+
+    msal defaults to ``timeout=None`` and makes two calls of its own -- OIDC
+    discovery and the token exchange -- before ours, so asserting on the Graph
+    request alone leaves the hang fully reachable.
+    """
     assert build_client().create_meeting(subject="Situation Room")
 
-    for request in graph.graph_requests():
-        assert request.timeout, f"{request.method} {request.url} was sent without a timeout"
+    assert len(graph.requests) >= 3, "expected discovery, token and Graph calls"
+    for request in graph.requests:
+        assert request.timeout == 15, f"{request.method} {request.url} timeout={request.timeout}"
 
 
 def test_the_meeting_is_created_for_the_configured_user(graph):
+    """Pins the host and API version too; /beta is not supported for production."""
     build_client().create_meeting(subject="Situation Room")
 
-    assert graph.last_graph_request().url.endswith(f"/users/{USER_ID}/onlineMeetings")
+    request = graph.last_graph_request()
+    assert request.url == f"https://graph.microsoft.com/v1.0/users/{USER_ID}/onlineMeetings"
+    assert request.method == "POST"
 
 
 # --- Graph failure handling -------------------------------------------------
@@ -179,7 +192,7 @@ def test_a_graph_error_raises_rather_than_returning_a_body(graph, status, body):
 
 
 def test_a_rate_limited_call_surfaces_the_retry_after_hint(graph):
-    """Graph throttles ``/onlineMeetings`` at 4 requests/second per app per tenant."""
+    """Graph answers 429 with a Retry-After the operator needs to see."""
     graph.meeting = (
         429,
         {"error": {"code": "TooManyRequests", "message": "Rate limit exceeded."}},
@@ -249,8 +262,12 @@ def test_delete_meeting_calls_graph_for_the_given_meeting(graph):
 
     request = graph.last_graph_request()
     assert request.method == "DELETE"
-    assert request.url.endswith(f"/users/{USER_ID}/onlineMeetings/{MEETING_ID}")
-    assert request.timeout
+    assert (
+        request.url
+        == f"https://graph.microsoft.com/v1.0/users/{USER_ID}/onlineMeetings/{MEETING_ID}"
+    )
+    assert request.timeout == 15
+    assert request.headers["Authorization"] == f"Bearer {ACCESS_TOKEN}"
 
 
 def test_delete_meeting_raises_on_a_graph_error(graph):
@@ -260,3 +277,163 @@ def test_delete_meeting_raises_on_a_graph_error(graph):
         build_client().delete_meeting(MEETING_ID)
 
     assert "404" in str(excinfo.value)
+
+
+# --- what msal is actually given --------------------------------------------
+#
+# Without these, every credential the plugin passes to msal is untestable: the
+# fake would hand back a token for any client_id, secret or scope, so
+# mis-plumbing any of them stays green.
+
+
+def test_the_token_request_uses_the_client_credentials_grant(graph):
+    build_client().create_meeting(subject="Situation Room")
+
+    assert graph.last_token_request().form["grant_type"] == "client_credentials"
+
+
+def test_the_token_request_carries_the_configured_client_id(graph):
+    build_client(client_id="a-different-client-id").create_meeting(subject="Situation Room")
+
+    assert graph.last_token_request().form["client_id"] == "a-different-client-id"
+
+
+def test_the_token_request_carries_the_configured_secret(graph):
+    build_client(credential="a-different-secret").create_meeting(subject="Situation Room")
+
+    assert graph.last_token_request().form["client_secret"] == "a-different-secret"
+
+
+def test_the_token_request_asks_for_the_default_graph_scope(graph):
+    """Only ``/.default`` is valid for client credentials.
+
+    A resource scope such as ``User.Read`` is rejected with AADSTS1002012, and
+    the fake cannot tell the difference -- so pin the value here.
+    """
+    build_client().create_meeting(subject="Situation Room")
+
+    assert graph.last_token_request().form["scope"] == "https://graph.microsoft.com/.default"
+
+
+def test_the_token_is_requested_from_the_configured_authority(graph):
+    build_client().create_meeting(subject="Situation Room")
+
+    assert graph.last_token_request().url.startswith(AUTHORITY)
+
+
+def test_the_token_is_reused_across_calls_on_one_client(graph):
+    """msal caches per application instance, so the client must hold one."""
+    client = build_client()
+    client.create_meeting(subject="First")
+    before = len(graph.token_requests())
+    client.create_meeting(subject="Second")
+
+    assert len(graph.token_requests()) == before, "a second token was fetched"
+
+
+# --- more failure modes ------------------------------------------------------
+
+
+def test_a_network_failure_on_the_token_request_raises_cleanly(graph, monkeypatch):
+    """msal raises requests' own exceptions, which are not DispatchPluginException."""
+    import requests
+    from requests.adapters import HTTPAdapter
+
+    def explode(self, request, **kwargs):
+        if "/oauth2/v2.0/token" in request.url:
+            raise requests.exceptions.ConnectTimeout("token endpoint timed out")
+        return graph.send(request, **kwargs)
+
+    monkeypatch.setattr(HTTPAdapter, "send", explode)
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "timed out" in str(excinfo.value)
+
+
+def test_an_unreachable_authority_raises_cleanly(graph, monkeypatch):
+    """msal raises a bare ValueError when tenant discovery fails."""
+    from requests.adapters import HTTPAdapter
+
+    from tests.plugins.dispatch_microsoft_teams.graph_fake import _response
+
+    def block(self, request, **kwargs):
+        if "openid-configuration" in request.url:
+            return _response(403, b"<html>blocked by proxy</html>")
+        return graph.send(request, **kwargs)
+
+    monkeypatch.setattr(HTTPAdapter, "send", block)
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert AUTHORITY in str(excinfo.value)
+
+
+def test_a_retry_after_http_date_is_repeated_verbatim(graph):
+    """Graph may send Retry-After as an HTTP date rather than a seconds count."""
+    graph.meeting = (
+        429,
+        {"error": {"code": "TooManyRequests", "message": "Slow down."}},
+        {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "Wed, 21 Oct 2026 07:28:00 GMT" in str(excinfo.value)
+    assert "GMTs" not in str(excinfo.value), "a unit was appended to a date"
+
+
+def test_the_graph_request_id_is_surfaced_for_support(graph):
+    graph.meeting = (
+        500,
+        {"error": {"code": "InternalServerError", "message": "Try again."}},
+        {"request-id": "a1b2c3d4-0000-1111-2222-333344445555"},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "a1b2c3d4-0000-1111-2222-333344445555" in str(excinfo.value)
+
+
+def test_the_error_detail_is_preserved_for_a_non_json_body(graph):
+    graph.meeting = (502, b"upstream connect error reading from gateway", {})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "upstream connect error" in str(excinfo.value)
+
+
+def test_an_empty_error_body_still_produces_a_message(graph):
+    graph.meeting = (500, b"", {})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "no response body" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("body", [[], "a string", 12])
+def test_a_json_body_that_is_not_an_object_raises(graph, body):
+    """``.get()`` on a list is an AttributeError, not a plugin exception."""
+    import json as _json
+
+    graph.meeting = (201, _json.dumps(body).encode(), {})
+
+    with pytest.raises(DispatchPluginException):
+        build_client().create_meeting(subject="Situation Room")
+
+
+def test_a_redirect_is_not_followed(graph):
+    """A same-host 307 would replay the POST and create a second meeting."""
+    graph.meeting = (307, None, {"Location": f"{MEETINGS_URL_FOR_TEST}"})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "307" in str(excinfo.value)
+    assert len(graph.graph_requests()) == 1

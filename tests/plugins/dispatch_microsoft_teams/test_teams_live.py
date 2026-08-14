@@ -52,10 +52,14 @@ delete is reported but does not fail the test that created the meeting.
 """
 
 import os
+import time
 import uuid
+import warnings
 
 import pytest
 import requests
+
+from datetime import UTC, datetime, timedelta
 
 from dispatch.exceptions import DispatchPluginException
 
@@ -82,7 +86,6 @@ def client():
         authority=AUTHORITY,
         credential=SECRET,
         user_id=USER_ID,
-        record_automatically=False,
     )
 
 
@@ -111,7 +114,12 @@ def cleanup(client):
         try:
             client.delete_meeting(meeting_id)
         except Exception as e:  # noqa: BLE001 - cleanup must not mask the real failure
-            print(f"live test cleanup could not delete meeting {meeting_id}: {e}")
+            # A bare print is swallowed by pytest's capture on a passing test,
+            # which is exactly when a leaked meeting goes unnoticed.
+            warnings.warn(
+                f"live test leaked meeting {meeting_id}, delete it by hand: {e}",
+                stacklevel=1,
+            )
 
 
 def _subject() -> str:
@@ -166,8 +174,6 @@ def test_no_passcode_is_generated_when_none_is_required(client, cleanup):
 
 
 def test_the_requested_duration_is_what_graph_stores(client, cleanup):
-    from datetime import datetime
-
     meeting = client.create_meeting(subject=_subject(), duration_minutes=1440)
     cleanup.append(meeting["id"])
 
@@ -183,12 +189,16 @@ def test_graph_rejects_the_string_typed_booleans_the_plugin_used_to_send(client,
     assertion ever fails, Graph has started coercing them and the type fix was
     cosmetic rather than load-bearing -- worth knowing either way.
     """
+    start = datetime.now(UTC)
     token = client._acquire_token()
     response = requests.post(
         f"https://graph.microsoft.com/v1.0/users/{USER_ID}/onlineMeetings",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         json={
             "subject": _subject(),
+            "startDateTime": start.isoformat(),
+            "endDateTime": (start + timedelta(minutes=60)).isoformat(),
+            # The only difference from a request the client would send.
             "recordAutomatically": "false",
             "joinMeetingIdSettings": {"isPasscodeRequired": "false"},
         },
@@ -203,6 +213,12 @@ def test_graph_rejects_the_string_typed_booleans_the_plugin_used_to_send(client,
         )
 
     assert response.status_code == 400, response.text
+    # The body is otherwise identical to what the client sends, so a 400 that
+    # names neither field means the request was rejected for another reason and
+    # this test proves nothing about the boolean types.
+    assert "recordAutomatically" in response.text or "isPasscodeRequired" in response.text, (
+        response.text
+    )
 
 
 # --- the plugin surface -----------------------------------------------------
@@ -217,15 +233,25 @@ def test_the_plugin_returns_what_the_conference_flow_needs(plugin, cleanup):
     assert conference["challenge"], "passcode is on by default"
 
 
-def test_delete_really_removes_the_meeting(client, plugin):
+def test_delete_really_removes_the_meeting(client, plugin, cleanup):
     conference = plugin.create("dispatch-live-test", title=_subject())
+    # Registered before the delete: if delete is what's broken -- the very thing
+    # this test exists to catch -- the meeting would otherwise be orphaned.
+    cleanup.append(conference["id"])
 
     plugin.delete(conference["id"])
 
-    with pytest.raises(DispatchPluginException) as excinfo:
-        client._request("GET", f"/users/{USER_ID}/onlineMeetings/{conference['id']}")
-
-    assert "404" in str(excinfo.value)
+    # Graph is eventually consistent on this read; poll rather than assert once.
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            client._request("GET", f"/users/{USER_ID}/onlineMeetings/{conference['id']}")
+        except DispatchPluginException as e:
+            assert "HTTP 404" in str(e), str(e)
+            break
+        if time.monotonic() > deadline:
+            pytest.fail("the meeting was still readable 30s after delete")
+        time.sleep(2)
 
 
 def test_a_meeting_for_an_unknown_user_is_reported_clearly(client):
@@ -234,7 +260,8 @@ def test_a_meeting_for_an_unknown_user_is_reported_clearly(client):
     with pytest.raises(DispatchPluginException) as excinfo:
         client.create_meeting(subject=_subject())
 
-    assert "40" in str(excinfo.value), "expected a 403 or 404 from Graph"
+    message = str(excinfo.value)
+    assert "HTTP 403" in message or "HTTP 404" in message, message
 
 
 # --- secrets stay out of the output -----------------------------------------
