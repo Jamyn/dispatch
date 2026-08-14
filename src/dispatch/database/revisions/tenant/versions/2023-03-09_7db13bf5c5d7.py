@@ -22,7 +22,12 @@ depends_on = None
 
 def upgrade():
     conn = op.get_context().connection
-    metadata = MetaData(schema=conn.dialect.default_schema_name)
+    # env.py sets search_path per tenant *after* connecting, and the dialect
+    # caches default_schema_name from the first connection for the engine's
+    # whole lifetime, so it reads "public" here no matter which schema is
+    # active. current_schema() reflects the live search_path instead.
+    schema = conn.exec_driver_sql("SELECT current_schema()").scalar()
+    metadata = MetaData(schema=schema)
     metadata.bind = conn
     table = sa.Table("tag", metadata, autoload_with=conn)
     sync_trigger(conn, table, "search_vector", ["name", "description", "external_id"])
