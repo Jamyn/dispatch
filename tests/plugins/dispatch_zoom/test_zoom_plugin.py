@@ -126,6 +126,18 @@ def test_delete_calls_zoom(zoom, zoom_plugin):
     assert zoom.requests[-1].timeout == 15, "delete was sent without a timeout"
 
 
+def test_delete_targets_the_meeting_it_was_given(zoom, zoom_plugin):
+    """Asserting the verb alone would pass for a DELETE of the wrong meeting.
+
+    ``incident_delete_flow`` reaches this with the conference's provider id
+    (issue #105); a path built from anything else deletes nothing, or somebody
+    else's bridge.
+    """
+    zoom_plugin.delete("987654321")
+
+    assert zoom.requests[-1].url.split("?")[0].endswith("/meetings/987654321")
+
+
 def test_create_is_still_instrumented(zoom, zoom_plugin, monkeypatch):
     """``apply`` is shared with the Teams plugin; this guards Zoom's use of it."""
     emitted = []

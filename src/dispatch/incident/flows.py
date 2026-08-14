@@ -849,6 +849,15 @@ def incident_delete_flow(incident: Incident, db_session: Session):
             storage=incident.storage, project_id=incident.project.id, db_session=db_session
         )
 
+    # we delete the external conference, in the same position it is created in
+    # (after the storage, before the conversation) -- not reversed
+    if incident.conference:
+        conference_flows.delete_conference(
+            conference=incident.conference,
+            project_id=incident.project.id,
+            db_session=db_session,
+        )
+
     # we delete the conversation
     if incident.conversation:
         conversation_flows.delete_conversation(

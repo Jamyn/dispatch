@@ -6,7 +6,7 @@ from dispatch.event import service as event_service
 from dispatch.incident.models import Incident
 from dispatch.plugin import service as plugin_service
 
-from .models import ConferenceCreate
+from .models import Conference, ConferenceCreate
 from .service import create
 
 log = logging.getLogger(__name__)
@@ -123,3 +123,55 @@ def create_conference(incident: Incident, participants: list[str], db_session: S
     )
 
     return conference
+
+
+def delete_conference(conference: Conference, project_id: int, db_session: SessionLocal):
+    """Deletes an existing conference.
+
+    Best effort, like every other external resource teardown: the incident is
+    being deleted either way, so a provider that refuses is logged and dropped
+    rather than allowed to wedge the delete flow. Nothing is written to the
+    incident timeline -- the incident it belongs to is about to go with it,
+    which leaves the log as the only record a leaked bridge ever gets. Hence
+    the identifiers on it.
+
+    `create_conference` writes the provider's meeting id into both
+    `conference_id` and `resource_id`, so the two are equal and passing either
+    works today. `conference_id` is the one the conference domain uses for the
+    provider -- `update_conference_participant` already does -- and it is what
+    every conference plugin's `delete` expects.
+
+    Never log `weblink` or `conference_challenge`: the challenge is the meeting
+    passcode, and a Zoom join_url commonly carries it in `?pwd=`.
+    """
+    if not conference:
+        log.debug("Conference not deleted. No conference for this incident.")
+        return
+
+    if not conference.conference_id:
+        # A row with no provider id: the bridge may exist provider-side and
+        # this is the only chance to notice, so it is not a debug-level event.
+        log.warning("Conference not deleted. Conference %s carries no provider id.", conference.id)
+        return
+
+    plugin = plugin_service.get_active_instance(
+        db_session=db_session, project_id=project_id, plugin_type="conference"
+    )
+    if plugin:
+        try:
+            # every shipped conference plugin -- zoom, teams, google-calendar --
+            # takes the provider's meeting id positionally, unlike ticket's
+            # keyword `ticket_id`. `ConferencePlugin` does not declare `delete`,
+            # so this is a convention rather than an enforced interface.
+            plugin.instance.delete(conference.conference_id)
+        except Exception as e:
+            # `log.exception` alone records the reason but not the subject, and
+            # Zoom's message names neither the meeting nor the project.
+            log.exception(
+                "Conference %s not deleted (project %s). Reason: %s",
+                conference.conference_id,
+                project_id,
+                e,
+            )
+    else:
+        log.warning("Conference not deleted. No conference plugin enabled.")

@@ -48,7 +48,9 @@ What this covers that the mocked suite cannot
 - Graph *rejects* the string-typed booleans the plugin used to send, which is
   the claim issue #81 could only mark inferred.
 - A real ``joinWebUrl`` and passcode come back.
-- ``delete`` really removes the meeting.
+- ``delete`` really removes the meeting, and so does ``delete_conference``, the
+  flow that calls it (issue #105) -- including that the identifier the flow
+  passes is the one Graph accepts.
 - Graph accepts the ``participants.attendees`` payload built for issue #106, and
   a re-added attendee is not duplicated.
 
@@ -66,7 +68,10 @@ import pytest
 import requests
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
+from dispatch.conference import flows as conference_flows
+from dispatch.conference.models import Conference
 from dispatch.exceptions import DispatchPluginException
 
 AUTHORITY = os.environ.get("DISPATCH_MSTEAMS_TEST_AUTHORITY")
@@ -257,6 +262,62 @@ def test_delete_really_removes_the_meeting(client, plugin, cleanup):
             break
         if time.monotonic() > deadline:
             pytest.fail("the meeting was still readable 30s after delete")
+        time.sleep(2)
+
+
+def test_the_delete_conference_flow_really_removes_the_meeting(
+    client, plugin, cleanup, monkeypatch
+):
+    """``delete_conference`` end to end against a real tenant (issue #105).
+
+    The test above proves the plugin's ``delete``. This proves the flow that
+    now calls it -- specifically that the identifier it reaches for,
+    ``conference.conference_id``, is the one Graph accepts. A flow that passed
+    the wrong field would still leave the meeting standing.
+
+    No database is involved: ``delete_conference`` touches ``db_session`` only
+    to resolve the active plugin, which is stubbed here, and the ``Conference``
+    is built rather than persisted.
+    """
+    created = plugin.create("dispatch-live-test", title=_subject())
+    cleanup.append(created["id"])
+
+    conference = Conference(
+        conference_id=created["id"],
+        # Deliberately wrong, and deliberately not the meeting id: if the flow
+        # reaches for this instead, Graph will not find it and the poll below
+        # never sees the 404.
+        resource_id="not-the-provider-meeting-id",
+        weblink=created["weblink"],
+        resource_type="microsoft-teams-conference",
+    )
+
+    instance = SimpleNamespace(
+        instance=plugin,
+        plugin=SimpleNamespace(
+            slug="microsoft-teams-conference",
+            title="Microsoft Teams Plugin - Conference Management",
+        ),
+    )
+    # `conference_flows.plugin_service` *is* `dispatch.plugin.service`, so this
+    # rebinds a shared module attribute; monkeypatch undoes it even if the
+    # assertions below bail out.
+    monkeypatch.setattr(
+        conference_flows.plugin_service, "get_active_instance", lambda **kwargs: instance
+    )
+
+    conference_flows.delete_conference(conference=conference, project_id=1, db_session=None)
+
+    # Graph is eventually consistent on this read; poll rather than assert once.
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            client._request("GET", f"/users/{USER_ID}/onlineMeetings/{created['id']}")
+        except DispatchPluginException as e:
+            assert "HTTP 404" in str(e), str(e)
+            break
+        if time.monotonic() > deadline:
+            pytest.fail("the meeting was still readable 30s after delete_conference")
         time.sleep(2)
 
 
