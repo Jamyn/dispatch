@@ -32,6 +32,7 @@ from dispatch.individual.models import IndividualContact
 from dispatch.participant.models import Participant
 from dispatch.plugin.models import Plugin, PluginInstance
 from dispatch.project.models import Project
+from dispatch.search.fulltext import search_manager
 from dispatch.search.fulltext.composite_search import CompositeSearch
 from dispatch.signal.models import Signal, SignalInstance
 from dispatch.tag.models import Tag
@@ -530,7 +531,11 @@ def search(*, query_str: str, query: Query, model: str, sort=False):
     search = []
     if hasattr(search_model, "search_vector"):
         vector = search_model.search_vector
-        search.append(vector.op("@@")(func.tsq_parse(query_str)))
+        # The vector is built with the model's regconfig, so the query must be
+        # parsed with it too; the one-argument tsq_parse resolves to the server
+        # default and silently mismatches every `simple`-indexed table.
+        regconfig = search_manager.option(vector, "regconfig")
+        search.append(vector.op("@@")(func.tsq_parse(regconfig, query_str)))
 
     if hasattr(search_model, "name"):
         search.append(
@@ -544,7 +549,7 @@ def search(*, query_str: str, query: Query, model: str, sort=False):
     query = query.filter(or_(*search))
 
     if sort:
-        query = query.order_by(desc(func.ts_rank_cd(vector, func.tsq_parse(query_str))))
+        query = query.order_by(desc(func.ts_rank_cd(vector, func.tsq_parse(regconfig, query_str))))
 
     return query.params(term=query_str)
 

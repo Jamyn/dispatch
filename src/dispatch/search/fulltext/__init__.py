@@ -6,7 +6,7 @@ https://github.com/kvesteri/sqlalchemy-searchable/blob/master/sqlalchemy_searcha
 import os
 from functools import reduce
 
-from sqlalchemy import event, inspect, func, desc, text, MetaData, Table, Index, orm
+from sqlalchemy import event, inspect, func, text, MetaData, Table, Index, orm
 from sqlalchemy.dialects.postgresql.base import RESERVED_WORDS
 from sqlalchemy.engine import Connection
 from sqlalchemy.schema import DDL
@@ -19,60 +19,12 @@ from .vectorizers import Vectorizer
 vectorizer = Vectorizer()
 
 
-class SearchQueryMixin(object):
-    def search(self, search_query, vector=None, regconfig=None, sort=False):
-        """
-        Search given query with full text search.
-
-        :param search_query: the search query
-        :param vector: search vector to use
-        :param regconfig: postgresql regconfig to be used
-        :param sort: order results by relevance (quality of hit)
-        """
-        return search(self, search_query, vector=vector, regconfig=regconfig, sort=sort)
-
-
 def inspect_search_vectors(entity):
     return [
         getattr(entity, key).property.columns[0]
         for key, column in inspect(entity).columns.items()
         if isinstance(column.type, TSVectorType)
     ]
-
-
-def search(query, search_query, vector=None, regconfig=None, sort=False):
-    """
-    Search given query with full text search.
-
-    :param search_query: the search query
-    :param vector: search vector to use
-    :param regconfig: postgresql regconfig to be used
-    :param sort: order results by relevance (quality of hit)
-    """
-    if not search_query.strip():
-        return query
-
-    if vector is None:
-        # Get the entity class from the query in a SQLAlchemy 2.x compatible way
-        try:
-            # For SQLAlchemy 2.x
-            entity = query.column_descriptions[0]["entity"]
-        except (AttributeError, IndexError, KeyError):
-            raise ValueError(
-                "Could not determine entity class from query. Please provide vector explicitly."
-            ) from None
-
-        search_vectors = inspect_search_vectors(entity)
-        vector = search_vectors[0]
-
-    if regconfig is None:
-        regconfig = search_manager.options["regconfig"]
-
-    query = query.filter(vector.op("@@")(func.tsq_parse(regconfig, search_query)))
-    if sort:
-        query = query.order_by(desc(func.ts_rank_cd(vector, func.tsq_parse(search_query))))
-
-    return query.params(term=search_query)
 
 
 def quote_identifier(identifier):
