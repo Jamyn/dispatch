@@ -49,15 +49,27 @@ left behind. Authentication is proven by listing meetings, which needs only the
 read scope this file tells you to add -- a ``GET /users/me`` probe would need a
 ``user:read`` scope that the plugin itself never uses.
 
+The one exception is the conference-teardown test at the bottom (issue #105),
+which has to create a meeting in order to delete one. It is skipped unless
+``DISPATCH_ZOOM_TEST_ALLOW_WRITES=1`` is set as well, so the four variables
+above still buy you a suite that touches nothing.
+
 Note on assertions: a failing ``assert SECRET not in text`` renders **both**
 operands into the pytest report, publishing the very secret it checks for. Every
 assertion below that touches a credential compares a precomputed bool instead.
 """
 
 import os
+import time
+import uuid
+
+from types import SimpleNamespace
 
 import pytest
 import requests
+
+from dispatch.conference import flows as conference_flows
+from dispatch.conference.models import Conference
 from requests.auth import HTTPBasicAuth
 
 from dispatch.exceptions import DispatchPluginException
@@ -215,3 +227,98 @@ def test_no_access_token_appears_in_the_logs(zoom_client, caplog):
 
     leaked = token in caplog.text
     assert not leaked, "the access token appeared in the logs"
+
+
+# --- conference teardown, opt-in twice over (issue #105) ---------------------
+#
+# Everything above is read-only, and that is a property of this file worth
+# keeping: the four variables at the top get you authentication coverage and
+# nothing that can leave a trace in the account. The teardown flow cannot be
+# proven that way -- there is nothing to delete without first creating
+# something -- so it sits behind a second, separate switch and needs a write
+# scope the rest of the suite tells you not to add.
+
+ALLOW_WRITES = os.environ.get("DISPATCH_ZOOM_TEST_ALLOW_WRITES") == "1"
+
+writes = pytest.mark.skipif(
+    not ALLOW_WRITES,
+    reason=(
+        "creates and deletes a real Zoom meeting; set DISPATCH_ZOOM_TEST_ALLOW_WRITES=1 "
+        "and add meeting:write:admin (or meeting:write:meeting:admin) to opt in"
+    ),
+)
+
+
+@pytest.fixture
+def zoom_plugin_live():
+    from dispatch.plugins.dispatch_zoom.config import ZoomConfiguration
+    from dispatch.plugins.dispatch_zoom.plugin import ZoomConferencePlugin
+
+    instance = ZoomConferencePlugin()
+    instance.configuration = ZoomConfiguration(
+        account_id=ACCOUNT_ID,
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        api_user_id=API_USER_ID,
+    )
+    return instance
+
+
+@writes
+def test_the_delete_conference_flow_really_removes_the_meeting(
+    zoom_client, zoom_plugin_live, monkeypatch
+):
+    """``delete_conference`` end to end against a real Zoom account.
+
+    The mocked suite proves what the plugin sends. Only Zoom can say that the
+    identifier the *flow* reaches for -- ``conference.conference_id`` -- is the
+    one it accepts; a flow passing ``resource_id`` would leave the meeting
+    standing while every mocked test stayed green.
+
+    No database is involved: ``delete_conference`` touches ``db_session`` only
+    to resolve the active plugin, which is stubbed here, and the ``Conference``
+    is built rather than persisted.
+    """
+    created = zoom_plugin_live.create(f"dispatch-live-test-{uuid.uuid4().hex[:8]}")
+    meeting_id = created["id"]
+
+    # Registered before anything else can raise: everything from here on is
+    # inside the cleanup's scope, so a failure cannot leak a real meeting.
+    try:
+        conference = Conference(
+            conference_id=meeting_id,
+            # Deliberately wrong, and deliberately not the meeting id: a flow
+            # that reaches for this deletes nothing and the probe below still
+            # finds the meeting.
+            resource_id="not-the-provider-meeting-id",
+            weblink=created["weblink"],
+            resource_type="zoom-conference",
+        )
+
+        instance = SimpleNamespace(
+            instance=zoom_plugin_live,
+            plugin=SimpleNamespace(
+                slug="zoom-conference", title="Zoom Plugin - Conference Management"
+            ),
+        )
+        # `conference_flows.plugin_service` *is* `dispatch.plugin.service`, so
+        # this rebinds a shared module attribute; monkeypatch undoes it even if
+        # the assertions below bail out.
+        monkeypatch.setattr(
+            conference_flows.plugin_service, "get_active_instance", lambda **kwargs: instance
+        )
+
+        conference_flows.delete_conference(conference=conference, project_id=1, db_session=None)
+
+        # Polled rather than asserted once, as the Teams equivalent is: if Zoom
+        # is eventually consistent on this read, a single probe flakes.
+        deadline = time.monotonic() + 30
+        while zoom_client.get(f"meetings/{meeting_id}").status_code != 404:
+            if time.monotonic() > deadline:
+                pytest.fail("the meeting was still readable 30s after delete_conference")
+            time.sleep(2)
+    finally:
+        # Only does anything when the flow did *not* delete it -- otherwise this
+        # is a 404 and a no-op. It must stay after the probe above, never
+        # before, or the cleanup would be what satisfies the check.
+        zoom_client.delete(f"meetings/{meeting_id}")

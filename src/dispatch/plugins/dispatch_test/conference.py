@@ -8,6 +8,9 @@ class TestConferencePlugin(ConferencePlugin):
     def create(self, items, **kwargs):
         return
 
+    def delete(self, event_id: str):
+        return
+
     def add_participant(self, event_id: str, participant: str):
         return
 
