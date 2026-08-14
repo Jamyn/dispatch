@@ -24,5 +24,24 @@ class MicrosoftTeamsConfiguration(BaseConfigurationModel):
     )
     user_id: str = Field(
         title="User id",
-        description="It is the User ID for which the application will create meeting on behalf.",
+        description=(
+            "Object ID of the user the application creates meetings on behalf of. "
+            "A tenant application access policy must grant the application access to this user."
+        ),
+    )
+    default_duration_minutes: int = Field(
+        default=1440,  # 1 day
+        title="Default Meeting Duration (Minutes)",
+        description=(
+            "Default duration in minutes for conference meetings. Defaults to 1440 minutes "
+            "(1 day). The join link stays usable until the meeting expires, 60 days after it ends."
+        ),
+    )
+    require_passcode: bool = Field(
+        default=True,
+        title="Require a Meeting Passcode",
+        description=(
+            "Require a passcode when joining by meeting ID. Dispatch shows the generated "
+            "passcode alongside the conference link. Disable to leave the meeting without one."
+        ),
     )
