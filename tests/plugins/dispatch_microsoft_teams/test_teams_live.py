@@ -280,7 +280,10 @@ def test_no_secret_appears_in_the_logs(client, cleanup, caplog):
         meeting = client.create_meeting(subject=_subject())
     cleanup.append(meeting["id"])
 
-    assert SECRET not in caplog.text
+    # Precomputed: a failing `assert SECRET not in text` renders both operands
+    # into the pytest report, publishing the secret this test exists to protect.
+    leaked = SECRET in caplog.text
+    assert not leaked, "the client secret appeared in the logs"
 
 
 # --- attendees (issue #106) --------------------------------------------------
