@@ -130,9 +130,7 @@ def test_create_is_still_instrumented(zoom, zoom_plugin, monkeypatch):
                 "counter": lambda self, name, value=None, tags=None: emitted.append(
                     tags["function"]
                 ),
-                "timer": lambda self, name, value=None, tags=None: emitted.append(
-                    tags["function"]
-                ),
+                "timer": lambda self, name, value=None, tags=None: emitted.append(tags["function"]),
                 "gauge": lambda self, name, value=None, tags=None: None,
             },
         )(),

@@ -1,7 +1,7 @@
 """Behavioural tests for the Microsoft Graph client behind the Teams plugin.
 
 Every test here drives real ``msal`` and real ``requests`` code against the fake
-transport in ``conftest.py``; nothing patches the client's own methods.
+transport in ``graph_fake``; nothing patches the client's own methods.
 """
 
 import logging
@@ -157,7 +157,10 @@ def test_the_meeting_is_created_for_the_configured_user(graph):
     "status,body",
     [
         (400, {"error": {"code": "BadRequest", "message": "Invalid payload."}}),
-        (401, {"error": {"code": "InvalidAuthenticationToken", "message": "Access token expired."}}),
+        (
+            401,
+            {"error": {"code": "InvalidAuthenticationToken", "message": "Access token expired."}},
+        ),
         (403, {"error": {"code": "Forbidden", "message": "Application access policy missing."}}),
         (404, {"error": {"code": "NotFound", "message": "User not found."}}),
         (500, {"error": {"code": "InternalServerError", "message": "Try again."}}),

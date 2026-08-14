@@ -1,0 +1,94 @@
+---
+description: Configuration options for the Microsoft Teams conference plugin.
+---
+
+# Configuring Microsoft Teams
+
+:::info
+The Microsoft Teams plugin creates a Teams online meeting to act as the incident bridge. It authenticates to Microsoft Graph with the OAuth2 client-credentials flow and creates the meeting on behalf of a nominated user. Teams meetings expire 60 days after they end, so the join link stays usable for the life of an incident regardless of the configured duration.
+:::
+
+## Azure Setup
+
+The plugin acts as an application, not as a signed-in user, so it needs an app registration with an **application** permission and a Teams policy that names the user it creates meetings for. Both halves are required — a valid token without the policy returns `403`.
+
+### 1. Register an application
+
+In the [Microsoft Entra admin center](https://entra.microsoft.com), go to **App registrations → New registration**. Note the **Application (client) ID** and the **Directory (tenant) ID**.
+
+### 2. Grant the Graph permission
+
+Under **API permissions**, add **Microsoft Graph → Application permissions → `OnlineMeetings.ReadWrite.All`**, then **Grant admin consent**.
+
+:::caution
+It must be an *application* permission. Delegated permissions apply to a signed-in user and are not used by this plugin.
+:::
+
+### 3. Create a client secret
+
+Under **Certificates & secrets → New client secret**, copy the secret **value** (not the ID). It is only shown once. Client secrets expire — set a reminder, because an expired secret surfaces as `invalid_client` in the incident timeline.
+
+### 4. Allow the application to create meetings for a user
+
+This is the step that is easy to miss. Grant the application access to the user whose calendar the meetings are created under:
+
+```powershell
+Import-Module MicrosoftTeams
+Connect-MicrosoftTeams
+
+New-CsApplicationAccessPolicy -Identity Dispatch-Conference `
+    -AppIds "<application-client-id>" -Description "Dispatch conference plugin"
+
+Grant-CsApplicationAccessPolicy -PolicyName Dispatch-Conference `
+    -Identity "<user-object-id>"
+```
+
+Policy assignment can take up to 30 minutes to take effect. See [Allow applications to access online meetings on behalf of a user](https://learn.microsoft.com/en-us/graph/cloud-communication-online-meeting-application-access-policy).
+
+## Dispatch Configuration
+
+The Microsoft Teams plugin is configured in the Dispatch Web UI under Settings -> Project -> Plugins. Add the plugin using the `NEW` button and then edit its configuration by clicking on the three vertical dots.
+
+### MS team Authority URL
+
+> `https://login.microsoftonline.com/<directory-tenant-id>`. Use a specific tenant; `common` and `organizations` are unreliable for the client-credentials flow.
+
+### client id
+
+> The Application (client) ID from step 1.
+
+### Azure Client Secret
+
+> The client secret value from step 3.
+
+### User id
+
+> The **object ID** of the user the application creates meetings on behalf of — not their email address. This must be the same user named in the application access policy in step 4.
+
+### Allow Auto Recording
+
+> Enable if you would like to record the meetings by default. Defaults to disabled.
+
+### Default Meeting Duration (Minutes)
+
+> Default duration in minutes for conference meetings. Defaults to 1440 minutes (1 day).
+
+### Require a Meeting Passcode
+
+> Require a passcode when joining by meeting ID. Dispatch shows the generated passcode alongside the conference link, matching the Zoom plugin. Defaults to enabled. The passcode applies to joining by meeting ID or by phone; the join link itself already carries the meeting's authentication context.
+
+## Troubleshooting
+
+Failures are recorded on the incident timeline with the reason Graph gave.
+
+| Symptom | Cause |
+| --- | --- |
+| `invalid_client` | Wrong or expired client secret. |
+| `403` with a valid token | No application access policy for the configured user, or it has not propagated yet. |
+| `404` on create | The **User id** is not an object ID, or the user does not exist in the tenant. |
+| `429` | Graph throttles `/onlineMeetings` at four requests per second per application per tenant. The message carries the `Retry-After` value. Dispatch does not retry — a retry on a write endpoint risks creating a second bridge for one incident. |
+
+## Notes
+
+- `add_participant` and `remove_participant` are no-ops, as they are in the Zoom plugin. Participants join through the link Dispatch publishes.
+- Nothing in Dispatch currently calls `delete` for a conference; it is implemented for interface parity.

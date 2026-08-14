@@ -102,6 +102,12 @@ jobs:
           DISPATCH_SLACK_TEST_BOT_TOKEN: ${{ secrets.DISPATCH_SLACK_TEST_BOT_TOKEN }}
           DISPATCH_SLACK_TEST_CHANNEL_ID: ${{ secrets.DISPATCH_SLACK_TEST_CHANNEL_ID }}
           DISPATCH_SLACK_TEST_USER_ID: ${{ secrets.DISPATCH_SLACK_TEST_USER_ID }}
+          # Same arrangement for tests/plugins/dispatch_microsoft_teams/test_teams_live.py,
+          # which creates real meetings in the configured tenant when all four are set.
+          DISPATCH_MSTEAMS_TEST_AUTHORITY: ${{ secrets.DISPATCH_MSTEAMS_TEST_AUTHORITY }}
+          DISPATCH_MSTEAMS_TEST_CLIENT_ID: ${{ secrets.DISPATCH_MSTEAMS_TEST_CLIENT_ID }}
+          DISPATCH_MSTEAMS_TEST_SECRET: ${{ secrets.DISPATCH_MSTEAMS_TEST_SECRET }}
+          DISPATCH_MSTEAMS_TEST_USER_ID: ${{ secrets.DISPATCH_MSTEAMS_TEST_USER_ID }}
         run: |
           coverage run -m pytest -q
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true

@@ -10,7 +10,6 @@ only real MSAL can say so.
 
 import json
 
-from requests.adapters import HTTPAdapter
 from requests.models import Response
 
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
