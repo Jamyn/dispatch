@@ -46,6 +46,25 @@ MEETING_BODY = {
     },
 }
 
+# Graph returns the organizer alongside the attendees and rejects any attempt to
+# change it, so the plugin has to carry it through a read-modify-write untouched.
+ORGANIZER = {
+    "upn": "organizer@example.com",
+    "role": "presenter",
+    "identity": {"user": {"id": USER_ID, "displayName": None, "tenantId": TENANT_ID}},
+}
+
+
+def attendee(upn: str, role: str = "attendee", **extra) -> dict:
+    """One attendee as Graph returns it, including the identity it resolved."""
+    return {
+        "upn": upn,
+        "role": role,
+        "identity": {"user": {"id": f"id-for-{upn}", "displayName": upn}},
+        **extra,
+    }
+
+
 _OIDC_URL = f"{AUTHORITY}/v2.0/.well-known/openid-configuration"
 _TOKEN_URL = f"{AUTHORITY}/oauth2/v2.0/token"
 
@@ -106,8 +125,8 @@ class RecordedRequest:
 class FakeGraph:
     """Routes the endpoints this plugin touches and records every call.
 
-    Tests override ``token`` / ``meeting`` / ``delete`` with an
-    ``(status, body, headers)`` triple to drive a failure path.
+    Tests override ``token`` / ``meeting`` / ``delete`` / ``get`` / ``patch``
+    with an ``(status, body, headers)`` triple to drive a failure path.
     """
 
     def __init__(self):
@@ -115,6 +134,10 @@ class FakeGraph:
         self.token = (200, _TOKEN_OK, {})
         self.meeting = (201, MEETING_BODY, {})
         self.delete = (204, None, {})
+        # The read half of the attendee read-modify-write. Graph requires the
+        # full attendee list on every PATCH, so the plugin must GET first.
+        self.get = (200, MEETING_BODY, {})
+        self.patch = (200, MEETING_BODY, {})
 
     def _route(self, method, url):
         base = url.split("?")[0]
@@ -131,6 +154,10 @@ class FakeGraph:
             return self.meeting
         if base.startswith(f"{MEETINGS_URL}/") and method == "DELETE":
             return self.delete
+        if base.startswith(f"{MEETINGS_URL}/") and method == "GET":
+            return self.get
+        if base.startswith(f"{MEETINGS_URL}/") and method == "PATCH":
+            return self.patch
 
         raise AssertionError(f"unexpected request: {method} {url}")
 
@@ -142,6 +169,13 @@ class FakeGraph:
         response.url = request.url
         response.request = request
         return response
+
+    def meeting_with_attendees(self, *attendees) -> dict:
+        """A GET body carrying the given attendees, as Graph returns them."""
+        return {
+            **MEETING_BODY,
+            "participants": {"organizer": ORGANIZER, "attendees": list(attendees)},
+        }
 
     def graph_requests(self) -> list[RecordedRequest]:
         """Only the calls to Graph, dropping MSAL's token traffic.
