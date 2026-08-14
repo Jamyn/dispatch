@@ -387,7 +387,12 @@ def restore_database(dump_file, skip_check):
     default="dispatch-backup.dump",
     help="Path to a PostgreSQL text format dump file.",
 )
-def dump_database(dump_file):
+@click.option(
+    "--no-owner",
+    is_flag=True,
+    help="Omit OWNER TO statements so the dump restores under whatever role loads it.",
+)
+def dump_database(dump_file, no_owner):
     """Dumps the database via pg_dump."""
     from sh import pg_dump
 
@@ -400,18 +405,12 @@ def dump_database(dump_file):
 
     username, password = str(DATABASE_CREDENTIALS).split(":")
 
-    pg_dump(
-        "-f",
-        dump_file,
-        "-h",
-        DATABASE_HOSTNAME,
-        "-p",
-        DATABASE_PORT,
-        "-U",
-        username,
-        DATABASE_NAME,
-        _env={"PGPASSWORD": password},
-    )
+    args = ["-f", dump_file, "-h", DATABASE_HOSTNAME, "-p", DATABASE_PORT, "-U", username]
+    if no_owner:
+        args.append("--no-owner")
+    args.append(DATABASE_NAME)
+
+    pg_dump(*args, _env={"PGPASSWORD": password})
 
 
 @dispatch_database.command("drop")
