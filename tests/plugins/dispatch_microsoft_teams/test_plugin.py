@@ -5,10 +5,13 @@ fallback, same instrumentation, same interface surface.
 """
 
 import pytest
+from pydantic import SecretStr
 
 from dispatch.exceptions import DispatchPluginException
 
 from tests.plugins.dispatch_microsoft_teams.graph_fake import (
+    AUTHORITY,
+    CLIENT_ID,
     JOIN_MEETING_ID,
     JOIN_URL,
     MEETING_ID,
@@ -191,6 +194,42 @@ def test_the_meeting_is_created_for_the_configured_user(graph, teams_plugin):
     teams_plugin.create("dispatch-incident-1")
 
     assert f"/users/{USER_ID}/onlineMeetings" in graph.last_graph_request().url
+
+
+# --- the configured credentials are the ones actually used ------------------
+#
+# Asserting these at the client level only proves the client works. The wiring
+# in `_client()` is its own defect surface: pointing `client_id` at `user_id`,
+# or the secret at a literal, makes the plugin non-functional against a real
+# tenant while every client-level test stays green.
+
+
+def test_the_configured_client_id_reaches_the_token_request(graph, teams_plugin):
+    teams_plugin.configuration.client_id = "the-configured-client-id"
+    teams_plugin.create("dispatch-incident-1")
+
+    assert graph.last_token_request().form["client_id"] == "the-configured-client-id"
+
+
+def test_the_configured_secret_reaches_the_token_request(graph, teams_plugin):
+    teams_plugin.configuration.secret = SecretStr("the-configured-secret")
+    teams_plugin.create("dispatch-incident-1")
+
+    assert graph.last_token_request().form["client_secret"] == "the-configured-secret"
+
+
+def test_the_configured_authority_is_the_one_contacted(graph, teams_plugin):
+    teams_plugin.create("dispatch-incident-1")
+
+    assert graph.last_token_request().url.startswith(AUTHORITY)
+
+
+def test_the_client_id_and_user_id_are_not_confused(graph, teams_plugin):
+    """They are both GUIDs, so a swap is invisible without asserting on both."""
+    teams_plugin.create("dispatch-incident-1")
+
+    assert graph.last_token_request().form["client_id"] == CLIENT_ID
+    assert f"/users/{USER_ID}/" in graph.last_graph_request().url
 
 
 # --- failures reach the caller ----------------------------------------------
