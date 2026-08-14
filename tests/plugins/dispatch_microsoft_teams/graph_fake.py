@@ -25,7 +25,8 @@ USER_ID = "00000000-0000-0000-0000-000000000003"
 SECRET = "not-a-real-client-secret"
 ACCESS_TOKEN = "not-a-real-access-token"
 
-GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+GRAPH_HOST = "graph.microsoft.com"
+GRAPH_BASE = f"https://{GRAPH_HOST}/v1.0"
 MEETINGS_URL = f"{GRAPH_BASE}/users/{USER_ID}/onlineMeetings"
 
 MEETING_ID = "MSpkYzE3Njc0Yy04MWQ5LTRhZGItYmZi"
@@ -97,6 +98,10 @@ class RecordedRequest:
     def path(self) -> str:
         return urlparse(self.url).path
 
+    @property
+    def host(self) -> str:
+        return urlparse(self.url).hostname or ""
+
 
 class FakeGraph:
     """Routes the endpoints this plugin touches and records every call.
@@ -139,8 +144,13 @@ class FakeGraph:
         return response
 
     def graph_requests(self) -> list[RecordedRequest]:
-        """Only the calls to Graph, dropping MSAL's token traffic."""
-        return [r for r in self.requests if "graph.microsoft.com" in r.url]
+        """Only the calls to Graph, dropping MSAL's token traffic.
+
+        Matches the parsed host rather than a substring, so a URL that merely
+        mentions the host somewhere -- a query parameter, say -- is not counted
+        as a call to it.
+        """
+        return [r for r in self.requests if r.host == GRAPH_HOST]
 
     def last_graph_request(self) -> RecordedRequest:
         return self.graph_requests()[-1]

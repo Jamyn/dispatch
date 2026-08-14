@@ -5,6 +5,7 @@ transport in ``graph_fake``; nothing patches the client's own methods.
 """
 
 import logging
+from urllib.parse import urlparse
 
 import pytest
 
@@ -15,6 +16,7 @@ from tests.plugins.dispatch_microsoft_teams.graph_fake import (
 )
 from tests.plugins.dispatch_microsoft_teams.graph_fake import (
     ACCESS_TOKEN,
+    GRAPH_HOST,
     AUTHORITY,
     CLIENT_ID,
     JOIN_URL,
@@ -242,7 +244,7 @@ def test_a_network_failure_raises(graph, monkeypatch):
     from requests.adapters import HTTPAdapter
 
     def explode(self, request, **kwargs):
-        if "graph.microsoft.com" in request.url:
+        if urlparse(request.url).hostname == GRAPH_HOST:
             raise requests.exceptions.ConnectTimeout("connection timed out")
         return graph.send(request, **kwargs)
 

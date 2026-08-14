@@ -87,9 +87,7 @@ class MSTeamsClient:
             # and a bare string raises AssertionError before any request.
             result = self._application().acquire_token_for_client(scopes=[self.scope])
         except requests.RequestException as e:
-            raise DispatchPluginException(
-                f"The Microsoft Graph token request failed: {e}"
-            ) from e
+            raise DispatchPluginException(f"The Microsoft Graph token request failed: {e}") from e
 
         if "access_token" not in result:
             # `result` also carries the raw token response; only the error
