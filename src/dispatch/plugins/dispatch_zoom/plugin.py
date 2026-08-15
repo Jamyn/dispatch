@@ -8,6 +8,7 @@
 
 import logging
 import random
+from urllib.parse import quote
 
 import requests
 
@@ -22,6 +23,37 @@ from .client import ZoomClient
 log = logging.getLogger(__name__)
 
 
+def _quote_path_component(value) -> str:
+    """Percent-encode one dynamic Zoom API path segment.
+
+    ``safe=""`` is deliberate: a bare ``quote()`` leaves ``/`` unescaped,
+    which is exactly the character that lets a value walk out of its own
+    path segment. Only ever call this on a single path component, never on
+    a full URL or a query string.
+
+    A component that is *exactly* ``.`` or ``..`` is refused rather than
+    encoded: ``quote()`` can never escape ``.`` (Python's always-safe set --
+    letters, digits, ``_.-~`` -- is only ever added to by ``safe``, never
+    subtracted from), and hand-escaping it (``.`` -> ``%2E``) doesn't help
+    either -- ``requests.utils.requote_uri``, which every ``PreparedRequest``
+    runs through, decodes any percent-triplet of an unreserved character
+    back to its literal form before the request line is built, precisely
+    because ``.`` is unreserved. So a value of ``".."`` always reaches the
+    wire as a literal, un-encoded dot-segment no matter how it was escaped
+    going in. Neither Zoom's API docs nor `requests` documents whether the
+    server also normalises it away, so this codebase cannot prove it is
+    safe to send -- it is refused instead.
+    """
+    value = str(value)
+    if value in (".", ".."):
+        raise DispatchPluginException(
+            f"Refusing to build a Zoom API request with a path component of "
+            f"{value!r}: it cannot be percent-encoded in a way that survives "
+            f"requests' own URL normalization."
+        )
+    return quote(value, safe="")
+
+
 def gen_conference_challenge(length: int):
     """Generate a random challenge for Zoom."""
     if length > 10:
@@ -31,7 +63,8 @@ def gen_conference_challenge(length: int):
 
 
 def delete_meeting(client, event_id: int):
-    return request(client, "delete", "meetings/{}".format(event_id), "deletion of the meeting")
+    path = "meetings/{}".format(_quote_path_component(event_id))
+    return request(client, "delete", path, "deletion of the meeting")
 
 
 def check(response, operation: str):
@@ -87,7 +120,8 @@ def invitee_matches(invitee: dict, participant: str) -> bool:
 
 
 def get_meeting(client, event_id: str) -> dict:
-    response = request(client, "get", "meetings/{}".format(event_id), "read of the meeting")
+    path = "meetings/{}".format(_quote_path_component(event_id))
+    response = request(client, "get", path, "read of the meeting")
     try:
         return response.json()
     except ValueError as e:
@@ -105,7 +139,7 @@ def update_invitees(client, event_id: str, invitees: list[dict]):
     return request(
         client,
         "patch",
-        "meetings/{}".format(event_id),
+        "meetings/{}".format(_quote_path_component(event_id)),
         "update of the meeting invitees",
         data={"settings": {"meeting_invitees": invitees}},
     )
@@ -135,7 +169,7 @@ def create_meeting(
     return request(
         client,
         "post",
-        "users/{}/meetings".format(user_id),
+        "users/{}/meetings".format(_quote_path_component(user_id)),
         "creation of the meeting",
         data=body,
     )
