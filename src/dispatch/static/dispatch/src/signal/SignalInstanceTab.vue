@@ -3,9 +3,7 @@
     :headers="headers"
     :items="signalInstances"
     :items-per-page="25"
-    :footer-props="{
-      'items-per-page-options': [25, 50, 100],
-    }"
+    :items-per-page-options="[25, 50, 100]"
   >
     <template #item.signal="{ value }">
       <signal-popover :value="value" />

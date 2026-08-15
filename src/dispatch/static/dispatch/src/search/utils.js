@@ -71,11 +71,23 @@ export default {
     }
   },
   createSortExpression(sortBy, sortDesc) {
+    // `sortBy` carries two possible shapes depending on where it came from:
+    //  - a plain field-name string, from a store's static initial `table.options.sortBy`
+    //  - a Vuetify 3 VDataTable(-server) `{ key, order }` object, once a user has
+    //    clicked a column header (its `update:sortBy` event never used the old
+    //    separate `sort-desc`/`descending` v-model, so `sortDesc` only applies here)
+    let keys = []
     let descending = []
-    each(sortBy, function (sortField, index) {
-      descending.push(sortDesc && sortDesc[index] ? true : false)
+    each(sortBy, function (sortItem, index) {
+      if (sortItem && typeof sortItem === "object") {
+        keys.push(sortItem.key)
+        descending.push(sortItem.order === "desc")
+      } else {
+        keys.push(sortItem)
+        descending.push(Boolean(sortDesc && sortDesc[index]))
+      }
     })
-    return [sortBy, descending]
+    return [keys, descending]
   },
   /**
    * Create a filter expression for searching for items in a database

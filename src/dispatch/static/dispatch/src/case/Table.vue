@@ -61,9 +61,7 @@
             :items-per-page="itemsPerPage"
             @click:row="showCasePage"
             @update:options="loadItems"
-            :footer-props="{
-              'items-per-page-options': [10, 25, 50, 100],
-            }"
+            :items-per-page-options="[10, 25, 50, 100]"
           >
             <template #item.case_severity.name="{ item, value }">
               <case-severity :severity="value" :color="item.case_severity.color" />

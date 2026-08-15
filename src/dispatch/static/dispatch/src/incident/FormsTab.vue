@@ -25,7 +25,6 @@
     :headers="headers"
     :items="items"
     :items-per-page="-1"
-    disable-pagination
     hide-default-footer
     class="ml-6 pr-6"
   >

@@ -1,13 +1,7 @@
 <template>
   <v-card :loading="loading">
     <v-card-title>Top 5 Cost</v-card-title>
-    <v-data-table
-      :headers="headers"
-      :items="sources"
-      disable-pagination
-      hide-default-footer
-      disable-filtering
-    >
+    <v-data-table :headers="headers" :items="sources" :items-per-page="-1" hide-default-footer>
       <template #item.name="{ item }">
         <router-link
           :to="{
