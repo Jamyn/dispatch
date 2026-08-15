@@ -3,7 +3,7 @@ import logging
 from dispatch.database.core import SessionLocal
 from dispatch.enums import EventType
 from dispatch.event import service as event_service
-from dispatch.exceptions import ConferenceCreatedButUnusable
+from dispatch.exceptions import ConferenceCreatedButUnusable, ConferenceRosterUnreadable
 from dispatch.incident.models import Incident
 from dispatch.plugin import service as plugin_service
 
@@ -23,6 +23,9 @@ def update_conference_participant(
     responder into the tactical group and the conversation is what actually
     matters, and losing that because a roster update failed would be a
     regression. The exception handling is scoped to the plugin call alone.
+
+    A provider that will not report the roster is handled separately from one
+    that failed -- see the handler below.
     """
     if not incident.conference:
         log.debug("Conference participants not updated. No conference for this incident.")
@@ -42,6 +45,19 @@ def update_conference_participant(
             plugin.instance.remove_participant(incident.conference.conference_id, participant_email)
         else:
             plugin.instance.add_participant(incident.conference.conference_id, participant_email)
+    except ConferenceRosterUnreadable as e:
+        # Not a failure, and deliberately kept off the timeline. The provider
+        # declined to report a roster it only accepts wholesale, so there was no
+        # safe change to make and nothing was attempted (issue #129).
+        #
+        # Writing this to the timeline would be worse than silence: incident
+        # creation seeds the bridge and then walks the very same responders
+        # through the add flow, and reopening walks every participant again, so
+        # a timeline entry here tells each founding responder they could not be
+        # added to a conference they are already listed on. The log carries it
+        # instead, where the plugin's create-time observation is too.
+        log.warning("The incident conference roster was left unchanged: %s", e)
+        return
     except Exception as e:
         event_service.log_incident_event(
             db_session=db_session,

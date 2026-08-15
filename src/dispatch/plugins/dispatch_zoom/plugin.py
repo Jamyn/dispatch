@@ -13,7 +13,11 @@ from urllib.parse import quote
 import requests
 
 from dispatch.decorators import apply, counter, timer
-from dispatch.exceptions import ConferenceCreatedButUnusable, DispatchPluginException
+from dispatch.exceptions import (
+    ConferenceCreatedButUnusable,
+    ConferenceRosterUnreadable,
+    DispatchPluginException,
+)
 from dispatch.plugins import dispatch_zoom as zoom_plugin
 from dispatch.plugins.bases import ConferencePlugin
 
@@ -103,14 +107,98 @@ def request(client, method: str, path: str, operation: str, **kwargs):
     return check(response, operation)
 
 
-def meeting_invitees(meeting: dict) -> list[dict]:
-    """The meeting's invitees, for a meeting that may carry none.
+def reported_invitees(meeting) -> list[dict] | None:
+    """The meeting's invitee roster as Zoom reported it, or None if it did not.
 
-    Zoom sends an explicit null rather than omitting the key, so
-    `.get(key, [])` returns the null instead of the default.
+    Takes whatever `get_meeting` parsed out of the response, which is why the
+    parameter is untyped: a JSON body is not obliged to be an object.
+
+    Zoom's API reference documents `settings.meeting_invitees` on the 200 of
+    `GET /meetings/{meetingId}` and on the 201 of the create, so a meeting
+    carrying invitees is expected to report them. What it does not settle is
+    how Zoom spells *no* invitees, and that gap is load-bearing here: the list
+    is only ever written wholesale, so a caller that reads "nothing" and writes
+    "one" has silently discarded whatever was there (issue #129).
+
+    So the two are kept apart. A list -- `[]` included -- is Zoom answering the
+    question. Anything else is Zoom not answering it, and is reported as None
+    so the write side can refuse rather than guess:
+
+    - the key absent, or an explicit null;
+    - `settings` absent, or not an object;
+    - a roster holding an entry that is not an object, or one whose `email` is
+      neither a string nor null. Neither can be rewritten faithfully, so neither
+      is rewritten at all -- and a non-string `email` would otherwise reach
+      `invitee_matches` and raise `AttributeError`, which lands on the incident
+      timeline reading like a Dispatch bug rather than a provider one.
+
+    An entry with a null `email` is *not* in that group: it is a well-formed
+    invitee Zoom chose to send, and it round-trips unchanged.
+
+    The claim this replaces -- "Zoom sends an explicit null rather than omitting
+    the key" -- was **not** evidence, and is not being overruled on a hunch. It
+    was written in `97380231` in the same breath as a word-for-word twin
+    asserting it of Microsoft Graph, at a time when no Zoom account existed to
+    have observed it against, and none has since. It was a pattern applied to
+    two providers, not a reading of either. If it does turn out to be true, then
+    an explicit null is how Zoom spells an empty roster and the refusal below
+    fires on ordinary meetings -- which is a cost, not a defect, and
+    `log_roster_echo` plus the live suite are what would establish it.
+
+    Entries are otherwise passed through as they arrive. Zoom's read schema
+    carries an `internal_user` its write schema does not, and that is resent
+    verbatim -- **hypothesis**, untested against a real account: the spec
+    declares no `additionalProperties` anywhere, so it neither permits nor
+    forbids the extra key on the way back. Dropping it would be the other guess.
+    A rejection would be loud (a 400 through `check`), not silent, and
+    `test_the_roster_lifecycle_against_a_real_account` is what would see it.
     """
-    settings = meeting.get("settings") or {}
-    return list(settings.get("meeting_invitees") or [])
+    settings = meeting.get("settings") if isinstance(meeting, dict) else None
+    if not isinstance(settings, dict):
+        return None
+
+    invitees = settings.get("meeting_invitees")
+    if not isinstance(invitees, list):
+        return None
+    if not all(
+        isinstance(invitee, dict) and isinstance(invitee.get("email"), (str, type(None)))
+        for invitee in invitees
+    ):
+        return None
+
+    return list(invitees)
+
+
+def describe_roster(meeting: dict) -> str:
+    """Which shape Zoom answered with, in a phrase safe to repeat anywhere.
+
+    `reported_invitees` collapses four distinct non-answers into None, which is
+    right for deciding whether to write and useless for saying why. This names
+    them, so the refusal that reaches the incident timeline -- and the live
+    suite's failure message -- carry the one fact an operator needs to record on
+    issue #129 rather than a single string covering four different providers.
+
+    Kept beside `reported_invitees` so the two cannot drift; the live suite
+    imports this rather than reimplementing it. Names no address and no
+    identifier: a count and a category only.
+    """
+    if not isinstance(meeting, dict) or not isinstance(meeting.get("settings"), dict):
+        return "the response carried no settings object"
+
+    settings = meeting["settings"]
+    if "meeting_invitees" not in settings:
+        return "settings were returned without a meeting_invitees key"
+
+    invitees = settings["meeting_invitees"]
+    if invitees is None:
+        return "meeting_invitees was an explicit null"
+    if not isinstance(invitees, list):
+        return f"meeting_invitees was a {type(invitees).__name__} rather than a list"
+    if reported_invitees(meeting) is None:
+        return f"meeting_invitees held {len(invitees)} entr{'y' if len(invitees) == 1 else 'ies'} this plugin cannot rewrite faithfully"
+    if not invitees:
+        return "meeting_invitees was an empty list"
+    return f"meeting_invitees held {len(invitees)} entr{'y' if len(invitees) == 1 else 'ies'}"
 
 
 def as_invitee(participant: str) -> dict:
@@ -138,6 +226,99 @@ def get_meeting(client, event_id: str) -> dict:
         raise DispatchPluginException(
             f"Zoom returned HTTP {response.status_code} with a body that is not JSON."
         ) from e
+
+
+def current_invitees(client, event_id: str) -> list[dict]:
+    """The meeting's roster, or a refusal when Zoom did not report one.
+
+    `update_invitees` replaces the list wholesale and Zoom publishes no append
+    or remove primitive for it, so every roster change is a rewrite of the
+    whole list. A rewrite built on a read that reported nothing discards
+    whatever Zoom is holding -- which is exactly how a roster seeded at create
+    time (issue #127) would vanish on the first responder to join.
+
+    Refusing costs one entry on a list Zoom's own staff describe as consumed
+    only by their calendar integrations, and `update_conference_participant`
+    logs it and carries on. Guessing costs the founding roster, silently.
+
+    The message names the shape Zoom actually answered with, because there are
+    four ways to not answer and they are different facts -- in a deployment
+    where this fires, it is the evidence that settles issue #129. It also says
+    outright that the list does not gate joining, since it is read by whoever is
+    running the incident and "could not be added" invites the opposite reading.
+
+    Note this cannot report the one bad case it cannot see: a Zoom that stores
+    the roster and answers `[]` is indistinguishable here from one that has no
+    invitees, so `[]` is trusted. `log_roster_echo` is where that is caught.
+    """
+    meeting = get_meeting(client, event_id)
+    invitees = reported_invitees(meeting)
+    if invitees is None:
+        raise ConferenceRosterUnreadable(
+            f"Zoom did not report this meeting's invitee list, so its roster was left "
+            f"alone ({describe_roster(meeting)}): the API replaces that list wholesale, "
+            f"and rebuilding it from a read that reported nothing would drop the invitees "
+            f"already on it. The list does not control who can join -- the meeting link "
+            f"works for whoever holds it either way."
+        )
+
+    return invitees
+
+
+def log_roster_echo(conference_json: dict, requested: list[str]) -> None:
+    """Record whether Zoom echoed back the roster it was just sent (issue #129).
+
+    Zoom documents `settings.meeting_invitees` on the create's own 201, so this
+    reads a response already in hand and costs no extra call. It is the only
+    moment Dispatch holds both what it sent and what came back, which is what
+    makes it the place to catch the one outcome the read side cannot defend
+    against: a Zoom that stores the roster and reports it empty. `[]` is
+    indistinguishable at update time from a meeting that has no invitees, so
+    `current_invitees` trusts it and `add_participant` will rewrite from it --
+    but "none" in answer to a roster just accepted is the signature of a field
+    that is stored and not reported, and only the create can see that.
+
+    Deliberately says nothing about what a *read* will do. The 201 and the 200
+    are different schemas -- the GET's item carries an `internal_user` the
+    create's does not -- so an absent field here is not evidence about
+    `GET /meetings/{meetingId}`. Claiming otherwise would send an operator to
+    close issue #129 on the wrong observation.
+
+    Counts only, never addresses -- this reaches the application log, and the
+    roster is the incident's responder list.
+    """
+    echoed = reported_invitees(conference_json)
+
+    if echoed is None:
+        log.warning(
+            "Zoom accepted %s conference invitee(s) and its create response carried no "
+            "usable invitee list (%s). Whether a read reports them is a separate "
+            "question -- see issue #129.",
+            len(requested),
+            describe_roster(conference_json),
+        )
+        return
+
+    # Compared against the distinct addresses sent, not the raw count: the
+    # plugin forwards the roster it is given and `create_conference` is what
+    # deduplicates, so a provider that collapses duplicates is not dropping
+    # anyone and must not be reported as though it were.
+    expected = len({participant.casefold() for participant in requested if participant})
+
+    if len(echoed) < expected:
+        log.warning(
+            "Zoom accepted %s distinct conference invitee(s) and reported %s back on the "
+            "create response. If the rest are in fact stored, later roster updates will "
+            "replace them rather than extend them (issue #129).",
+            expected,
+            len(echoed),
+        )
+    else:
+        log.info(
+            "Zoom reported %s of %s distinct conference invitee(s) back on the create response.",
+            len(echoed),
+            expected,
+        )
 
 
 def update_invitees(client, event_id: str, invitees: list[dict]):
@@ -181,13 +362,17 @@ def create_meeting(
     API the same reply points at, which this plugin never calls. Multiple later
     staff replies say plainly that the field triggers no email.
 
-    **Unverified, and it bounds what this is worth:** staff have also said the
-    field is consumed only by their calendar integrations, and that invitees may
-    not be readable back at all. If a `GET` does not echo them, the roster is
-    write-only and the first `add_participant` replaces it -- see
-    `test_a_seeded_roster_zoom_does_not_echo_back_is_lost_on_the_first_add`. The
-    request this builds is what the API documents; only the live suite can say
-    what Zoom does with it.
+    **What bounds what this is worth.** Zoom's API reference documents
+    `settings.meeting_invitees` on the create's 201 *and* on the 200 of
+    `GET /meetings/{meetingId}` -- and the GET's item schema is richer than
+    either write schema, carrying an `internal_user` no request can send. So the
+    published contract says the roster is readable. Against that, staff on the
+    developer forum have said the field is consumed only by their calendar
+    integrations and that invitees cannot be queried back. Both cannot hold, and
+    no mocked test can decide it; only `test_zoom_live.py` can (issue #129).
+    Nothing here depends on the answer: `add_participant` declines to rewrite a
+    roster Zoom did not report, so an unreadable one is left intact rather than
+    replaced.
 
     The invitees ride along in the create rather than being PATCHed on
     afterwards, so a list Zoom rejects fails while there is still no meeting to
@@ -255,6 +440,7 @@ class ZoomConferencePlugin(ConferencePlugin):
         metadata only -- the join_url works for anyone holding it whatever the
         list says.
         """
+        requested = list(participants or [])
         client = self._zoom_client()
 
         conference_response = create_meeting(
@@ -263,7 +449,7 @@ class ZoomConferencePlugin(ConferencePlugin):
             name,
             description=description,
             title=title,
-            participants=participants,
+            participants=requested,
             duration=self.configuration.default_duration_minutes,
         )
 
@@ -306,6 +492,20 @@ class ZoomConferencePlugin(ConferencePlugin):
                 resource_id=str(meeting_id) if meeting_id else None,
             )
 
+        # After the checks above, so a create that failed validation is reported
+        # as that rather than as a roster observation. Only when a roster was
+        # actually sent: there is nothing to echo otherwise.
+        #
+        # Nothing between Zoom's 2xx and the return below may raise anything but
+        # `ConferenceCreatedButUnusable` -- that exception is what carries the id
+        # to `create_conference`'s compensating delete, and anything else leaves
+        # a live meeting with no database row, unreachable forever (issue #114).
+        # This call is guarded by being total rather than by a try, and the
+        # obvious next step for issue #129 -- a confirming GET here -- would not
+        # be.
+        if requested:
+            log_roster_echo(conference_json, requested)
+
         return {
             "weblink": conference_json["join_url"],
             # Zoom sends the meeting id as a JSON number. `ConferenceCreate`
@@ -331,13 +531,14 @@ class ZoomConferencePlugin(ConferencePlugin):
         calendar integrations, so the invitee may never surface in the Zoom
         client. This sends what the API documents.
 
-        Resending in full only preserves the existing roster if Zoom reports it on
-        a read, which is unconfirmed and which staff have suggested it does not --
-        if it does not, this replaces whatever `create` seeded (issue #110). The
-        write-gated live tests are the only thing that can settle it.
+        Resending in full preserves the existing roster only because
+        `current_invitees` refuses when Zoom reports no list to resend. Adding
+        one person must never be what removes the rest, and with a wholesale
+        replace and no way to tell "no invitees" from "no answer" apart, not
+        writing is the only way to promise that (issue #129).
         """
         client = self._zoom_client()
-        invitees = meeting_invitees(get_meeting(client, event_id))
+        invitees = current_invitees(client, event_id)
 
         if any(invitee_matches(i, participant) for i in invitees):
             return
@@ -350,9 +551,25 @@ class ZoomConferencePlugin(ConferencePlugin):
         This evicts nobody and revokes no link; it only updates the roster. An
         absent participant is left alone rather than treated as an error, so a
         retried removal is a no-op.
+
+        Refuses on an unreported roster for the same reason as `add_participant`,
+        though the danger is not the same: rewriting the list here could only
+        ever shorten it, and the current code would in fact send nothing. It
+        refuses anyway so the two halves of the lifecycle answer alike, and so a
+        removal Zoom cannot be told about is reported rather than mistaken for
+        one it already knew (issue #129).
+
+        `invitee_matches` folds case, which is the *unsafe* direction here in a
+        way it is not for adding: an over-aggressive fold costs the add an
+        unnecessary skip, and costs this the wrong mailbox. `strasse@x` and
+        `straße@x` are different addresses that `casefold` equates, so removing
+        one strips the other. `normalize_participants` keeps them apart with
+        `lower()` at create time and is not in this path to do so here.
+        Deliberately left alone: roster metadata, and changing the comparison on
+        one side only would make add and remove disagree about who is present.
         """
         client = self._zoom_client()
-        invitees = meeting_invitees(get_meeting(client, event_id))
+        invitees = current_invitees(client, event_id)
 
         remaining = [i for i in invitees if not invitee_matches(i, participant)]
         if len(remaining) == len(invitees):

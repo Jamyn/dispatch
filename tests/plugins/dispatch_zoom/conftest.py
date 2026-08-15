@@ -141,11 +141,126 @@ class FakeZoom:
         return self.api_requests()[-1]
 
 
+class StatefulZoom(FakeZoom):
+    """A fake that stores what it is sent, so a *sequence* can be asserted.
+
+    ``FakeZoom`` answers every read with whatever the test set, which is right
+    for asserting one request and useless for a lifecycle: create -> add -> add
+    -> remove only means anything if the second read sees the first write.
+
+    ``reports_roster`` is the provider question issue #129 turns on, and it is a
+    constructor argument rather than a built-in assumption. ``True`` is what
+    Zoom's API reference documents -- the roster comes back on a read. ``False``
+    is the world its staff describe, where the field is accepted and never
+    reported; there the read carries a ``settings`` object with the key simply
+    absent, which is the shape that made the pre-#129 code destroy the roster.
+
+    Both are modelled because the plugin must be correct in both, and neither is
+    a claim about which one Zoom really does. ``test_zoom_live.py`` decides that.
+
+    Whichever it models, it models *consistently*: the create's 201 and the
+    read's 200 answer alike. A fake that reported the roster on the read while
+    omitting it from the create would make every lifecycle test emit the
+    create-time warning for issue #129 and then succeed anyway, which is the
+    contradiction the issue is about, asserted from both sides at once.
+
+    ``reports_roster`` deliberately does not seed ``internal_user``. Zoom
+    documents it on the read only, so it cannot be produced by echoing back what
+    was written -- a test that needs it sets ``roster`` directly.
+    """
+
+    def __init__(self, reports_roster: bool = True):
+        super().__init__()
+        self.reports_roster = reports_roster
+        self.roster: list[dict] = []
+        # None means "answer reads from the stored state". A test that needs the
+        # read itself to fail sets a `(status, body)` pair as it would on the
+        # static fake.
+        self.get = None
+        self._competitor = None
+
+    def compete_once(self, invitees: list[dict]) -> None:
+        """Land one competing write between the next read and the write it feeds.
+
+        Deterministic stand-in for a second worker updating the same roster, so
+        the lost update can be driven through the plugin's real code path
+        instead of being asserted about hand-built lists. One-shot: only the
+        next read is raced.
+        """
+        self._competitor = [dict(invitee) for invitee in invitees]
+
+    def settings(self) -> dict:
+        settings = {"join_before_host": True}
+        if self.reports_roster:
+            settings["meeting_invitees"] = [dict(invitee) for invitee in self.roster]
+        return settings
+
+    def meeting(self) -> dict:
+        return {"id": 987654321, "topic": "Situation Room", "settings": self.settings()}
+
+    def emails(self) -> list[str]:
+        """What Zoom is holding, whether or not it would report it."""
+        return [invitee.get("email") for invitee in self.roster]
+
+    def _route(self, method, url):
+        if "/meetings" not in url:
+            return super()._route(method, url)
+
+        if method == "GET" and self.get is None:
+            answer = (200, self.meeting())
+            if self._competitor is not None:
+                # The reader already holds its snapshot; the competing write
+                # lands now, so the PATCH this read feeds will overwrite it.
+                self.roster = self._competitor
+                self._competitor = None
+            return answer
+        if method == "POST" and self.response == (201, CREATE_BODY):
+            # Only when the test has not asked for its own create response.
+            return (201, dict(CREATE_BODY, settings=self.settings()))
+        return super()._route(method, url)
+
+    def send(self, request, timeout=None, **kwargs):
+        # The token endpoint is a POST too, and its body is urlencoded.
+        api_write = request.method in ("POST", "PATCH") and request.url.startswith(
+            "https://api.zoom.us/"
+        )
+        if api_write:
+            body = json.loads(request.body)
+            invitees = (body.get("settings") or {}).get("meeting_invitees")
+            # Absent means the request said nothing about the roster, which is
+            # not the same as clearing it -- `create` omits the key entirely
+            # when there is nobody to list. Peeked at the route rather than the
+            # response, because the write has to be applied *before* the create
+            # is answered and a rejected write must still change nothing.
+            status, _ = self._route(request.method, request.url)
+            if invitees is not None and 200 <= status < 300:
+                self.roster = [dict(invitee) for invitee in invitees]
+
+        # Applied before routing so the create's own 201 echoes what it just
+        # created, as Zoom's documented 201 does. Reads are never writes, so no
+        # GET can see a write it issued itself.
+        return super().send(request, timeout=timeout, **kwargs)
+
+
 @pytest.fixture
 def zoom(monkeypatch):
     fake = FakeZoom()
     monkeypatch.setattr(HTTPAdapter, "send", lambda self, request, **kw: fake.send(request, **kw))
     return fake
+
+
+@pytest.fixture
+def stateful_zoom(monkeypatch):
+    """Installs a ``StatefulZoom``; the test chooses which provider it models."""
+
+    def install(reports_roster: bool = True) -> StatefulZoom:
+        fake = StatefulZoom(reports_roster=reports_roster)
+        monkeypatch.setattr(
+            HTTPAdapter, "send", lambda self, request, **kw: fake.send(request, **kw)
+        )
+        return fake
+
+    return install
 
 
 @pytest.fixture

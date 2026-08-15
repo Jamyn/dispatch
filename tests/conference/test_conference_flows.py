@@ -209,3 +209,122 @@ def test_a_plugin_exception_is_contained_too(
         participant_email="responder@example.com",
         db_session=session,
     )
+
+
+# --- a roster the provider will not report ----------------------------------
+#
+# Not a failure: the provider declined to show a list it only accepts wholesale,
+# so there was no safe change to make and none was attempted (issue #129). It is
+# kept off the timeline because incident creation seeds the bridge and then walks
+# the very same responders through the add flow -- a timeline entry here tells
+# each founding responder they could not be added to a conference they are
+# already on, and a reopen repeats it for every participant.
+
+
+def test_an_unreadable_roster_does_not_raise(
+    session, conference_incident, active_conference_plugin
+):
+    from dispatch.exceptions import ConferenceRosterUnreadable
+
+    active_conference_plugin.failure = ConferenceRosterUnreadable("Zoom did not report it")
+
+    add_conference_participant(
+        incident=conference_incident,
+        participant_email="responder@example.com",
+        db_session=session,
+    )
+
+
+def test_an_unreadable_roster_is_logged(
+    session, conference_incident, active_conference_plugin, caplog
+):
+    """Silence would leave an operator no way to notice the roster is inert."""
+    import logging
+
+    from dispatch.exceptions import ConferenceRosterUnreadable
+
+    active_conference_plugin.failure = ConferenceRosterUnreadable("Zoom did not report it")
+
+    with caplog.at_level(logging.WARNING):
+        add_conference_participant(
+            incident=conference_incident,
+            participant_email="responder@example.com",
+            db_session=session,
+        )
+
+    assert "Zoom did not report it" in caplog.text
+
+
+def incident_events(session, incident) -> list[str]:
+    """This incident's timeline only.
+
+    ``event_service.get_all`` is database-wide, and the suite shares one
+    database -- an assertion built on it reads other tests' events too.
+    """
+    from dispatch.event import service as event_service
+
+    return [
+        e.description
+        for e in event_service.get_all(db_session=session).all()
+        if e.incident_id == incident.id
+    ]
+
+
+def test_an_unreadable_roster_is_not_recorded_on_the_incident_timeline(
+    session, conference_incident, active_conference_plugin
+):
+    """The regression this branch exists to avoid, stated directly."""
+    from dispatch.exceptions import ConferenceRosterUnreadable
+
+    active_conference_plugin.failure = ConferenceRosterUnreadable("Zoom did not report it")
+    before = incident_events(session, conference_incident)
+
+    add_conference_participant(
+        incident=conference_incident,
+        participant_email="responder@example.com",
+        db_session=session,
+    )
+
+    assert incident_events(session, conference_incident) == before
+
+
+def test_an_unreadable_roster_on_removal_is_also_kept_off_the_timeline(
+    session, conference_incident, active_conference_plugin
+):
+    from dispatch.exceptions import ConferenceRosterUnreadable
+
+    active_conference_plugin.failure = ConferenceRosterUnreadable("Zoom did not report it")
+    before = incident_events(session, conference_incident)
+
+    remove_conference_participant(
+        incident=conference_incident,
+        participant_email="responder@example.com",
+        db_session=session,
+    )
+
+    assert incident_events(session, conference_incident) == before
+
+
+def test_a_genuine_plugin_failure_still_reaches_the_timeline(
+    session, conference_incident, active_conference_plugin
+):
+    """The new handler must not swallow the class it sits in front of.
+
+    ``ConferenceRosterUnreadable`` subclasses ``DispatchPluginException``, so a
+    handler ordered the other way round would catch every plugin failure and
+    silence the lot.
+    """
+    from dispatch.exceptions import DispatchPluginException
+
+    active_conference_plugin.failure = DispatchPluginException("HTTP 403")
+
+    add_conference_participant(
+        incident=conference_incident,
+        participant_email="responder@example.com",
+        db_session=session,
+    )
+
+    assert any(
+        "could not be added to the incident conference" in description
+        for description in incident_events(session, conference_incident)
+    )
