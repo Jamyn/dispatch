@@ -48,12 +48,12 @@ class ConferenceRosterUnreadable(DispatchPluginException):
     responder would get a timeline entry saying they could not be added to a
     conference they are already listed on.
 
-    Not the same as issue #120, which pulls the other way: there a provider 404
-    on teardown is reported as a failure when the meeting is already gone, i.e.
-    the desired end state was reached. Here it was not -- the roster really is
-    unchanged. The two are distinguished by whether the intent was satisfied,
-    never by whether the provider was happy, so fixing one must not be done by
-    generalising the other.
+    Not the same as `ConferenceAlreadyGone`, which pulls the other way: there a
+    provider 404 on teardown means the desired end state was reached. Here it
+    was not -- the roster really is unchanged. The two are distinguished by
+    whether the intent was satisfied, never by whether the provider was happy,
+    which is why issue #120 got its own exception rather than a generalisation
+    of this one.
     """
 
 
