@@ -6,15 +6,17 @@
 .. moduleauthor:: Kevin Glisson <kglisson@netflix.com>
 """
 
+import json
 import logging
 import time
 import uuid
 from datetime import datetime, timedelta
+from http.client import HTTPException
 from typing import Any
 
 from googleapiclient.errors import HttpError
 from pytz import timezone
-from tenacity import TryAgain, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from dispatch.exceptions import ConferenceCreatedButUnusable
 from dispatch.decorators import apply, counter, timer
@@ -26,23 +28,116 @@ from dispatch.plugins.dispatch_google.config import GoogleConfiguration
 
 log = logging.getLogger(__name__)
 
+# Statuses worth another attempt. Everything absent from this set is treated as
+# permanent: retrying only delays the report and, until issue #122, replaced the
+# reason Google gave with a bare `TryAgain`.
+#
+# Two deliberate divergences from Google's "Handle API errors" guide, both
+# checked against it rather than assumed:
+#   - 429 and 500 are the ones it names. 502/504 are not mentioned at all; they
+#     are included because they are gateway failures that say nothing about
+#     whether the request was processed, which is the same case as a dropped
+#     connection.
+#   - It also lists 404 as "use exponential backoff". That is excluded here: on
+#     the calls this module makes, a 404 means the caller named an event that is
+#     not there, and three retries only postpone saying so.
+RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
+
+# 403 means two different things. Google returns it for genuine permission
+# failures *and* for rate limiting, and only the latter can succeed on a retry,
+# so 403 is classified by reason rather than by status.
+RETRYABLE_403_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded"})
+
+# Google answers 409 to an insert whose client-supplied event id already exists.
+# `create_event` relies on this to recognise its own earlier attempt.
+DUPLICATE_STATUS = 409
+
+# Failures below the API: the request may or may not have been processed, and
+# the exception cannot say which. httplib2 surfaces more than `ConnectionError`
+# and `TimeoutError` -- `ssl.SSLError` and `socket.error` are `OSError`s, while
+# `BadStatusLine` and `IncompleteRead` are `HTTPException`s -- so both bases are
+# named rather than the two most obvious subclasses.
+TRANSPORT_ERRORS = (OSError, HTTPException)
+
+
+def _error_reasons(error: HttpError) -> set[str]:
+    """The machine-readable reasons on a Google error body.
+
+    `HttpError.reason` is the human message, not the reason code, so the codes
+    are read out of `error_details` -- which googleapiclient fills from
+    `error.errors` -- rather than parsed out of the message text.
+
+    googleapiclient sets `error_details` from the *first* of
+    `detail`/`details`/`errors`/`message` present in the body, so a body
+    carrying only `message` yields a plain string rather than a list. Calendar
+    always nests `errors`, but falling back to the raw content keeps a
+    rate-limited 403 from being misread as permanent if it ever does not.
+    """
+    details = getattr(error, "error_details", None) or []
+    if isinstance(details, dict):
+        details = [details]
+
+    if isinstance(details, list):
+        reasons = {d.get("reason") for d in details if isinstance(d, dict) and d.get("reason")}
+        if reasons:
+            return reasons
+
+    # `error_details` was a string, or carried no reason codes.
+    try:
+        body = json.loads(error.content.decode("utf-8"))
+        errors = body["error"]["errors"]
+    except (AttributeError, KeyError, TypeError, ValueError, UnicodeDecodeError):
+        return set()
+
+    if not isinstance(errors, list):
+        return set()
+
+    return {e.get("reason") for e in errors if isinstance(e, dict) and e.get("reason")}
+
+
+def is_retryable(exception: BaseException) -> bool:
+    """Whether another attempt could plausibly succeed.
+
+    Transport failures are retryable because they say nothing about whether the
+    server acted -- which is exactly why the operation underneath has to be
+    idempotent for the retry to be safe. See `create_event`.
+    """
+    if isinstance(exception, TRANSPORT_ERRORS):
+        return True
+
+    if not isinstance(exception, HttpError):
+        return False
+
+    status = exception.resp.status
+    if status in RETRYABLE_STATUSES:
+        return True
+    if status == 403:
+        return bool(_error_reasons(exception) & RETRYABLE_403_REASONS)
+
+    return False
+
 
 @retry(
     stop=stop_after_attempt(3),
-    retry=retry_if_exception_type(TryAgain),
+    retry=retry_if_exception(is_retryable),
     wait=wait_exponential(multiplier=1, min=2, max=5),
+    # Surface the failure Google actually reported rather than a `RetryError`
+    # wrapping a `TryAgain` that carries none of it.
+    reraise=True,
 )
 def make_call(client: Any, func: Any, delay: int = None, propagate_errors: bool = False, **kwargs):
-    """Make an google client api call."""
-    try:
-        data = getattr(client, func)(**kwargs).execute()
+    """Make an google client api call.
 
-        if delay:
-            time.sleep(delay)
+    Retries only what `is_retryable` accepts. Callers whose operation is not
+    idempotent must make it so before relying on this -- a retried create is
+    how one logical operation became three calendar events (issue #122).
+    """
+    data = getattr(client, func)(**kwargs).execute()
 
-        return data
-    except HttpError:
-        raise TryAgain from None
+    if delay:
+        time.sleep(delay)
+
+    return data
 
 
 def get_event(client: Any, event_id: str):
@@ -87,8 +182,27 @@ def create_event(
     else:
         participants = []
 
+    # The event id is what makes this insert idempotent, and it is the only
+    # thing that does. `requestId` below deduplicates the *conference creation
+    # request*, not the event -- the API reference calls it "the client-
+    # generated unique ID for this request" -- so on its own it would let a
+    # retried insert create a second event, on every attendee's calendar, with
+    # a second Meet bridge (issue #122; the issue also has each duplicate
+    # emailing the participants, which overstates it -- `sendUpdates` is unset
+    # and defaults to notifying no one, though Google does warn that "some
+    # emails might still be sent"). Google documents the client-supplied event
+    # id as the mechanism that "prevents duplicate event creation if the
+    # operation fails at some point after it is successfully executed in the
+    # Calendar backend"; a repeat insert answers 409 instead, recovered below.
+    #
+    # Generated once here, so every attempt tenacity makes inside `make_call`
+    # sends the same id -- and two independent creates never share one.
+    # `uuid4().hex` is 32 characters of 0-9a-f, inside the documented base32hex
+    # alphabet (a-v and digits) and the 5-1024 length bound.
+    event_id = uuid.uuid4().hex
     request_id = str(uuid.uuid4())
     body = {
+        "id": event_id,
         "description": description if description else f"Situation Room for {name}. Please join.",
         "summary": title if title else f"Situation Room for {name}",
         "attendees": participants,
@@ -116,9 +230,56 @@ def create_event(
     )
 
     # TODO sometimes google is slow with the meeting invite, we should poll/wait
-    return make_call(
-        client.events(), "insert", calendarId="primary", body=body, conferenceDataVersion=1
-    )
+    try:
+        return make_call(
+            client.events(), "insert", calendarId="primary", body=body, conferenceDataVersion=1
+        )
+    except (HttpError, *TRANSPORT_ERRORS) as e:
+        if isinstance(e, HttpError) and e.resp.status == DUPLICATE_STATUS:
+            # The id is a uuid4 minted a few lines above and sent by nothing
+            # else, so a duplicate means an earlier attempt of *this* create
+            # reached Google after all and only its response was lost. Reading
+            # the event back is what keeps that from becoming a second one.
+            log.warning(
+                "Google reported the calendar event as already created; "
+                "recovering the event from an earlier attempt of this create."
+            )
+            try:
+                return get_event(client, event_id)
+            except Exception as read_error:
+                # Deliberately every exception, not just `HttpError`: this read
+                # retries too, and exhausting it raises whatever the transport
+                # gave. Google has told us the event exists, so letting anything
+                # escape here reaches `create_conference` as "the provider gave
+                # us no resource" -- nothing compensates, and the event, with
+                # its Meet bridge, is stranded with no Dispatch record at all.
+                # The id is the one thing we do know, so it goes out on the
+                # exception that exists to carry it (issue #114).
+                raise ConferenceCreatedButUnusable(
+                    "Google created the calendar event but it could not be read back.",
+                    resource_id=event_id,
+                ) from read_error
+
+        if not is_retryable(e):
+            # A rejection -- bad request, bad credentials, no permission. The
+            # insert never took effect, so there is nothing to look for.
+            raise
+
+        # Retries were exhausted on a failure that says nothing about whether
+        # Google acted, and no 409 ever surfaced to reveal it -- which happens
+        # when every attempt dies at a gateway in front of the backend. One
+        # probe settles it; without it a committed event would be reported as
+        # "nothing was created" and orphaned.
+        try:
+            recovered = get_event(client, event_id)
+        except Exception:
+            raise e from None
+
+        log.warning(
+            "The calendar insert failed but Google is holding the event; "
+            "recovering it rather than reporting the create as failed."
+        )
+        return recovered
 
 
 @apply(timer, exclude=["__init__"])
