@@ -34,6 +34,7 @@ dependencies = [
     "aiofiles",
     "aiohttp",
     "alembic",
+    "anthropic==0.122.0",
     "atlassian-python-api",
     "attrs>=26.1.0",
     "bcrypt",
@@ -124,6 +125,7 @@ dev = [
 dispatch = "dispatch.cli:entrypoint"
 
 [project.entry-points."dispatch.plugins"]
+anthropic_artificial_intelligence = "dispatch.plugins.dispatch_anthropic.plugin:AnthropicPlugin"
 dispatch_atlassian_confluence = "dispatch.plugins.dispatch_atlassian_confluence.plugin:ConfluencePagePlugin"
 dispatch_atlassian_confluence_document = "dispatch.plugins.dispatch_atlassian_confluence.docs.plugin:ConfluencePageDocPlugin"
 dispatch_auth_mfa = "dispatch.plugins.dispatch_core.plugin:DispatchMfaPlugin"
