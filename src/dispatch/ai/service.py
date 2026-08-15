@@ -130,6 +130,25 @@ def truncate_prompt(
     return truncated_prompt
 
 
+def get_genai_model(genai_plugin) -> str | None:
+    """The model the AI plugin will send requests to, or None if it cannot be read.
+
+    `PluginInstance.configuration` returns None both for an instance that was
+    never configured and for stored JSON that no longer satisfies the schema --
+    it logs a warning and nothing else. Reading `.model` through that None is an
+    AttributeError raised before the surrounding `try` at four of the five call
+    sites here, i.e. an HTTP 500 from endpoints built to return `error_message`.
+
+    A configuration that exists but has no `model` still raises: that is a
+    plugin that does not meet the ArtificialIntelligencePlugin contract, and
+    disguising it as an ordinary AI failure would hide a real defect.
+    """
+    configuration = genai_plugin.instance.configuration
+    if configuration is None:
+        return None
+    return configuration.model
+
+
 def prepare_prompt_for_model(prompt: str, model_name: str) -> str:
     """
     Tokenizes and truncates the prompt if it exceeds the model's token limit.
@@ -332,9 +351,13 @@ def generate_case_signal_summary(case: Case, db_session: Session) -> CaseSignalS
     </historical_context>
     """
 
-    prompt = prepare_prompt_for_model(
-        prompt, genai_plugin.instance.configuration.chat_completion_model
-    )
+    model = get_genai_model(genai_plugin)
+    if model is None:
+        message = "Unable to generate GenAI signal analysis. The artificial-intelligence plugin is not configured."
+        log.warning(message)
+        raise GenAIException(message)
+
+    prompt = prepare_prompt_for_model(prompt, model)
 
     # we generate the analysis
     try:
@@ -423,9 +446,13 @@ def generate_incident_summary(incident: Incident, db_session: Session) -> str:
             getattr(db_prompt, "genai_system_message", None) or INCIDENT_SUMMARY_SYSTEM_MESSAGE
         )
 
-        prompt = prepare_prompt_for_model(
-            prompt, genai_plugin.instance.configuration.chat_completion_model
-        )
+        model = get_genai_model(genai_plugin)
+        if model is None:
+            message = f"Incident summary not generated for incident {incident.name}. The artificial-intelligence plugin is not configured."
+            log.warning(message)
+            return "Incident summary not generated. The artificial-intelligence plugin is not configured."
+
+        prompt = prepare_prompt_for_model(prompt, model)
 
         summary = genai_plugin.instance.chat_completion(
             prompt=prompt, system_message=system_message
@@ -571,9 +598,13 @@ def get_tag_recommendations(
 
     prompt += f"** Tags you can use: {tag_list} \n ** Security event details: {resources}"
 
-    prompt = prepare_prompt_for_model(
-        prompt, genai_plugin.instance.configuration.chat_completion_model
-    )
+    model = get_genai_model(genai_plugin)
+    if model is None:
+        message = "AI tag suggestions are not available. The AI plugin for this project is not configured."
+        log.warning(message)
+        return TagRecommendationResponse(recommendations=[], error_message=message)
+
+    prompt = prepare_prompt_for_model(prompt, model)
 
     try:
         result = genai_plugin.instance.chat_parse(
@@ -634,7 +665,11 @@ def generate_read_in_summary(
         db_session=db_session, plugin_type="artificial-intelligence", project_id=project.id
     )
     if not genai_plugin:
-        message = f"Read-in summary not generated for {subject.name}. No artificial-intelligence plugin enabled."
+        # `subject.type`/`.id`, not `subject.name`: both Slack callers pass a
+        # `SubjectMetadata`, which has no `name` -- so this message used to
+        # raise AttributeError instead of being returned, on the single most
+        # common configuration. `.type` and `.id` are read above already.
+        message = f"Read-in summary not generated for {subject.type} {subject.id}. No artificial-intelligence plugin enabled."
         log.warning(message)
         return ReadInSummaryResponse(error_message=message)
 
@@ -643,7 +678,8 @@ def generate_read_in_summary(
     )
     if not conversation_plugin:
         message = (
-            f"Read-in summary not generated for {subject.name}. No conversation plugin enabled."
+            f"Read-in summary not generated for {subject.type} {subject.id}. "
+            "No conversation plugin enabled."
         )
         log.warning(message)
         return ReadInSummaryResponse(error_message=message)
@@ -652,7 +688,9 @@ def generate_read_in_summary(
         conversation_id=channel_id, include_user_details=True, important_reaction=important_reaction
     )
     if not conversation:
-        message = f"Read-in summary not generated for {subject.name}. No conversation found."
+        message = (
+            f"Read-in summary not generated for {subject.type} {subject.id}. No conversation found."
+        )
         log.warning(message)
         return ReadInSummaryResponse(error_message=message)
 
@@ -665,9 +703,16 @@ def generate_read_in_summary(
         getattr(db_prompt, "genai_system_message", None) or READ_IN_SUMMARY_SYSTEM_MESSAGE
     ) + STRUCTURED_OUTPUT
 
-    prompt = prepare_prompt_for_model(
-        prompt, genai_plugin.instance.configuration.chat_completion_model
-    )
+    model = get_genai_model(genai_plugin)
+    if model is None:
+        message = (
+            f"Read-in summary not generated for {subject.type} {subject.id}. "
+            "The artificial-intelligence plugin is not configured."
+        )
+        log.warning(message)
+        return ReadInSummaryResponse(error_message=message)
+
+    prompt = prepare_prompt_for_model(prompt, model)
 
     try:
         result = genai_plugin.instance.chat_parse(
@@ -763,9 +808,13 @@ def generate_tactical_report(
         getattr(db_prompt, "genai_system_message", None) or TACTICAL_REPORT_SYSTEM_MESSAGE
     ) + STRUCTURED_OUTPUT
 
-    prompt = prepare_prompt_for_model(
-        raw_prompt, genai_plugin.instance.configuration.chat_completion_model
-    )
+    model = get_genai_model(genai_plugin)
+    if model is None:
+        message = f"Tactical report not generated for {incident.name}. The artificial-intelligence plugin is not configured."
+        log.warning(message)
+        return TacticalReportResponse(error_message=message)
+
+    prompt = prepare_prompt_for_model(raw_prompt, model)
 
     try:
         result = genai_plugin.instance.chat_parse(
