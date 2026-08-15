@@ -57,6 +57,28 @@ class ConferenceRosterUnreadable(DispatchPluginException):
     """
 
 
+class ConferenceAlreadyGone(DispatchPluginException):
+    """The provider has no such meeting, so teardown's intent is already met (issue #120).
+
+    Raised only from a *delete*, and only for the provider's own not-found
+    answer. Teardown wants the bridge gone; a provider that says it has no such
+    meeting has delivered exactly that, and reporting it as a failed deletion
+    tells an operator a live meeting leaked when none did.
+
+    Scoped to deletes at the point where each transport still knows the method,
+    deliberately. The same status means something else on every other call --
+    Zoom answers 404 to a create naming an `api_user_id` it cannot resolve, and
+    a 404 on the read half of a roster update deleted nothing -- so this is
+    never derived from a status alone further up.
+
+    A `DispatchPluginException` subclass so that a caller which does not opt in
+    keeps its existing behaviour exactly. Compare `ConferenceRosterUnreadable`,
+    which is the mirror image: there the provider declined to answer and the
+    intent was *not* met. Both are decided by whether the intent was satisfied,
+    never by whether the provider was happy.
+    """
+
+
 class NotFoundError(PydanticValueError):
     code = "not_found"
     msg_template = "{msg}"

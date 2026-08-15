@@ -7,7 +7,11 @@ from urllib.parse import quote
 import msal
 import requests
 
-from dispatch.exceptions import ConferenceCreatedButUnusable, DispatchPluginException
+from dispatch.exceptions import (
+    ConferenceAlreadyGone,
+    ConferenceCreatedButUnusable,
+    DispatchPluginException,
+)
 
 log = logging.getLogger(__name__)
 
@@ -154,6 +158,16 @@ class MSTeamsClient:
             raise DispatchPluginException(
                 f"Microsoft Graph {method} {path} could not be completed: {e}"
             ) from e
+
+        # A delete Graph answers 404 to is reported as `ConferenceAlreadyGone`
+        # rather than a failure: the meeting is not there, which is what the
+        # delete wanted (issue #120). Decided here because this is the last
+        # point that knows the method -- the read half of the attendee
+        # read-modify-write can 404 too, and there nothing was deleted.
+        if method == "DELETE" and response.status_code == 404:
+            raise ConferenceAlreadyGone(
+                f"Microsoft Graph {method} {path} found no such meeting (HTTP 404)."
+            )
 
         if not 200 <= response.status_code < 300:
             raise DispatchPluginException(self._error_message(method, path, response))

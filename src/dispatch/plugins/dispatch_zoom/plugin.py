@@ -14,6 +14,7 @@ import requests
 
 from dispatch.decorators import apply, counter, timer
 from dispatch.exceptions import (
+    ConferenceAlreadyGone,
     ConferenceCreatedButUnusable,
     ConferenceRosterUnreadable,
     DispatchPluginException,
@@ -98,11 +99,24 @@ def check(response, operation: str):
 
 
 def request(client, method: str, path: str, operation: str, **kwargs):
-    """Issue one Zoom call, turning transport failures into plugin exceptions."""
+    """Issue one Zoom call, turning transport failures into plugin exceptions.
+
+    A delete Zoom answers 404 to is reported as `ConferenceAlreadyGone` rather
+    than a failure: the meeting is not there, which is what the delete wanted
+    (issue #120). Decided here because this is the last point that knows the
+    method -- a 404 on a create means Zoom could not resolve the *user*, and on
+    a roster read it means nothing was deleted at all.
+    """
     try:
         response = getattr(client, method)(path, **kwargs)
     except requests.RequestException as e:
         raise DispatchPluginException(f"Zoom {operation} could not be completed: {e}") from e
+
+    if method == "delete" and response.status_code == 404:
+        # Zoom's body is not repeated, for the reason `check` gives: the request
+        # carries a live bearer token and an intermediary answering in Zoom's
+        # place may quote it back. There is nothing to learn from it here anyway.
+        raise ConferenceAlreadyGone(f"Zoom {operation} found no such meeting (HTTP 404).")
 
     return check(response, operation)
 

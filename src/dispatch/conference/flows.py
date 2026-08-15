@@ -3,7 +3,11 @@ import logging
 from dispatch.database.core import SessionLocal
 from dispatch.enums import EventType
 from dispatch.event import service as event_service
-from dispatch.exceptions import ConferenceCreatedButUnusable, ConferenceRosterUnreadable
+from dispatch.exceptions import (
+    ConferenceAlreadyGone,
+    ConferenceCreatedButUnusable,
+    ConferenceRosterUnreadable,
+)
 from dispatch.incident.models import Incident
 from dispatch.plugin import service as plugin_service
 
@@ -225,6 +229,16 @@ def delete_unowned_conference(conference_plugin, resource_id, original_error: Ex
 
     try:
         conference_plugin.delete(resource_id)
+    except ConferenceAlreadyGone:
+        # Nothing outlived the failed create, which is the entire point of this
+        # function. Reported at the same level as a completed delete because it
+        # is the same outcome, and the cause is still worth the line.
+        log.warning(
+            "Conference %s needed no deleting: the provider has no such meeting. Cause: %s",
+            resource_id,
+            type(original_error).__name__,
+        )
+        return
     except Exception as e:
         # Logged here and never raised: the caller reports the failure that made
         # cleanup necessary, and letting a failed DELETE replace a database error
@@ -236,8 +250,16 @@ def delete_unowned_conference(conference_plugin, resource_id, original_error: Ex
         # bound parameters, which here are the weblink (Zoom puts the passcode
         # in `?pwd=`) and the challenge. The caller re-raises the original with
         # its own traceback, which is where that detail belongs.
+        #
+        # It does not claim the meeting is unreachable, because that is not
+        # known here and is sometimes plainly false -- Zoom refuses to delete a
+        # meeting that has started (400, code 3002), which means the bridge is
+        # live and in use (issue #120). What is true either way is that no
+        # `Conference` row will ever point at it, so nothing in Dispatch will
+        # try again.
         log.error(
-            "Orphaned conference %s could not be deleted, and is now unreachable. Reason: %s",
+            "Orphaned conference %s could not be deleted. No incident references it, so "
+            "nothing will retry: check the provider. Reason: %s",
             resource_id,
             e,
         )
@@ -387,7 +409,9 @@ def delete_conference(conference: Conference, project_id: int, db_session: Sessi
     rather than allowed to wedge the delete flow. Nothing is written to the
     incident timeline -- the incident it belongs to is about to go with it,
     which leaves the log as the only record a leaked bridge ever gets. Hence
-    the identifiers on it.
+    the identifiers on it -- and hence the separate handler for a provider that
+    has no such meeting, which is the desired end state rather than a leak
+    (issue #120).
 
     `create_conference` writes the provider's meeting id into both
     `conference_id` and `resource_id`, so the two are equal and passing either
@@ -419,6 +443,17 @@ def delete_conference(conference: Conference, project_id: int, db_session: Sessi
             # #114, so the signature is documented; it still raises
             # `NotImplementedError` rather than being abstract.
             plugin.instance.delete(conference.conference_id)
+        except ConferenceAlreadyGone as e:
+            # Not a failure: teardown wanted the bridge gone and the provider
+            # says there is none. Logged rather than dropped -- a teardown that
+            # found nothing is evidence about what the provider was holding, and
+            # this log line is the only record either way (issue #120).
+            log.info(
+                "Conference %s was already gone at the provider (project %s). %s",
+                conference.conference_id,
+                project_id,
+                e,
+            )
         except Exception as e:
             # `log.exception` alone records the reason but not the subject, and
             # Zoom's message names neither the meeting nor the project.

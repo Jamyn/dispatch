@@ -74,11 +74,16 @@ class FakeCalendar:
     write and the client never learned it.
     """
 
-    def __init__(self, failures=None, fail_after_create: bool = False):
+    def __init__(self, failures=None, fail_after_create: bool = False, delete_failures=None):
         self.calls: list[Call] = []
         self.events_store: dict[str, dict] = {}
         self.failures = list(failures or [])
         self.fail_after_create = fail_after_create
+        # Consumed one per ``delete`` attempt, the same way ``failures`` is
+        # consumed per ``insert``. Only needed for statuses the store cannot
+        # produce on its own -- 410, say, which Calendar answers for an event it
+        # remembers deleting.
+        self.delete_failures = list(delete_failures or [])
         self._auto_id = 0
 
     # --- the recorded surface ------------------------------------------
@@ -147,7 +152,18 @@ class FakeCalendar:
         return self.events_store[event_id]
 
     def _delete(self, **kwargs) -> None:
-        self.events_store.pop(kwargs.get("eventId"), None)
+        if self.delete_failures:
+            failure = self.delete_failures.pop(0)
+            if failure is not None:
+                raise failure
+
+        # Calendar 404s a delete naming an event it does not hold, rather than
+        # answering "already done". That refusal is the whole of issue #120.
+        event_id = kwargs.get("eventId")
+        if event_id not in self.events_store:
+            raise http_error(404, "Not Found", "notFound")
+
+        del self.events_store[event_id]
         return None
 
     # --- the googleapiclient shape --------------------------------------
