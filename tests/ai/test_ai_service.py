@@ -13,6 +13,13 @@ from dispatch.ai.enums import AIEventSource, AIEventDescription
 from dispatch.plugins.dispatch_slack.models import IncidentSubjects, CaseSubjects
 from dispatch.enums import EventType
 from dispatch.types import Subject
+from tests.plugins.dispatch_openai.fake_openai import build_configuration
+
+# The plugin is mocked here on purpose -- these tests are about the service's
+# own branching, not the plugin. Its *configuration* is real, though: a Mock
+# answers `configuration.chat_completion_model` as readily as a field that
+# exists, which is exactly how issue #75 stayed green. The contract between the
+# service and a real plugin is covered in `test_ai_service_contract.py`.
 
 
 class TestGenerateReadInSummary:
@@ -67,7 +74,7 @@ class TestGenerateReadInSummary:
 
             # Mock AI plugin
             mock_ai_plugin = Mock()
-            mock_ai_plugin.instance.configuration.chat_completion_model = "gpt-4"
+            mock_ai_plugin.instance.configuration = build_configuration()
             mock_ai_plugin.instance.chat_parse.return_value = mock_read_in_summary
 
             # Mock conversation plugin
@@ -132,7 +139,7 @@ class TestGenerateReadInSummary:
 
             # Mock AI plugin
             mock_ai_plugin = Mock()
-            mock_ai_plugin.instance.configuration.chat_completion_model = "gpt-4"
+            mock_ai_plugin.instance.configuration = build_configuration()
             mock_ai_plugin.instance.chat_parse.return_value = mock_read_in_summary
 
             # Mock conversation plugin
@@ -226,7 +233,7 @@ class TestGenerateReadInSummary:
 
             # Mock AI plugin
             mock_ai_plugin = Mock()
-            mock_ai_plugin.instance.configuration.chat_completion_model = "gpt-4"
+            mock_ai_plugin.instance.configuration = build_configuration()
             mock_ai_plugin.instance.chat_parse.return_value = mock_read_in_summary
 
             # Mock conversation plugin
@@ -337,7 +344,7 @@ class TestGenerateReadInSummary:
 
             # Mock AI plugin
             mock_ai_plugin = Mock()
-            mock_ai_plugin.instance.configuration.chat_completion_model = "gpt-4"
+            mock_ai_plugin.instance.configuration = build_configuration()
 
             # Mock conversation plugin that returns no conversation
             mock_conv_plugin = Mock()
@@ -386,7 +393,7 @@ class TestGenerateReadInSummary:
 
             # Mock AI plugin that throws an error
             mock_ai_plugin = Mock()
-            mock_ai_plugin.instance.configuration.chat_completion_model = "gpt-4"
+            mock_ai_plugin.instance.configuration = build_configuration()
             mock_ai_plugin.instance.chat_parse.side_effect = Exception("AI service error")
 
             # Mock conversation plugin
@@ -515,7 +522,7 @@ class TestGenerateTacticalReport:
         ):
             # Mock AI plugin
             mock_ai_plugin = Mock()
-            mock_ai_plugin.instance.configuration.chat_completion_model = "gpt-4"
+            mock_ai_plugin.instance.configuration = build_configuration()
             mock_ai_plugin.instance.chat_parse.return_value = mock_tactical_report
 
             # Mock conversation plugin
@@ -655,7 +662,7 @@ class TestGenerateTacticalReport:
         ):
             # Mock AI plugin with error
             mock_ai_plugin = Mock()
-            mock_ai_plugin.instance.configuration.chat_completion_model = "gpt-4"
+            mock_ai_plugin.instance.configuration = build_configuration()
             mock_ai_plugin.instance.chat_parse.side_effect = Exception("AI error")
 
             # Mock conversation plugin
