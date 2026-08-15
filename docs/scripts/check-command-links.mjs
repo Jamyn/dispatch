@@ -28,8 +28,47 @@ const LINKED_ENTRY = /^\s*[-*+][ \t]+\[`(\/[^`]+)`\]\(([^)]*)\)\s*$/
 const BARE_ENTRY = /^\s*[-*+][ \t]+`(\/[^`]+)`\s*$/
 const HEADING = /^(#{1,6})[ \t]+(.*?)[ \t]*$/
 const EXPLICIT_ID = /[ \t]*\{#([^}\s]+)\}$/
-const COMMENT_ONLY = /^\s*(<!--.*-->|\{\/\*.*\*\/\})\s*$/
 const FENCE = /^\s*(`{3,}|~{3,})/
+
+const COMMENTS = [
+  ["<!--", "-->"],
+  ["{/*", "*/}"],
+]
+
+/**
+ * Blanks out comment spans so a commented-out heading or list entry is not
+ * read as a real one. Tracked across lines rather than matched by a
+ * single-line regex, because both comment syntaxes may span newlines.
+ */
+function stripComments(lines, inFence) {
+  let closing = null
+  return lines.map((line, i) => {
+    if (inFence[i]) return line
+    let rest = line
+    let kept = ""
+    while (rest !== "") {
+      if (closing) {
+        const end = rest.indexOf(closing)
+        if (end === -1) break
+        rest = rest.slice(end + closing.length)
+        closing = null
+        continue
+      }
+      const next = COMMENTS.map(([open, close]) => [rest.indexOf(open), open, close])
+        .filter(([at]) => at !== -1)
+        .sort((a, b) => a[0] - b[0])[0]
+      if (!next) {
+        kept += rest
+        break
+      }
+      const [at, open, close] = next
+      kept += rest.slice(0, at)
+      rest = rest.slice(at + open.length)
+      closing = close
+    }
+    return kept
+  })
+}
 
 /** Splits `## Heading {#id}` into its text and its explicit id, if any. */
 function parseHeading(line) {
@@ -67,10 +106,12 @@ export function checkCommandLinks(source) {
     inFence.push(openFence !== null)
   }
 
+  const content = stripComments(lines, inFence)
+
   // Sections are collected across the whole file; the list references them from
   // above, and they are the only h3s on the page.
   const sections = new Map()
-  lines.forEach((line, i) => {
+  content.forEach((line, i) => {
     if (inFence[i]) return
     const heading = parseHeading(line)
     if (!heading || heading.level !== 3 || !heading.text.startsWith("/")) return
@@ -85,7 +126,7 @@ export function checkCommandLinks(source) {
     })
   })
 
-  const start = lines.findIndex((line, i) => {
+  const start = content.findIndex((line, i) => {
     if (inFence[i]) return false
     const heading = parseHeading(line)
     return heading?.level === 2 && heading.text === LIST_HEADING
@@ -97,9 +138,9 @@ export function checkCommandLinks(source) {
   const listed = new Map()
   for (let i = start + 1; i < lines.length; i++) {
     if (inFence[i]) continue
-    const line = lines[i]
+    const line = content[i]
     if (parseHeading(line)?.level <= 2) break // next section of the page
-    if (line.trim() === "" || COMMENT_ONLY.test(line)) continue
+    if (line.trim() === "") continue
 
     const at = `line ${i + 1}`
     const bare = BARE_ENTRY.exec(line)

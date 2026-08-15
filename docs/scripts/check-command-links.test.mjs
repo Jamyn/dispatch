@@ -159,6 +159,37 @@ test("blank lines and comments in the command list are allowed", () => {
   assert.deepEqual(checkCommandLinks(source), [])
 })
 
+// A single-line regex cannot see these, which is what CodeQL's js/bad-tag-filter
+// caught: the entries would have been reported as malformed list lines.
+test("a comment spanning several lines in the command list is allowed", () => {
+  const source = page(
+    [
+      "- [`/dispatch-summary`](#dispatch-summary)",
+      "{/* a note to editors",
+      "   continued onto a second line */}",
+      "<!-- and another",
+      "     one -->",
+    ],
+    ["/dispatch-summary"]
+  )
+  assert.deepEqual(checkCommandLinks(source), [])
+})
+
+test("a commented-out section does not count as a section", () => {
+  const source = [
+    "## All Slack commands",
+    "",
+    "- [`/dispatch-summary`](#dispatch-summary)",
+    "",
+    "## People",
+    "",
+    "{/*",
+    "### /dispatch-summary",
+    "*/}",
+  ].join("\n")
+  assert.match(only(source), /has no "### \/dispatch-summary" section/)
+})
+
 test("fenced code blocks are not parsed as entries or sections", () => {
   const source = [
     "## All Slack commands",
