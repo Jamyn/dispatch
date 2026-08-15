@@ -1,0 +1,39 @@
+name: Docs checks
+
+# Cheap docs gates, deliberately NOT path-filtered so this job reports on every
+# PR and can therefore be made a required check (a path-filtered required check
+# permanently blocks PRs that miss the filter). The expensive Docusaurus build
+# stays in docs-build.yml, which is path-filtered and advisory.
+#
+# What this catches that the build cannot: a Slack command listed on the
+# Incident Commander page as a plain code span with no link at all. MDX renders
+# that without complaint and there is no anchor for onBrokenAnchors to reject,
+# so it shipped unnoticed (issue #82).
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  docs-links:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      # No npm ci: both steps are plain Node with no dependencies, and skipping
+      # the install is what keeps this cheap enough to run on every PR.
+      - run: npm run check-command-links
+      - run: npm test

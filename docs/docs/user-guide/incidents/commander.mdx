@@ -15,11 +15,11 @@ All Slack commands are listed below, or you may view _groups_ of commands relati
 - [`/dispatch-add-timeline-event`](#dispatch-add-timeline-event)
 - [`/dispatch-assign-role`](#dispatch-assign-role)
 - [`/dispatch-engage-oncall`](#dispatch-engage-oncall)
+- [`/dispatch-list-incidents`](#dispatch-list-incidents)
 - [`/dispatch-list-my-tasks`](#dispatch-list-my-tasks)
 - [`/dispatch-list-participants`](#dispatch-list-participants)
 - [`/dispatch-list-tasks`](#dispatch-list-tasks)
 - [`/dispatch-list-workflows`](#dispatch-list-workflows)
-- `/dispatch-list-incidents`
 - [`/dispatch-notifications-group`](#dispatch-notifications-group)
 - [`/dispatch-report-executive`](#dispatch-report-executive)
 - [`/dispatch-report-incident`](#dispatch-report-incident)
@@ -29,8 +29,9 @@ All Slack commands are listed below, or you may view _groups_ of commands relati
 - [`/dispatch-run-workflow`](#dispatch-run-workflow)
 - [`/dispatch-create-task`](#dispatch-create-task)
 - [`/dispatch-create-case`](#dispatch-create-case)
-- `/dispatch-list-signals`
-- `/dispatch-summary`
+- [`/dispatch-list-signals`](#dispatch-list-signals)
+- [`/dispatch-summary`](#dispatch-summary)
+
 ## People
 
 These commands help manage the people helping resolve the incident.
@@ -226,3 +227,23 @@ This command will create a case for the current incident.
 <div style={{textAlign: 'center'}}>
 
 </div>
+
+{/* The three sections below have no screenshot yet; capturing one needs a live Slack workspace. See issue #135. */}
+
+### /dispatch-list-incidents
+
+Use `/dispatch-list-incidents` to open a modal listing every incident across every project that is currently active or stable, plus any incident closed in the last 24 hours. Each entry links to the incident in Dispatch and shows its commander, project, status, type, severity, and priority.
+
+The command takes no arguments and can be run outside an incident channel as well as inside one. Restricted incidents are never listed, and the modal shows at most 49 incidents; use the Dispatch web interface if your deployment has more.
+
+### /dispatch-list-signals
+
+Use `/dispatch-list-signals` to see which signal definitions send their cases to the conversation you run it from. It opens a modal listing every definition whose case type targets that conversation, showing each one's name and variant alongside a [Snooze](../../administration/settings/signal/filter.mdx#snooze-filter) button that temporarily stops it creating cases. Longer lists are paged 25 at a time.
+
+The command takes no arguments. If no case type targets that conversation, the modal tells you so.
+
+### /dispatch-summary
+
+Use `/dispatch-summary` in an incident or case channel to get an AI-generated read-in summary of what has happened so far. It is most useful when you are pulled in late or take the incident over partway through. The summary is shown only to you, and Dispatch labels it as AI-generated — check it before you act on it.
+
+Dispatch declines and tells you why when read-in summaries are not enabled for the incident or case type, when the incident or case is restricted, or when a case has no dedicated channel. If the project has no artificial intelligence plugin enabled, it reports only that the summary is unavailable — ask your administrator to check the project's plugins.
