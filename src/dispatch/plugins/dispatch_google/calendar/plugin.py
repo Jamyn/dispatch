@@ -18,7 +18,7 @@ from googleapiclient.errors import HttpError
 from pytz import timezone
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from dispatch.exceptions import ConferenceCreatedButUnusable
+from dispatch.exceptions import ConferenceAlreadyGone, ConferenceCreatedButUnusable
 from dispatch.decorators import apply, counter, timer
 from dispatch.plugins.bases import ConferencePlugin
 from dispatch.plugins.dispatch_google import calendar as google_calendar_plugin
@@ -51,6 +51,12 @@ RETRYABLE_403_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded"}
 # Google answers 409 to an insert whose client-supplied event id already exists.
 # `create_event` relies on this to recognise its own earlier attempt.
 DUPLICATE_STATUS = 409
+
+# Calendar 404s a delete naming an event it does not hold, and 410s one it
+# remembers deleting. Both mean the same thing to teardown: it is not there
+# (issue #120). Read only by `delete_event` -- see the note there about why this
+# is not a `make_call` concern.
+GONE_STATUSES = frozenset({404, 410})
 
 # Failures below the API: the request may or may not have been processed, and
 # the exception cannot say which. httplib2 surfaces more than `ConnectionError`
@@ -165,7 +171,22 @@ def add_participant(client: Any, event_id: int, participant: str):
 
 
 def delete_event(client, event_id: int):
-    return make_call(client.events(), "delete", calendarId="primary", eventId=event_id)
+    """Delete a calendar event.
+
+    A not-found answer is reported as `ConferenceAlreadyGone` rather than a
+    failure: the event is not there, which is what the delete wanted (issue
+    #120). Converted here rather than in `make_call`, which every other call
+    shares: `create_event` catches `HttpError` itself to recover its own 409
+    (issue #122), and a 404 from a read or a roster update deleted nothing.
+    """
+    try:
+        return make_call(client.events(), "delete", calendarId="primary", eventId=event_id)
+    except HttpError as e:
+        if e.resp.status in GONE_STATUSES:
+            raise ConferenceAlreadyGone(
+                f"Google Calendar found no event {event_id} to delete (HTTP {e.resp.status})."
+            ) from e
+        raise
 
 
 def create_event(

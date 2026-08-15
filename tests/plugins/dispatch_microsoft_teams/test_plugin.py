@@ -7,7 +7,7 @@ fallback, same instrumentation, same interface surface.
 import pytest
 from pydantic import SecretStr
 
-from dispatch.exceptions import DispatchPluginException
+from dispatch.exceptions import ConferenceAlreadyGone, DispatchPluginException
 
 from tests.plugins.dispatch_microsoft_teams.graph_fake import (
     AUTHORITY,
@@ -380,20 +380,17 @@ def test_the_plugin_implements_the_same_surface_as_zoom(method):
     assert parameters(MicrosoftTeamsConferencePlugin) == parameters(ZoomConferencePlugin)
 
 
-def test_deleting_a_meeting_that_is_already_gone_raises(graph, teams_plugin):
+def test_deleting_a_meeting_that_is_already_gone_reports_it_as_gone(graph, teams_plugin):
     """Graph answers 404, not 204, for a meeting that was already deleted.
 
-    Zoom behaves the same way (``test_a_rejected_deletion_raises``). Neither
-    plugin reclassifies it as success, so a retried teardown is a logged
-    failure rather than a silent no-op -- ``delete_conference`` swallows it,
-    which is what keeps a repeat attempt from wedging the incident delete flow.
+    Zoom behaves the same way. Neither reports it as a failed deletion, because
+    the meeting being absent is what the delete wanted -- see
+    ``test_teams_delete_already_gone.py`` for the rest (issue #120).
     """
     graph.delete = (404, {"error": {"code": "NotFound", "message": "Meeting not found."}}, {})
 
-    with pytest.raises(DispatchPluginException) as excinfo:
+    with pytest.raises(ConferenceAlreadyGone):
         teams_plugin.delete(MEETING_ID)
-
-    assert "Meeting not found." in str(excinfo.value)
 
 
 def test_delete_propagates_a_graph_failure(graph, teams_plugin):

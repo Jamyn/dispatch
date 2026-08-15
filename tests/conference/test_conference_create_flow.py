@@ -34,7 +34,11 @@ from sqlalchemy.exc import OperationalError
 
 from dispatch.conference.flows import create_conference
 from dispatch.conference.models import Conference
-from dispatch.exceptions import ConferenceCreatedButUnusable, DispatchPluginException
+from dispatch.exceptions import (
+    ConferenceAlreadyGone,
+    ConferenceCreatedButUnusable,
+    DispatchPluginException,
+)
 from dispatch.plugins.base import plugins, register
 from dispatch.plugins.bases import ConferencePlugin
 
@@ -503,6 +507,70 @@ def test_a_cleanup_failure_is_logged_separately(
 
     assert "987654321" in caplog.text
     assert "provider DELETE failed with HTTP 500" in caplog.text
+
+
+def test_a_cleanup_that_finds_no_meeting_is_not_reported_as_a_leak(
+    session, incident, register_conference_plugin, caplog
+):
+    """Compensation exists so no meeting outlives the failed create (issue #120).
+
+    A provider with no such meeting has delivered exactly that, so the log must
+    not claim an orphan was left behind. Asserted at ERROR because that is the
+    level the leak report uses and the level an operator filters on.
+    """
+    register_conference_plugin(
+        response=meeting(id=987654321),
+        delete_error=ConferenceAlreadyGone("no such meeting"),
+    )
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(ValidationError):
+            create_conference(incident=incident, participants=[], db_session=session)
+
+    assert caplog.text == ""
+
+
+def test_a_cleanup_that_finds_no_meeting_is_still_recorded(
+    session, incident, register_conference_plugin, caplog
+):
+    register_conference_plugin(
+        response=meeting(id=987654321),
+        delete_error=ConferenceAlreadyGone("no such meeting"),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(ValidationError):
+            create_conference(incident=incident, participants=[], db_session=session)
+
+    assert "987654321" in caplog.text
+    # The wording, not just the id: the pre-fix ERROR line contained both the id
+    # and the exception's own text, so a looser assertion passed unfixed.
+    assert "needed no deleting" in caplog.text
+
+
+def test_the_cleanup_failure_log_does_not_claim_the_meeting_is_unreachable(
+    session, incident, register_conference_plugin, caplog
+):
+    """It cannot know that, and for Zoom's 3002 it is plainly false.
+
+    "Cannot delete a meeting that has started" means the bridge is live and in
+    use -- the opposite of unreachable (issue #120). What is true either way is
+    that no incident references it, so nothing in Dispatch will retry.
+    """
+    register_conference_plugin(
+        response=meeting(id=987654321),
+        delete_error=DispatchPluginException(
+            "Zoom deletion of the meeting failed with HTTP 400: Meeting is in progress."
+        ),
+    )
+
+    with caplog.at_level(logging.ERROR):
+        with pytest.raises(ValidationError):
+            create_conference(incident=incident, participants=[], db_session=session)
+
+    assert "unreachable" not in caplog.text
+    assert "987654321" in caplog.text
+    assert "Meeting is in progress" in caplog.text
 
 
 def test_the_cleanup_log_does_not_repeat_the_weblink_or_the_passcode(

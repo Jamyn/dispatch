@@ -75,7 +75,7 @@ from types import SimpleNamespace
 
 from dispatch.conference import flows as conference_flows
 from dispatch.conference.models import Conference
-from dispatch.exceptions import DispatchPluginException
+from dispatch.exceptions import ConferenceAlreadyGone, DispatchPluginException
 
 AUTHORITY = os.environ.get("DISPATCH_MSTEAMS_TEST_AUTHORITY")
 CLIENT_ID = os.environ.get("DISPATCH_MSTEAMS_TEST_CLIENT_ID")
@@ -127,6 +127,13 @@ def cleanup(client):
     for meeting_id in created:
         try:
             client.delete_meeting(meeting_id)
+        except ConferenceAlreadyGone:
+            # Two tests below register a meeting and then delete it themselves,
+            # precisely so a broken `delete` cannot orphan it. Graph answers
+            # this second delete with a 404, which is the cleanup succeeding --
+            # warning about a leak there would train the reader to ignore the
+            # warning that matters (issue #120).
+            continue
         except Exception as e:  # noqa: BLE001 - cleanup must not mask the real failure
             # A bare print is swallowed by pytest's capture on a passing test,
             # which is exactly when a leaked meeting goes unnoticed.

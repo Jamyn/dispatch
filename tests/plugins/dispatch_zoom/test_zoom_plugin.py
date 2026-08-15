@@ -317,12 +317,18 @@ def test_a_failure_body_is_not_echoed_into_the_timeline(zoom, zoom_plugin):
 
 
 def test_a_rejected_deletion_raises(zoom, zoom_plugin):
-    zoom.response = (404, {"message": "Meeting does not exist"})
+    """Zoom's own reason reaches the caller, which is the only record of a leak.
+
+    404 is the one status this does not cover: the meeting is not there, which
+    is what the delete wanted, and it is reported as `ConferenceAlreadyGone`
+    instead -- see ``test_zoom_delete_already_gone.py`` (issue #120).
+    """
+    zoom.response = (400, {"message": "Meeting is in progress"})
 
     with pytest.raises(DispatchPluginException) as excinfo:
         zoom_plugin.delete("987654321")
 
-    assert "Meeting does not exist" in str(excinfo.value)
+    assert "Meeting is in progress" in str(excinfo.value)
 
 
 def test_an_unreadable_configuration_says_what_to_do(zoom, zoom_plugin):

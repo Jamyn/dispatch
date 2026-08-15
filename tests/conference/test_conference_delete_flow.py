@@ -27,7 +27,7 @@ import logging
 import pytest
 
 from dispatch.conference.flows import delete_conference
-from dispatch.exceptions import DispatchPluginException
+from dispatch.exceptions import ConferenceAlreadyGone, DispatchPluginException
 
 from tests.factories import ConferenceFactory, PluginFactory, PluginInstanceFactory
 
@@ -225,21 +225,64 @@ def test_the_failure_log_does_not_leak_the_passcode_or_join_link(
     assert not leaked
 
 
+# --- the provider has no such meeting (issue #120) --------------------------
+
+
 def test_a_meeting_that_is_already_gone_is_not_fatal(
+    session, incident, conference, active_conference_plugin
+):
+    """A repeat attempt -- a retried request, a second click -- must not wedge the flow."""
+    active_conference_plugin.failure = ConferenceAlreadyGone("no such meeting")
+
+    delete_conference(conference=conference, project_id=incident.project.id, db_session=session)
+
+    assert active_conference_plugin.deleted == [PROVIDER_MEETING_ID]
+
+
+def test_a_meeting_that_is_already_gone_is_not_reported_as_a_failure(
     session, incident, conference, active_conference_plugin, caplog
 ):
-    """Both plugins raise on 404 rather than treating it as done.
+    """The whole of issue #120: teardown's intent was met, so nothing leaked.
 
-    Nothing here reclassifies that into success: the other resource flows log
-    every provider refusal the same way, and a deletion that was already
-    performed is worth a line in the log. What matters is that a repeat attempt
-    -- a retried request, a second click -- cannot wedge the delete flow.
+    Asserted at ERROR specifically. Before the fix this line was emitted by
+    ``log.exception``, which is where an operator looks for leaked resources,
+    and it named a bridge that did not exist.
+    """
+    active_conference_plugin.failure = ConferenceAlreadyGone("no such meeting")
+
+    with caplog.at_level(logging.ERROR):
+        delete_conference(conference=conference, project_id=incident.project.id, db_session=session)
+
+    assert caplog.text == ""
+
+
+def test_a_meeting_that_is_already_gone_is_still_recorded(
+    session, incident, conference, active_conference_plugin, caplog
+):
+    """Not silence either: what the provider was holding is worth knowing."""
+    active_conference_plugin.failure = ConferenceAlreadyGone("no such meeting")
+
+    with caplog.at_level(logging.INFO):
+        delete_conference(conference=conference, project_id=incident.project.id, db_session=session)
+
+    assert PROVIDER_MEETING_ID in caplog.text
+    assert "already gone" in caplog.text
+
+
+def test_a_genuine_failure_is_not_swallowed_by_the_already_gone_handler(
+    session, incident, conference, active_conference_plugin, caplog
+):
+    """``ConferenceAlreadyGone`` is a ``DispatchPluginException``, so ordering matters.
+
+    A handler placed after the broad one, or a sibling that caught the base
+    class, would report every provider refusal as an already-deleted meeting.
     """
     active_conference_plugin.failure = DispatchPluginException(
-        "Microsoft Graph deletion failed with HTTP 404: Meeting not found."
+        "Zoom deletion of the meeting failed with HTTP 500: Internal error."
     )
 
     with caplog.at_level(logging.ERROR):
         delete_conference(conference=conference, project_id=incident.project.id, db_session=session)
 
-    assert "HTTP 404" in caplog.text
+    assert "HTTP 500" in caplog.text
+    assert PROVIDER_MEETING_ID in caplog.text
