@@ -12,7 +12,7 @@ import random
 import requests
 
 from dispatch.decorators import apply, counter, timer
-from dispatch.exceptions import DispatchPluginException
+from dispatch.exceptions import ConferenceCreatedButUnusable, DispatchPluginException
 from dispatch.plugins import dispatch_zoom as zoom_plugin
 from dispatch.plugins.bases import ConferencePlugin
 
@@ -188,12 +188,26 @@ class ZoomConferencePlugin(ConferencePlugin):
             duration=self.configuration.default_duration_minutes,
         )
 
+        # Zoom has committed the meeting by the time it answers 2xx, so every
+        # rejection below strands a live bridge. They all raise
+        # `ConferenceCreatedButUnusable`, which is what tells `create_conference`
+        # to delete it -- carrying the id when the response yielded one, and
+        # None when it did not, which still gets the possible leak logged rather
+        # than filed under "the provider was down" (issue #114).
         try:
             conference_json = conference_response.json()
         except ValueError as e:
-            raise DispatchPluginException(
+            raise ConferenceCreatedButUnusable(
                 "Zoom accepted the meeting creation but returned a body that is not JSON."
             ) from e
+
+        if not isinstance(conference_json, dict):
+            # Otherwise `.get` below is an AttributeError, which reads as a
+            # Dispatch bug rather than as a meeting Zoom is still holding.
+            raise ConferenceCreatedButUnusable(
+                f"Zoom accepted the meeting creation but returned a "
+                f"{type(conference_json).__name__} where an object was expected."
+            )
 
         # Deliberately not `.get(key, default)`. Defaulting here is how an error
         # response became a conference pointing at zoom.us with id "1".
@@ -203,8 +217,14 @@ class ZoomConferencePlugin(ConferencePlugin):
         # challenge is representable downstream. Teams behaves the same way.
         missing = [k for k in ("join_url", "id") if not conference_json.get(k)]
         if missing:
-            raise DispatchPluginException(
-                f"Zoom created the meeting but omitted {', '.join(missing)}."
+            meeting_id = conference_json.get("id")
+            raise ConferenceCreatedButUnusable(
+                f"Zoom created the meeting but omitted {', '.join(missing)}.",
+                # Stringified to match what a successful create returns, since
+                # Zoom sends the id as a JSON number. Never a fallback to
+                # join_url or topic: those are not unique and could name another
+                # incident's meeting.
+                resource_id=str(meeting_id) if meeting_id else None,
             )
 
         return {

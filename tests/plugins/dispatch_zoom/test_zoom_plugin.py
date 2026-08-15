@@ -231,6 +231,73 @@ def test_a_creation_missing_the_join_url_raises(zoom, zoom_plugin):
     assert "join_url" in str(excinfo.value)
 
 
+def test_a_creation_missing_the_join_url_carries_the_id_for_cleanup(zoom, zoom_plugin):
+    """Zoom already made the meeting, so the flow has to be able to unmake it.
+
+    This check runs after the create succeeded, which is what leaves a live
+    bridge with no database row behind it (issue #114). The id travels on the
+    exception because it is the only thing that can identify the meeting, and
+    the plugin is the only place that still has it.
+    """
+    from dispatch.exceptions import ConferenceCreatedButUnusable
+
+    zoom.response = (201, {"id": 987654321, "password": "zoompass"})
+
+    with pytest.raises(ConferenceCreatedButUnusable) as excinfo:
+        zoom_plugin.create("dispatch-incident-1")
+
+    # A string, exactly as a successful create would have returned it -- Zoom
+    # sends the id as a JSON number.
+    assert excinfo.value.resource_id == "987654321"
+
+
+def test_a_creation_missing_the_id_still_reports_a_meeting_may_have_leaked(zoom, zoom_plugin):
+    """No id means no safe target -- but it is still the worst leak of the lot.
+
+    Zoom made a joinable meeting and named nothing Dispatch can delete it by,
+    so it is unrecoverable. Raising the plain `DispatchPluginException` here
+    would file it under "the provider was down", which reads identically to the
+    harmless case; `ConferenceCreatedButUnusable` with no id is what gets the
+    flow to log it as a possible orphan. Deletion behaviour is unchanged --
+    `delete_unowned_conference` refuses a falsy id -- and the alternative of
+    looking the meeting up by topic or join_url could match another incident's
+    bridge.
+    """
+    from dispatch.exceptions import ConferenceCreatedButUnusable
+
+    zoom.response = (201, {"join_url": "https://zoom.us/j/987654321"})
+
+    with pytest.raises(ConferenceCreatedButUnusable) as excinfo:
+        zoom_plugin.create("dispatch-incident-1")
+
+    assert excinfo.value.resource_id is None
+    assert "id" in str(excinfo.value)
+
+
+def test_a_body_zoom_returns_that_is_not_json_is_reported_as_a_possible_orphan(zoom, zoom_plugin):
+    """The message already says Zoom accepted the create; the type must agree."""
+    from dispatch.exceptions import ConferenceCreatedButUnusable
+
+    zoom.response = (201, b"<html>not json</html>")
+
+    with pytest.raises(ConferenceCreatedButUnusable) as excinfo:
+        zoom_plugin.create("dispatch-incident-1")
+
+    assert excinfo.value.resource_id is None
+
+
+def test_a_body_zoom_returns_that_is_not_an_object_is_reported_as_a_possible_orphan(
+    zoom, zoom_plugin
+):
+    """A JSON array would otherwise be an AttributeError on `.get`."""
+    from dispatch.exceptions import ConferenceCreatedButUnusable
+
+    zoom.response = (201, [{"id": 1}])
+
+    with pytest.raises(ConferenceCreatedButUnusable):
+        zoom_plugin.create("dispatch-incident-1")
+
+
 def test_a_failure_body_is_not_echoed_into_the_timeline(zoom, zoom_plugin):
     """The API request carries a live bearer token.
 

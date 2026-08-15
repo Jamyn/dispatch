@@ -116,6 +116,97 @@ def test_an_incomplete_meeting_raises_rather_than_returning_a_partial(
     assert missing in str(excinfo.value)
 
 
+def test_a_meeting_missing_the_join_url_carries_its_id_for_cleanup(graph, teams_plugin):
+    """Graph already made the meeting, so the flow has to be able to unmake it.
+
+    This check runs after the create succeeded, which is what leaves a live
+    bridge with no database row behind it (issue #114). The id travels on the
+    exception because it is the only thing that can identify the meeting, and
+    the plugin is the only place that still has it.
+    """
+    from dispatch.exceptions import ConferenceCreatedButUnusable
+
+    graph.meeting = (201, {"id": MEETING_ID}, {})
+
+    with pytest.raises(ConferenceCreatedButUnusable) as excinfo:
+        teams_plugin.create("dispatch-incident-1")
+
+    assert excinfo.value.resource_id == MEETING_ID
+
+
+def test_a_meeting_missing_its_id_still_reports_a_meeting_may_have_leaked(graph, teams_plugin):
+    """No id means no safe target -- but it is still the worst leak of the lot.
+
+    Graph made a joinable meeting and named nothing Dispatch can delete it by,
+    so it is unrecoverable. Raising the plain `DispatchPluginException` here
+    would file it under "the provider was down", which reads identically to the
+    harmless case; `ConferenceCreatedButUnusable` with no id is what gets the
+    flow to log it as a possible orphan. Deletion behaviour is unchanged --
+    `delete_unowned_conference` refuses a falsy id -- and the alternative of
+    looking the meeting up by subject or joinWebUrl could match another
+    incident's bridge.
+    """
+    from dispatch.exceptions import ConferenceCreatedButUnusable
+
+    graph.meeting = (201, {"joinWebUrl": JOIN_URL}, {})
+
+    with pytest.raises(ConferenceCreatedButUnusable) as excinfo:
+        teams_plugin.create("dispatch-incident-1")
+
+    assert excinfo.value.resource_id is None
+    assert "id" in str(excinfo.value)
+
+
+def test_a_meeting_missing_both_fields_names_the_absent_id_too(graph, teams_plugin):
+    """The id is the fact that explains why nothing could be cleaned up.
+
+    Raising on the first miss reported only `joinWebUrl` and dropped it.
+    """
+    graph.meeting = (201, {"subject": "Situation Room"}, {})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        teams_plugin.create("dispatch-incident-1")
+
+    assert "joinWebUrl" in str(excinfo.value)
+    assert "id" in str(excinfo.value)
+
+
+def test_a_meeting_whose_passcode_settings_are_malformed_keeps_its_id_for_cleanup(
+    graph, teams_plugin
+):
+    """`build_challenge` runs after the id guard, holding a good meeting id.
+
+    A non-object `joinMeetingIdSettings` raises inside it, and letting that
+    escape would throw the id away along with any chance of cleaning up.
+    """
+    from dispatch.exceptions import ConferenceCreatedButUnusable
+
+    graph.meeting = (
+        201,
+        {"id": MEETING_ID, "joinWebUrl": JOIN_URL, "joinMeetingIdSettings": "not-an-object"},
+        {},
+    )
+
+    with pytest.raises(ConferenceCreatedButUnusable) as excinfo:
+        teams_plugin.create("dispatch-incident-1")
+
+    assert excinfo.value.resource_id == MEETING_ID
+
+
+def test_a_body_graph_returns_that_is_not_json_is_reported_as_a_possible_orphan(
+    graph, teams_plugin
+):
+    """Graph committed the meeting before answering; the type must say so."""
+    from dispatch.exceptions import ConferenceCreatedButUnusable
+
+    graph.meeting = (201, b"<html>not json</html>", {})
+
+    with pytest.raises(ConferenceCreatedButUnusable) as excinfo:
+        teams_plugin.create("dispatch-incident-1")
+
+    assert excinfo.value.resource_id is None
+
+
 def test_the_failure_message_does_not_quote_the_meeting_body(graph, teams_plugin):
     """This message reaches the incident timeline, which is exported and AI-fed.
 
