@@ -34,4 +34,6 @@ jobs:
           cache: npm
           cache-dependency-path: docs/package-lock.json
       - run: npm ci --no-audit --no-fund
+      # onBrokenLinks/onBrokenAnchors are set to "throw", so this is also the
+      # gate on every internal link and anchor across the site.
       - run: npm run build

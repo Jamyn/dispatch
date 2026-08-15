@@ -25,6 +25,11 @@ const config = {
 
   onBrokenLinks: "throw",
 
+  // Docusaurus defaults this to "warn", so a `](#missing)` link renders as a
+  // link that goes nowhere and the build still succeeds. Throwing is what
+  // makes the build the authority on whether an anchor resolves.
+  onBrokenAnchors: "throw",
+
   markdown: {
     hooks: {
       onBrokenMarkdownLinks: "warn",
