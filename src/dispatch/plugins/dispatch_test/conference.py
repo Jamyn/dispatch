@@ -5,7 +5,9 @@ class TestConferencePlugin(ConferencePlugin):
     title = "Dispatch Test Plugin - Conference"
     slug = "test-conference"
 
-    def create(self, items, **kwargs):
+    def create(
+        self, name: str, description: str = None, title: str = None, participants: list[str] = None
+    ):
         return
 
     def delete(self, event_id: str):

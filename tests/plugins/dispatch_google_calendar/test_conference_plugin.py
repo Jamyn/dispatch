@@ -139,3 +139,74 @@ def test_the_failure_message_does_not_quote_the_event_body(calendar_plugin, monk
         calendar_plugin.create("dispatch-incident-1")
 
     assert "responder@example.com" not in str(excinfo.value)
+
+
+# --- the initial roster (issue #110) ----------------------------------------
+
+# Google Calendar is the plugin that always honoured `participants`, which is why
+# #110's option 2 -- delete the parameter -- would have been a regression here
+# rather than a simplification. These run against `FakeCalendar` rather than
+# stubbing `create_event`, because the hop under test is precisely
+# `plugin.create` -> `create_event` -> the stored event's `attendees`: a test
+# that replaces `create_event` cannot see it, and none did.
+#
+# Unlike Zoom and Teams, this provider really does invite: the attendees land on
+# real calendars. Nothing here claims a non-attendee cannot join the Meet.
+
+
+@pytest.fixture
+def calendar_plugin_with_fake(monkeypatch):
+    from tests.plugins.dispatch_google_calendar.fake_calendar import FakeCalendar
+
+    fake = FakeCalendar()
+    plugin = GoogleCalendarConferencePlugin()
+    plugin.configuration = SimpleNamespace(default_duration_minutes=60)
+    monkeypatch.setattr(
+        "dispatch.plugins.dispatch_google.calendar.plugin.get_service",
+        lambda *args, **kwargs: fake,
+    )
+    return plugin, fake
+
+
+def test_create_puts_the_participants_on_the_event(calendar_plugin_with_fake):
+    plugin, fake = calendar_plugin_with_fake
+
+    plugin.create("incident-1", participants=["alice@example.com", "bob@example.com"])
+
+    stored = list(fake.events_store.values())
+    assert len(stored) == 1
+    assert stored[0]["attendees"] == [
+        {"email": "alice@example.com"},
+        {"email": "bob@example.com"},
+    ]
+
+
+def test_create_preserves_the_roster_order(calendar_plugin_with_fake):
+    plugin, fake = calendar_plugin_with_fake
+
+    plugin.create("incident-1", participants=["carol@example.com", "alice@example.com"])
+
+    stored = list(fake.events_store.values())[0]
+    assert [a["email"] for a in stored["attendees"]] == [
+        "carol@example.com",
+        "alice@example.com",
+    ]
+
+
+@pytest.mark.parametrize("empty", [[], None], ids=["empty-list", "omitted"])
+def test_an_empty_roster_sends_an_empty_attendee_list(calendar_plugin_with_fake, empty):
+    """Google differs from the other two deliberately, and it is worth stating.
+
+    Zoom and Teams *omit* their roster key when there is nobody to list, so the
+    request is identical to the one sent before the roster existed. `create_event`
+    has always sent `attendees: []`, and a calendar event carries the key whether
+    or not anyone is on it, so there is no equivalent "unchanged request" to
+    preserve here. Recorded rather than unified: changing it would alter a
+    provider call that has worked since Netflix shipped it, for no gain.
+    """
+    plugin, fake = calendar_plugin_with_fake
+
+    plugin.create("incident-1", participants=empty)
+
+    stored = list(fake.events_store.values())[0]
+    assert stored["attendees"] == []

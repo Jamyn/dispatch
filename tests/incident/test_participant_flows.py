@@ -344,3 +344,99 @@ def test_a_group_failure_still_aborts_the_remove_flow(
             incident_id=active_incident.id,
             db_session=session,
         )
+
+
+# --- the bridge-participation preference (issue #110) ------------------------
+
+# The preference has to be honoured here as well as on the founding roster, or it
+# is honoured nowhere: `incident_create_resources` seeds the bridge from the
+# filtered roster and then walks the very same resolved responders through this
+# flow, so an opt-out applied only at creation is undone a few lines later.
+#
+# Listing only. An opted-out responder keeps their place in the tactical group
+# and the conversation -- asserted below, because that is the part that would
+# actually cost them the incident -- and can still join the bridge with the link.
+
+
+def opt_out(session, email: str) -> str:
+    """Register a responder who has turned the switch off.
+
+    ``@example.com``, not the ``.invalid`` these addresses use elsewhere: this
+    flow really creates an ``IndividualContact``, whose ``email`` is a pydantic
+    ``EmailStr``, and email-validator rejects RFC 2606 reserved TLDs. The
+    ``.invalid`` convention is safe only while an address stays a plain string.
+    """
+    from dispatch.auth.models import DispatchUserSettings
+
+    from tests.factories import DispatchUserFactory
+
+    user = DispatchUserFactory(email=email)
+    session.add(DispatchUserSettings(dispatch_user_id=user.id, auto_add_to_incident_bridges=False))
+    session.commit()
+    return email
+
+
+def test_an_opted_out_responder_is_not_added_to_the_conference(session, active_incident, recorder):
+    responder = opt_out(session, "opted-out-on-add@example.com")
+
+    flows.incident_add_or_reactivate_participant_flow(
+        user_email=responder,
+        incident_id=active_incident.id,
+        db_session=session,
+    )
+
+    assert "conference" not in recorder.calls
+
+
+def test_an_opted_out_responder_still_joins_everything_that_matters(
+    session, active_incident, recorder
+):
+    """The bridge roster is the *only* thing the preference withholds."""
+    responder = opt_out(session, "opted-out-still-engaged@example.com")
+
+    flows.incident_add_or_reactivate_participant_flow(
+        user_email=responder,
+        incident_id=active_incident.id,
+        db_session=session,
+    )
+
+    assert "group" in recorder.calls
+    assert "conversation" in recorder.calls
+
+
+def test_a_responder_who_has_not_opted_out_is_added_to_the_conference(
+    session, active_incident, recorder
+):
+    """The other half of the gate. Without this, a gate that refused everyone
+    would pass the test above."""
+    from tests.factories import DispatchUserFactory
+
+    responder = "opted-in-on-add@example.com"
+    DispatchUserFactory(email=responder)
+    session.commit()
+
+    flows.incident_add_or_reactivate_participant_flow(
+        user_email=responder,
+        incident_id=active_incident.id,
+        db_session=session,
+    )
+
+    assert "conference" in recorder.calls
+
+
+def test_an_opted_out_responder_is_still_removed_from_the_conference(
+    session, active_incident, recorder
+):
+    """Removal is never gated. A roster entry that predates the opt-out -- or one
+    added before this gate existed -- must still be removable, and refusing to
+    clean up is not a way to honour a preference about being added.
+    """
+    responder = opt_out(session, "opted-out-on-remove@example.com")
+
+    flows.incident_remove_participant_flow(
+        user_email=responder,
+        incident_id=active_incident.id,
+        db_session=session,
+    )
+
+    assert "conference" in recorder.calls

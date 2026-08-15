@@ -70,6 +70,58 @@ def remove_conference_participant(
     update_conference_participant(incident, participant_email, db_session, remove=True)
 
 
+def normalize_participants(participants: list[str] | None) -> list[str]:
+    """The initial roster as the provider should receive it.
+
+    Duplicates are reachable rather than hypothetical: the participant resolver
+    appends one entry for a direct individual match and another for a service
+    whose on-call resolves to the same person, and nothing between there and here
+    collapses them. Matched case-insensitively, matching how Zoom's and Teams'
+    `add_participant` decide whether someone is already on the roster -- leaving it
+    to the provider would make one Dispatch behaviour into three. Google Calendar
+    is the exception and is not a counter-example: its `add_participant` appends
+    unconditionally and its `remove_participant` compares exactly, so it is the
+    plugin that most needs a caller not to hand it duplicates.
+
+    First spelling wins, order preserved: the roster is compared against what the
+    provider echoes back, so it is worth being reproducible.
+
+    `lower()` rather than `casefold()`, deliberately differing from those
+    `add_participant` helpers. Matching on a fold that is too aggressive costs an
+    unnecessary skip; *dropping* on one loses an address outright, and full case
+    folding equates spellings that are genuinely different mailboxes (`straße` and
+    `strasse` fold together). The conservative direction is not the same at the two
+    ends, so the key is not either.
+
+    An empty or absent address is dropped rather than sent. `ContactMixin.email`
+    and `Group.email` are both nullable columns, so a null can genuinely reach
+    here, and a `{"email": null}` invitee is the kind of thing a provider rejects
+    -- costing the incident its whole bridge over one bad contact row. Logged
+    rather than dropped in silence: a responder with no address is a data defect
+    worth seeing, and the roster is the one place it would otherwise be swallowed.
+    """
+    seen = set()
+    normalized = []
+    dropped = 0
+    for participant in participants or []:
+        if not participant:
+            dropped += 1
+            continue
+        key = participant.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(participant)
+
+    if dropped:
+        # No address is named: there isn't one, which is the whole point.
+        log.warning(
+            "%s conference participant(s) had no email address and were left off the roster.",
+            dropped,
+        )
+    return normalized
+
+
 def dispatch_owns_conference(db_session: SessionLocal, incident_id: int, resource_id) -> bool:
     """Positive proof that this incident ended up owning this meeting.
 
@@ -184,8 +236,14 @@ def delete_unowned_conference(conference_plugin, resource_id, original_error: Ex
     )
 
 
-def create_conference(incident: Incident, participants: list[str], db_session: SessionLocal):
+def create_conference(incident: Incident, participants: list[str] | None, db_session: SessionLocal):
     """Creates a conference room.
+
+    `participants` is the conference's initial roster -- the addresses to list on
+    the meeting as it is created, normalised here so all three shipped plugins
+    receive the same list rather than each deduplicating its own way. It is
+    metadata, not access control: it decides who is *listed*, never who can join
+    (issue #110).
 
     The provider commits a meeting before Dispatch commits anything, so every
     step between those two points can leave a live bridge with no database row
@@ -238,7 +296,7 @@ def create_conference(incident: Incident, participants: list[str], db_session: S
     # we create the external conference room
     try:
         external_conference = conference_plugin.create(
-            incident.name, title=incident.title, participants=participants
+            incident.name, title=incident.title, participants=normalize_participants(participants)
         )
     except Exception as e:
         # A plugin whose own post-creation validation rejected a meeting the

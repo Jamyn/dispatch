@@ -320,10 +320,12 @@ class GoogleCalendarConferencePlugin(ConferencePlugin):
         # reports `conferenceData.createRequest.status.statusCode == "pending"`
         # meanwhile, with no `entryPoints` at all.
         #
-        # Unlike Zoom and Teams, this plugin invites `participants` on insert,
-        # so the link is already in responders' mailboxes. Deleting the event
-        # withdraws those invitations, which is still better than leaving a
-        # bridge the incident does not know about and a retry will duplicate.
+        # All three plugins seed `participants` on create since issue #110, but
+        # only this one *invites*: a calendar event puts the link in responders'
+        # mailboxes, where Zoom's invitee list and Teams' attendee list notify
+        # nobody. So deleting the event here withdraws real invitations, which is
+        # still better than leaving a bridge the incident does not know about and
+        # a retry will duplicate.
         event_id = conference.get("id") if isinstance(conference, dict) else None
 
         try:

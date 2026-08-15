@@ -208,8 +208,25 @@ class MSTeamsClient:
         duration_minutes: int = 60,
         record_automatically: bool = False,
         require_passcode: bool = True,
+        attendees: list[dict] = None,
     ) -> dict:
-        """Create an online meeting and return Graph's representation of it."""
+        """Create an online meeting and return Graph's representation of it.
+
+        `attendees` seeds `participants.attendees`, the same list
+        `update_attendees` maintains (issue #110). The create body is a full
+        onlineMeeting representation, so the roster belongs here rather than in a
+        PATCH that could only run once the meeting is already committed.
+
+        No one is emailed by this. Graph is explicit that the API "creates a
+        standalone meeting that isn't associated with any event on the user's
+        calendar", so there is no invitation to send. `organizer` is left out for
+        the same reason `update_attendees` omits it -- Graph assigns it from the
+        user in the path and rejects an attempt to set it.
+
+        The key is omitted rather than sent empty when there is no one to list,
+        which keeps the request identical to the one sent before this roster
+        existed.
+        """
         start = datetime.now(UTC)
         body = {
             "subject": subject,
@@ -220,6 +237,9 @@ class MSTeamsClient:
             "recordAutomatically": record_automatically,
             "joinMeetingIdSettings": {"isPasscodeRequired": require_passcode},
         }
+
+        if attendees:
+            body["participants"] = {"attendees": attendees}
 
         response = self._request(
             "POST", f"/users/{_quote_path_component(self.user_id)}/onlineMeetings", json=body

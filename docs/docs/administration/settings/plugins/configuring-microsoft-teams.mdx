@@ -103,7 +103,8 @@ Microsoft documents a limit of **2,000 meetings per user per month** for meeting
 - Lobby admission and presenter rights are a separate concern this plugin does not manage.
 - **Unverified against a live tenant.** Attendees are identified by user principal name alone; Graph documents the richer `identity` object as optional, and resolving one would require `User.Read.All` in addition to the permissions above. There are also reports of Graph answering `200` to an attendee update made with application permissions without applying it. Because a roster failure never interrupts the incident, a deployment where this silently does nothing looks identical to one where it works. Run the opt-in live suite (`tests/plugins/dispatch_microsoft_teams/test_teams_live.py` with `DISPATCH_MSTEAMS_TEST_ATTENDEE_UPN` set) against your own tenant to confirm before relying on the roster being accurate.
 - Nothing in Dispatch currently calls `delete` for a conference; it is implemented for interface parity.
-- `description` and `participants` are accepted by the plugin and unused: an `onlineMeeting` has no agenda field, and responders join through the published link rather than being invited.
+- The meeting is created with an initial attendee roster: the responders resolved for the incident, minus anyone who has turned off **Add me automatically to incident bridges** in their own settings. Same list, same `attendee` role and same caveats as `add_participant` above — it is created in one request rather than added afterwards, so a roster Graph rejects fails the create instead of leaving a meeting Dispatch has no record of. An incident with no such responders gets a meeting with no attendees, which is not an error.
+- `description` is accepted by the plugin and unused: an `onlineMeeting` has no agenda field.
 
 ## Upgrading
 

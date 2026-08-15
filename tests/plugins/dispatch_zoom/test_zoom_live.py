@@ -49,11 +49,13 @@ left behind. Authentication is proven by listing meetings, which needs only the
 read scope this file tells you to add -- a ``GET /users/me`` probe would need a
 ``user:read`` scope that the plugin itself never uses.
 
-The exceptions are the two teardown tests at the bottom -- the ``delete_conference``
-flow (issue #105) and the compensating cleanup in ``create_conference`` (issue
-#114) -- which have to create a meeting in order to delete one. Both are skipped
-unless ``DISPATCH_ZOOM_TEST_ALLOW_WRITES=1`` is set as well, so the four
-variables above still buy you a suite that touches nothing.
+The exceptions are the four ``@writes`` tests at the bottom, which have to create
+a meeting to have anything to assert about: the two teardown tests -- the
+``delete_conference`` flow (issue #105) and the compensating cleanup in
+``create_conference`` (issue #114) -- and the two roster tests (issue #110), which
+are the only thing anywhere that can say whether Zoom stores the invitees it is
+sent. All four are skipped unless ``DISPATCH_ZOOM_TEST_ALLOW_WRITES=1`` is set as
+well, so the four variables above still buy you a suite that touches nothing.
 
 Note on assertions: a failing ``assert SECRET not in text`` renders **both**
 operands into the pytest report, publishing the very secret it checks for. Every
@@ -74,6 +76,7 @@ from dispatch.conference.models import Conference
 from requests.auth import HTTPBasicAuth
 
 from dispatch.exceptions import DispatchPluginException
+from dispatch.plugins.dispatch_zoom.plugin import meeting_invitees
 
 ACCOUNT_ID = os.environ.get("DISPATCH_ZOOM_TEST_ACCOUNT_ID")
 CLIENT_ID = os.environ.get("DISPATCH_ZOOM_TEST_CLIENT_ID")
@@ -393,3 +396,64 @@ def test_a_meeting_dispatch_cannot_persist_is_really_deleted(
         # satisfies the check.
         for meeting_id in created_ids:
             zoom_client.delete(f"meetings/{meeting_id}")
+
+
+@writes
+def test_a_created_meeting_really_carries_the_seeded_invitees(zoom_client, zoom_plugin_live):
+    """The initial roster, read back from Zoom itself (issue #110).
+
+    The mocked suite proves what the create request contains. Only Zoom can say
+    it *stores* what we send: `settings.meeting_invitees` is documented but
+    lightly used, and a field the API accepts and discards would leave every
+    mocked test green while the roster silently stayed empty.
+
+    Synthetic invitees only. `.invalid` is reserved by RFC 2606 and can never
+    resolve, so no real mailbox can be named here even by accident -- and Zoom
+    does not email invitees regardless (its own staff describe the field as
+    "just a list of the meeting's invitees"), which is why creating with a
+    roster is safe to do against a real account at all.
+    """
+    invited = [
+        f"alice-{uuid.uuid4().hex[:8]}@example.invalid",
+        f"bob-{uuid.uuid4().hex[:8]}@example.invalid",
+    ]
+
+    created = zoom_plugin_live.create(
+        f"dispatch-live-test-{uuid.uuid4().hex[:8]}",
+        title="Dispatch live test (safe to delete)",
+        participants=invited,
+    )
+    meeting_id = created["id"]
+
+    try:
+        response = zoom_client.get(f"meetings/{meeting_id}")
+        assert response.status_code == 200
+
+        stored = [i.get("email") for i in meeting_invitees(response.json())]
+
+        # Zoom is not documented to preserve order, so this compares sets. The
+        # request order is asserted against the payload in the mocked suite,
+        # which is where that question belongs.
+        assert set(stored) == set(invited)
+    finally:
+        zoom_client.delete(f"meetings/{meeting_id}")
+
+
+@writes
+def test_a_meeting_created_with_no_roster_really_has_none(zoom_client, zoom_plugin_live):
+    """The empty case against a real account: no invitees requested, none stored,
+    and a perfectly usable meeting either way."""
+    created = zoom_plugin_live.create(
+        f"dispatch-live-test-{uuid.uuid4().hex[:8]}",
+        title="Dispatch live test (safe to delete)",
+        participants=[],
+    )
+    meeting_id = created["id"]
+
+    try:
+        response = zoom_client.get(f"meetings/{meeting_id}")
+        assert response.status_code == 200
+        assert meeting_invitees(response.json()) == []
+        assert created["weblink"]
+    finally:
+        zoom_client.delete(f"meetings/{meeting_id}")

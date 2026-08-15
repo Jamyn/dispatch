@@ -60,26 +60,52 @@ from .models import Incident, IncidentStatus
 log = logging.getLogger(__name__)
 
 
-def filter_participants_for_bridge(
-    participant_emails: list[str], project_id: int, db_session: Session
-) -> list[str]:
-    """Filter participant emails to only include those who have opted into bridge participation."""
-    filtered_emails = []
-    for email in participant_emails:
-        # Get the dispatch user by email
-        dispatch_user = auth_service.get_by_email(db_session=db_session, email=email)
-        if dispatch_user:
-            # Get or create user settings
-            user_settings = auth_service.get_or_create_user_settings(
-                db_session=db_session, user_id=dispatch_user.id
-            )
-            # Check if user has opted into bridge participation
-            if user_settings.auto_add_to_incident_bridges:
-                filtered_emails.append(email)
-        else:
-            # If no dispatch user found, default to adding them (they can't opt out without a user account)
-            filtered_emails.append(email)
-    return filtered_emails
+def wants_bridge_participation(participant_email: str, db_session: Session) -> bool:
+    """Whether Dispatch may list this responder on an incident bridge.
+
+    Reads the "Add me automatically to incident bridges" switch. It decides who is
+    *listed*, never who may join -- the join link works for anyone holding it
+    either way (issue #110).
+
+    The single definition of the preference, deliberately. It is consulted at both
+    ends of a bridge's life: the roster `incident_create_resources` seeds the
+    bridge with, and the conference add in `incident_add_or_reactivate_participant_flow`
+    for everyone Dispatch engages afterwards. Applying it at only one of those is
+    the same as applying it nowhere -- incident resource creation seeds the roster
+    and then walks the very same resolved responders back through the add path, so
+    a filter that only guarded the seeding was undone a few lines later.
+
+    Two defaults, both meaning "list them":
+
+    - no Dispatch user account: the preference lives on `DispatchUserSettings`, so
+      a responder who has never signed in has no way to express one, and opting
+      them out by default would silently shrink every roster; and
+    - an account with no settings row: `auto_add_to_incident_bridges` is True until
+      someone turns it off.
+
+    Read-only on purpose. The obvious accessor, `get_or_create_user_settings`,
+    COMMITs the row it creates -- which would land a write in the middle of
+    `incident_create_resources`, once per responder, on what reads as a lookup.
+    Nothing needs the row to exist; the API creates it when the user first opens
+    their settings.
+
+    The preference is global rather than per-project; there is deliberately no
+    project_id parameter, because there is no project-scoped setting to read.
+    """
+    dispatch_user = auth_service.get_by_email(db_session=db_session, email=participant_email)
+    if not dispatch_user:
+        return True
+
+    user_settings = auth_service.get_user_settings(db_session=db_session, user_id=dispatch_user.id)
+    if not user_settings:
+        return True
+
+    return user_settings.auto_add_to_incident_bridges
+
+
+def filter_participants_for_bridge(participant_emails: list[str], db_session: Session) -> list[str]:
+    """Drop the responders who turned off "Add me automatically to incident bridges"."""
+    return [email for email in participant_emails if wants_bridge_participation(email, db_session)]
 
 
 def get_incident_participants(
@@ -245,20 +271,35 @@ def incident_create_resources(
             db_session=db_session,
         )
 
-    # we create the conference room
+    # we create the conference room, listing the responders who have not turned
+    # off "Add me automatically to incident bridges". Who is *listed*, never who
+    # may join -- the join link works for whoever holds it (issue #110).
+    #
+    # The responders themselves, never `incident.tactical_group.email`. This
+    # substituted the group address whenever a group existed, which was harmless
+    # while Google Calendar -- where a Google Group is a first-class attendee --
+    # was the only plugin that read the list. It does not survive the roster
+    # reaching the other two. Graph's `upn` is a *user* principal name and a group
+    # has none, so Teams would either reject the create, costing the incident its
+    # bridge entirely, or accept it and store nothing. And one opaque entry cannot
+    # carry a per-person opt-out, so while a tactical group existed -- which it
+    # does in every deployment running a group plugin -- the preference decided
+    # nothing. Filtering into a value that is then replaced by a group address is
+    # the same defect as filtering into one that is discarded.
+    #
+    # No responder is lost by enumerating: the tactical group is created just
+    # above from this very list, so right now the two denote the same people, and
+    # `incident_add_or_reactivate_participant_flow` maintains the roster one
+    # address at a time from here on. Subscribers are the deliberate exception --
+    # `incident_subscribe_participant_flow` adds them to the tactical group and
+    # nowhere else, so on Google Calendar they used to reach the event through
+    # group expansion and now do not. They follow an incident rather than respond
+    # to it, and were never listed on Zoom or Teams at all.
     if not incident.conference:
-        # we only include individuals that are directly participating in the
-        # resolution of the incident and have opted into bridge participation
-        conference_participants = tactical_participant_emails
-        if incident.tactical_group:
-            conference_participants = [incident.tactical_group.email]
-        else:
-            # filter participants based on their bridge participation preferences
-            conference_participants = filter_participants_for_bridge(
-                tactical_participant_emails, incident.project.id, db_session
-            )
         conference_flows.create_conference(
-            incident=incident, participants=conference_participants, db_session=db_session
+            incident=incident,
+            participants=filter_participants_for_bridge(tactical_participant_emails, db_session),
+            db_session=db_session,
         )
 
     # we create the conversation
@@ -1106,17 +1147,28 @@ def incident_add_or_reactivate_participant_flow(
             incident=incident, participant_emails=[user_email], db_session=db_session
         )
 
-        # we add the participant to the conference roster. The conference is a
-        # secondary integration -- the group and the conversation above are what
-        # actually get a responder into the incident -- so it must not be able to
-        # abort this flow. The helper contains plugin failures itself; this
-        # guards the resolution around them.
+        # we add the participant to the conference roster, unless they asked not
+        # to be. The same preference the founding roster is filtered by, and it
+        # has to be consulted here too or it means nothing: incident resource
+        # creation seeds the bridge and then walks the very same resolved
+        # responders through this flow, so an opt-out honoured only at creation
+        # is undone a few lines later (issue #110). Listing only, as ever -- an
+        # opted-out responder can still join the bridge with the link.
+        #
+        # The conference is a secondary integration -- the group and the
+        # conversation above are what actually get a responder into the incident
+        # -- so it must not be able to abort this flow. The helper contains
+        # plugin failures itself; this guards the resolution around them.
         try:
-            conference_flows.add_conference_participant(
-                incident=incident, participant_email=user_email, db_session=db_session
-            )
+            if wants_bridge_participation(user_email, db_session):
+                conference_flows.add_conference_participant(
+                    incident=incident, participant_email=user_email, db_session=db_session
+                )
         except Exception as e:
-            log.exception(f"Failed to add user to the incident conference: {e}")
+            # Covers the preference read as well as the roster update, so the
+            # message names both rather than blaming the conference for a
+            # database error.
+            log.exception(f"Could not update the incident conference roster: {e}")
 
         # log event for adding the participant
         try:
