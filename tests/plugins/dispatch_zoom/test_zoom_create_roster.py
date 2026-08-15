@@ -25,6 +25,10 @@ invitees sends nothing, because the create carries no notification switch at all
 
 import pytest
 
+from dispatch.exceptions import ConferenceCreatedButUnusable, ConferenceRosterUnreadable
+
+from tests.plugins.dispatch_zoom.conftest import CREATE_BODY
+
 ALICE = "alice@example.invalid"
 BOB = "bob@example.invalid"
 CAROL = "carol@example.invalid"
@@ -131,30 +135,33 @@ def test_the_plugin_sends_the_roster_it_is_given(zoom, zoom_plugin):
     assert invitees(zoom) == [{"email": ALICE}, {"email": ALICE}]
 
 
-def test_a_seeded_roster_zoom_does_not_echo_back_is_lost_on_the_first_add(zoom, zoom_plugin):
-    """Pins the consequence of a question this suite cannot settle.
+def test_a_seeded_roster_zoom_does_not_report_survives_the_first_add(zoom, zoom_plugin):
+    """The regression this file exists to prevent (issue #129).
 
-    ``add_participant`` replaces `meeting_invitees` wholesale with whatever the
-    GET returned plus one. So if Zoom does not report invitees on a read, the
-    seeded roster is silently replaced by a single entry the first time anyone
-    joins, and the create-time roster buys nothing beyond the create itself.
+    ``add_participant`` replaces ``meeting_invitees`` wholesale with whatever the
+    GET returned plus one, so a Zoom that does not report invitees on a read
+    would have the first responder to join silently replace the seeded roster
+    with a single entry -- the create-time roster of #127 buying nothing beyond
+    the create request itself.
 
-    Zoom staff have said invitees cannot be queried back; the field's own
-    ``.get(key) or []`` handling in this plugin was written as though they can.
-    Both cannot be right and no mocked test can decide it -- only
-    ``test_zoom_live.py``'s write-gated round trip can, and it needs credentials
-    this repository does not have. So the behaviour is asserted rather than
-    assumed: if this test ever starts failing, Zoom's read semantics changed and
-    the docstrings that hedge on this can be settled.
+    Zoom does report them -- verified against a real account 2026-08-15 -- so
+    this is a guard rather than a live bug. It stays because the guarantee must
+    not depend on that: where the answer is not given, the roster is left
+    standing and the refusal is reported, rather than the roster being
+    overwritten from an answer that was never given.
+
+    Deliberately asserts on the *absence* of a PATCH. Asserting the exception
+    alone would still pass against an implementation that raised after writing.
     """
     zoom_plugin.create("incident-1", participants=[ALICE, BOB])
-    # The conftest default: a meeting Zoom reports with no invitees at all.
-    zoom.get = (200, {"id": 987654321, "settings": {"meeting_invitees": []}})
+    zoom.get = (200, {"id": 987654321, "topic": "Situation Room"})
 
-    zoom_plugin.add_participant("987654321", CAROL)
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        zoom_plugin.add_participant("987654321", CAROL)
 
-    assert zoom.last_api_request().json == {"settings": {"meeting_invitees": [{"email": CAROL}]}}, (
-        "ALICE and BOB are gone -- the roster is only as durable as Zoom's read"
+    assert "did not report" in str(excinfo.value)
+    assert [r.method for r in zoom.api_requests()] == ["POST", "GET"], (
+        "ALICE and BOB must not be replaced by a roster rebuilt from a read that reported nothing"
     )
 
 
@@ -169,6 +176,148 @@ def test_a_large_roster_is_sent_whole(zoom, zoom_plugin):
     zoom_plugin.create("incident-1", participants=roster)
 
     assert [i["email"] for i in invitees(zoom)] == roster
+
+
+# --- what the create response says about the roster ----------------------------
+#
+# Zoom documents `settings.meeting_invitees` on the create's own 201, so the
+# create already holds the answer to issue #129 for the account it ran against.
+# Logging it is what turns an unanswerable question into one the first incident
+# of any deployment settles.
+
+
+def test_a_create_response_that_reports_no_roster_is_logged(zoom, zoom_plugin, caplog):
+    import logging
+
+    zoom.response = (201, dict(CREATE_BODY))
+
+    with caplog.at_level(logging.INFO):
+        zoom_plugin.create("incident-1", participants=[ALICE, BOB])
+
+    assert "no usable invitee list" in caplog.text
+    assert "issue #129" in caplog.text
+
+
+def test_the_create_observation_does_not_claim_anything_about_a_read(zoom, zoom_plugin, caplog):
+    """The 201 and the 200 are different schemas -- the read's item carries an
+    ``internal_user`` no request can send -- so an absent field on the create is
+    not evidence about ``GET /meetings/{id}``. An earlier version of this line
+    said the roster was "write-only on this account", which is the conclusion an
+    operator would have closed issue #129 on, from an observation that does not
+    support it."""
+    import logging
+
+    zoom.response = (201, dict(CREATE_BODY))
+
+    with caplog.at_level(logging.INFO):
+        zoom_plugin.create("incident-1", participants=[ALICE, BOB])
+
+    assert "write-only" not in caplog.text
+    assert "separate question" in caplog.text
+
+
+def test_a_create_response_that_reports_the_roster_is_logged(zoom, zoom_plugin, caplog):
+    import logging
+
+    zoom.response = (
+        201,
+        dict(CREATE_BODY, settings={"meeting_invitees": [{"email": ALICE}, {"email": BOB}]}),
+    )
+
+    with caplog.at_level(logging.INFO):
+        zoom_plugin.create("incident-1", participants=[ALICE, BOB])
+
+    assert "reported 2 of 2" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "echoed",
+    [[], [{"email": ALICE}]],
+    ids=["none-of-them", "one-of-two"],
+)
+def test_a_create_response_that_drops_invitees_warns(zoom, zoom_plugin, caplog, echoed):
+    """The one outcome the read side cannot defend against.
+
+    A Zoom that stores the roster and reports it short is indistinguishable at
+    update time from one that really holds that much, so ``current_invitees``
+    trusts what it is told and ``add_participant`` rewrites from it. The create
+    is the only moment Dispatch holds both what it sent and what came back, so
+    it is the only place this is visible at all.
+    """
+    import logging
+
+    zoom.response = (201, dict(CREATE_BODY, settings={"meeting_invitees": echoed}))
+
+    with caplog.at_level(logging.INFO):
+        zoom_plugin.create("incident-1", participants=[ALICE, BOB])
+
+    assert "replace them rather than extend them" in caplog.text
+    assert [r.levelname for r in caplog.records] == ["WARNING"]
+
+
+def test_a_provider_that_collapses_duplicates_is_not_reported_as_dropping_anyone(
+    zoom, zoom_plugin, caplog
+):
+    """``create_conference`` deduplicates and the plugin forwards what it is
+    given, so a raw count comparison would warn about a roster that is complete."""
+    import logging
+
+    zoom.response = (201, dict(CREATE_BODY, settings={"meeting_invitees": [{"email": ALICE}]}))
+
+    with caplog.at_level(logging.INFO):
+        zoom_plugin.create("incident-1", participants=[ALICE, ALICE])
+
+    assert "reported 1 of 1" in caplog.text
+    assert [r.levelname for r in caplog.records] == ["INFO"]
+
+
+def test_the_roster_observation_names_no_participant(zoom, zoom_plugin, caplog):
+    """It is counts only: this line reaches the application log."""
+    import logging
+
+    zoom.response = (
+        201,
+        dict(CREATE_BODY, settings={"meeting_invitees": [{"email": ALICE}]}),
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        zoom_plugin.create("incident-1", participants=[ALICE, BOB])
+
+    assert ALICE not in caplog.text
+    assert BOB not in caplog.text
+
+
+def test_no_roster_observation_when_none_was_requested(zoom, zoom_plugin, caplog):
+    """Nothing was sent, so there is nothing for Zoom to have echoed."""
+    import logging
+
+    with caplog.at_level(logging.DEBUG):
+        zoom_plugin.create("incident-1", participants=[])
+
+    assert "invitee" not in caplog.text
+
+
+def test_a_create_that_fails_validation_is_not_reported_as_a_roster_observation(
+    zoom, zoom_plugin, caplog
+):
+    """A meeting Zoom accepted but returned unusable raises first.
+
+    Otherwise the log would carry a roster note about a bridge that is about to
+    be deleted by `create_conference`'s compensation (issue #114).
+
+    Asserted on the log, not only on the raise: asserting the exception alone
+    passes with the observation moved above the validation, which is the
+    ordering the test exists to pin.
+    """
+    import logging
+
+    zoom.response = (201, {"id": 987654321})
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(ConferenceCreatedButUnusable):
+            zoom_plugin.create("incident-1", participants=[ALICE])
+
+    assert "invitee" not in caplog.text
 
 
 # --- notifications ------------------------------------------------------------

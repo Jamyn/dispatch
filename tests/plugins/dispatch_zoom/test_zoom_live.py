@@ -32,30 +32,53 @@ Creating the app
    - delete: ``meeting:write:admin``  or ``meeting:delete:meeting:admin``
 
    A missing scope is not visible at token time -- the token is issued and the
-   API call fails later. This suite only needs the read scope.
+   API call fails later, which is why the read-only tests below assert on the
+   status code and say to check the scope.
+
+   **The read scope alone runs the read-only tests and nothing else.** The
+   ``@writes`` tests -- including the one that settles issue #129 -- create,
+   update and delete a meeting, so all four scopes are needed to run them.
 4. Copy the Account ID, Client ID and Client Secret from App Credentials.
 
 What this covers that the mocked suite cannot
 ---------------------------------------------
-- The ``account_credentials`` grant is really what Zoom accepts, and a
-  Server-to-Server app really is not entitled to ``client_credentials``.
+- The ``account_credentials`` grant is really what Zoom accepts. It is *not*
+  true that Zoom refuses ``client_credentials`` here -- it issues a token for
+  it, carrying ``marketplace:*`` scopes and no ``meeting:*`` ones, which the
+  meetings API then rejects as code 124 (observed 2026-08-15).
 - The Basic-auth credential encoding is what Zoom expects.
 - A real access token comes back and authenticates a real API call.
 - Wrong credentials fail the way the client reports them.
 
 These tests are deliberately **read-only**: they create, modify and delete
 nothing in the account, so there is nothing to clean up and nothing that can be
-left behind. Authentication is proven by listing meetings, which needs only the
-read scope this file tells you to add -- a ``GET /users/me`` probe would need a
-``user:read`` scope that the plugin itself never uses.
+left behind. Authentication is proven by listing meetings -- a ``GET /users/me``
+probe would need a ``user:read`` scope that the plugin itself never uses.
 
-The exceptions are the four ``@writes`` tests at the bottom, which have to create
-a meeting to have anything to assert about: the two teardown tests -- the
+Note the list probe needs ``meeting:read:list_meetings:admin`` while reading one
+meeting needs ``meeting:read:meeting:admin``. An app granted only the first
+authenticates, passes every read-only test here, and then fails the roster tests
+with **HTTP 400 code 4711** naming the missing scope. Seen for real, so it is
+written down: passing the authentication tests does not prove the read scope the
+plugin actually uses.
+
+The exceptions are the ``@writes`` tests at the bottom, which have to create a
+meeting to have anything to assert about: the two teardown tests -- the
 ``delete_conference`` flow (issue #105) and the compensating cleanup in
-``create_conference`` (issue #114) -- and the two roster tests (issue #110), which
-are the only thing anywhere that can say whether Zoom stores the invitees it is
-sent. All four are skipped unless ``DISPATCH_ZOOM_TEST_ALLOW_WRITES=1`` is set as
-well, so the four variables above still buy you a suite that touches nothing.
+``create_conference`` (issue #114) -- and the roster tests (issues #110, #129),
+which are the only thing anywhere that can say whether Zoom stores and reports
+the invitees it is sent. They are skipped unless
+``DISPATCH_ZOOM_TEST_ALLOW_WRITES=1`` is set as well, so the four variables
+above still buy you a suite that touches nothing.
+
+``test_zoom_reports_the_seeded_invitees_on_a_read`` settled issue #129, and is
+kept as the regression guard for it. **Run against a real account 2026-08-15:
+Zoom reports the seeded roster in full**, with the ``internal_user`` its write
+schemas cannot send, and reports ``[]`` for a meeting created with none. A
+failure here is an answer rather than a defect: its message names the shape Zoom
+answered with -- via the plugin's own ``describe_roster``, so the classification
+cannot drift from the one the plugin acts on -- and that phrase is what to record
+on the issue.
 
 Note on assertions: a failing ``assert SECRET not in text`` renders **both**
 operands into the pytest report, publishing the very secret it checks for. Every
@@ -75,8 +98,12 @@ from dispatch.conference import flows as conference_flows
 from dispatch.conference.models import Conference
 from requests.auth import HTTPBasicAuth
 
-from dispatch.exceptions import DispatchPluginException
-from dispatch.plugins.dispatch_zoom.plugin import meeting_invitees
+from dispatch.exceptions import (
+    ConferenceCreatedButUnusable,
+    ConferenceRosterUnreadable,
+    DispatchPluginException,
+)
+from dispatch.plugins.dispatch_zoom.plugin import describe_roster, reported_invitees
 
 ACCOUNT_ID = os.environ.get("DISPATCH_ZOOM_TEST_ACCOUNT_ID")
 CLIENT_ID = os.environ.get("DISPATCH_ZOOM_TEST_CLIENT_ID")
@@ -132,7 +159,11 @@ def test_the_token_authenticates_a_real_api_call(zoom_client):
         f"Zoom rejected an authenticated read with HTTP {response.status_code}; "
         "check the app's meeting read scope."
     )
-    assert "meetings" in response.json()
+    # Precomputed, like the credential assertions below: `assert "meetings" in
+    # response.json()` renders the account's whole meeting list -- topics and
+    # join URLs -- into the pytest report when it fails.
+    listed = "meetings" in response.json()
+    assert listed, "Zoom answered 200 without a meetings key"
 
 
 def test_a_wrong_client_secret_is_reported_as_an_authentication_failure(zoom_client):
@@ -161,14 +192,24 @@ def test_a_wrong_account_id_is_reported(zoom_client):
     assert "HTTP 400" in message or "HTTP 401" in message, message
 
 
-def test_zoom_does_not_grant_this_app_the_client_credentials_grant():
-    """Settles the one claim the issue got wrong.
+def test_a_client_credentials_token_cannot_reach_the_meetings_api():
+    """Why the grant type is ``account_credentials`` (issue #70).
 
-    Issue #70 proposed a ``client_credentials`` grant. Zoom's token endpoint
-    does recognise that grant -- it belongs to General Apps -- but a
-    Server-to-Server app is not entitled to it, which is why the client sends
-    ``account_credentials``. If this ever starts succeeding, that choice is no
-    longer load-bearing, and that is worth knowing either way.
+    This test used to assert that Zoom's token endpoint *refuses*
+    ``client_credentials`` for a Server-to-Server app. Run against a real
+    account 2026-08-15, it does not: it answers **200 with a usable token**.
+    The token simply carries a different scope family -- `marketplace:*`, for
+    managing the app itself -- and none of the `meeting:*` scopes.
+
+    So the rejection happens one step later, at `api.zoom.us`, as **code 124
+    "Invalid access token"** -- which is exactly what `client.py`'s module
+    docstring has always said. The docstring was right and the test was wrong,
+    and the test passed for two releases because no account was configured to
+    run it.
+
+    Asserted where the failure actually is. A token endpoint check cannot
+    distinguish the two grants at all, so it would have gone on passing while
+    proving nothing.
     """
     response = requests.post(
         "https://zoom.us/oauth/token",
@@ -177,13 +218,25 @@ def test_zoom_does_not_grant_this_app_the_client_credentials_grant():
         timeout=15,
     )
 
-    if response.ok:
-        pytest.fail(
-            "Zoom accepted the client_credentials grant for a Server-to-Server app; "
-            "the account_credentials value is no longer load-bearing."
+    if not response.ok:
+        pytest.skip(
+            f"Zoom refused the client_credentials grant outright (HTTP "
+            f"{response.status_code}); it answered 200 with a marketplace-scoped "
+            "token when this was last observed."
         )
 
-    assert response.status_code in (400, 401), f"unexpected HTTP {response.status_code}"
+    token = response.json()["access_token"]
+    probe = requests.get(
+        f"{'https://api.zoom.us/v2'}/{READ_ONLY_PROBE.format(API_USER_ID)}",
+        headers={"authorization": f"Bearer {token}"},
+        timeout=15,
+    )
+
+    assert probe.status_code == 401, (
+        f"a client_credentials token reached the meetings API with HTTP "
+        f"{probe.status_code}; the account_credentials value is no longer load-bearing"
+    )
+    assert probe.json().get("code") == 124
 
 
 def test_the_token_is_reused_within_its_lifetime(zoom_client, monkeypatch):
@@ -398,14 +451,47 @@ def test_a_meeting_dispatch_cannot_persist_is_really_deleted(
             zoom_client.delete(f"meetings/{meeting_id}")
 
 
-@writes
-def test_a_created_meeting_really_carries_the_seeded_invitees(zoom_client, zoom_plugin_live):
-    """The initial roster, read back from Zoom itself (issue #110).
+def create_test_meeting(zoom_plugin_live, created_ids: list, **kwargs) -> dict:
+    """Create a meeting, recording its id even when the plugin refuses to return it.
 
-    The mocked suite proves what the create request contains. Only Zoom can say
-    it *stores* what we send: `settings.meeting_invitees` is documented but
-    lightly used, and a field the API accepts and discards would leave every
-    mocked test green while the roster silently stayed empty.
+    `ConferenceCreatedButUnusable` means Zoom committed a meeting and the plugin
+    then rejected the response (issue #114) -- so a bare `create()` outside a
+    `try` strands a real meeting on the test account. The id rides on the
+    exception for exactly this reason; the caller's `finally` deletes whatever
+    lands in `created_ids`.
+    """
+    try:
+        created = zoom_plugin_live.create(
+            f"dispatch-live-test-{uuid.uuid4().hex[:8]}",
+            title="Dispatch live test (safe to delete)",
+            **kwargs,
+        )
+    except ConferenceCreatedButUnusable as e:
+        if e.resource_id:
+            created_ids.append(e.resource_id)
+        raise
+
+    created_ids.append(created["id"])
+    return created
+
+
+@writes
+def test_zoom_reports_the_seeded_invitees_on_a_read(zoom_client, zoom_plugin_live):
+    """The one test that settles issue #129.
+
+    Zoom's API reference documents `settings.meeting_invitees` on the 200 of
+    `GET /meetings/{meetingId}` -- with a richer item schema than the request,
+    carrying an `internal_user` no request can send. Zoom's own staff have said
+    on the developer forum that invitees cannot be queried back. Both cannot
+    hold, and no mocked test can decide it: the fake answers whatever it is
+    told to.
+
+    A failure here is not necessarily a bug in Dispatch. It is the answer, and
+    the message says which of the four outcomes was seen so it can be recorded
+    on the issue: A invitees returned, B an empty list, C an explicit null, D
+    the key absent. Only A is compatible with maintaining the roster through
+    read-modify-write, which is why `add_participant` refuses in the others
+    rather than rebuilding the list from them.
 
     Synthetic invitees only. `.invalid` is reserved by RFC 2606 and can never
     resolve, so no real mailbox can be named here even by accident -- and Zoom
@@ -418,42 +504,138 @@ def test_a_created_meeting_really_carries_the_seeded_invitees(zoom_client, zoom_
         f"bob-{uuid.uuid4().hex[:8]}@example.invalid",
     ]
 
-    created = zoom_plugin_live.create(
-        f"dispatch-live-test-{uuid.uuid4().hex[:8]}",
-        title="Dispatch live test (safe to delete)",
-        participants=invited,
-    )
-    meeting_id = created["id"]
+    created_ids = []
 
     try:
-        response = zoom_client.get(f"meetings/{meeting_id}")
+        created = create_test_meeting(zoom_plugin_live, created_ids, participants=invited)
+        response = zoom_client.get(f"meetings/{created['id']}")
         assert response.status_code == 200
 
-        stored = [i.get("email") for i in meeting_invitees(response.json())]
+        meeting = response.json()
+        stored_invitees = reported_invitees(meeting)
+        assert stored_invitees, (
+            f"Zoom did not report the {len(invited)} invitees it was sent -- "
+            f"{describe_roster(meeting)}. That is the issue #129 hypothesis confirmed: "
+            "the roster is write-only and read-modify-write cannot maintain it. Record "
+            "the phrase above on the issue."
+        )
 
+        stored = [i.get("email") for i in stored_invitees]
         # Zoom is not documented to preserve order, so this compares sets. The
         # request order is asserted against the payload in the mocked suite,
         # which is where that question belongs.
         assert set(stored) == set(invited)
     finally:
-        zoom_client.delete(f"meetings/{meeting_id}")
+        for meeting_id in created_ids:
+            zoom_client.delete(f"meetings/{meeting_id}")
 
 
 @writes
 def test_a_meeting_created_with_no_roster_really_has_none(zoom_client, zoom_plugin_live):
-    """The empty case against a real account: no invitees requested, none stored,
-    and a perfectly usable meeting either way."""
-    created = zoom_plugin_live.create(
-        f"dispatch-live-test-{uuid.uuid4().hex[:8]}",
-        title="Dispatch live test (safe to delete)",
-        participants=[],
-    )
-    meeting_id = created["id"]
+    """The empty case against a real account.
+
+    Records *how* Zoom spells an empty roster, which decides whether
+    `add_participant` works at all on a bridge created with no seeded
+    participants: B is an answer and is added to, D is not and is declined.
+    Both are correct behaviour under issue #129 -- this test exists to say
+    which one a real account produces, so the question is not guessed at.
+    """
+    created_ids = []
 
     try:
-        response = zoom_client.get(f"meetings/{meeting_id}")
+        created = create_test_meeting(zoom_plugin_live, created_ids, participants=[])
+        response = zoom_client.get(f"meetings/{created['id']}")
         assert response.status_code == 200
-        assert meeting_invitees(response.json()) == []
+
+        assert not reported_invitees(response.json()), (
+            f"a meeting created with no invitees reported {describe_roster(response.json())}"
+        )
         assert created["weblink"]
     finally:
-        zoom_client.delete(f"meetings/{meeting_id}")
+        for meeting_id in created_ids:
+            zoom_client.delete(f"meetings/{meeting_id}")
+
+
+@writes
+def test_the_roster_lifecycle_against_a_real_account(zoom_client, zoom_plugin_live):
+    """create([A, B]) -> add(C) -> remove(A), end to end (issue #129).
+
+    The invariant, against the only thing that can enforce it: adding or
+    removing one participant must not discard the others. Every mocked
+    equivalent of this asserts against a roster the fake was handed; this one
+    reads Zoom's own.
+
+    If Zoom does not report invitees, the plugin declines the add rather than
+    replacing the seeded roster, and this test says so plainly instead of
+    passing on a technicality -- the point is to learn what really happens.
+    """
+    alice = f"alice-{uuid.uuid4().hex[:8]}@example.invalid"
+    bob = f"bob-{uuid.uuid4().hex[:8]}@example.invalid"
+    carol = f"carol-{uuid.uuid4().hex[:8]}@example.invalid"
+
+    created_ids = []
+
+    def roster() -> set[str]:
+        response = zoom_client.get(f"meetings/{created_ids[0]}")
+        assert response.status_code == 200
+        meeting = response.json()
+        invitees = reported_invitees(meeting)
+        if invitees is None:
+            pytest.fail(
+                f"Zoom stopped reporting the roster mid-lifecycle -- {describe_roster(meeting)}"
+            )
+        return {i.get("email") for i in invitees}
+
+    try:
+        create_test_meeting(zoom_plugin_live, created_ids, participants=[alice, bob])
+        meeting_id = created_ids[0]
+
+        try:
+            zoom_plugin_live.add_participant(meeting_id, carol)
+        except ConferenceRosterUnreadable as e:
+            pytest.fail(
+                f"Zoom would not report the seeded roster, so the add was declined: {e} "
+                "Issue #129 is confirmed; the roster needs an authoritative copy in Dispatch."
+            )
+
+        assert roster() == {alice, bob, carol}, "the add did not preserve the seeded roster"
+
+        zoom_plugin_live.remove_participant(meeting_id, alice)
+
+        assert roster() == {bob, carol}, "the removal took someone else with it"
+    finally:
+        for meeting_id in created_ids:
+            zoom_client.delete(f"meetings/{meeting_id}")
+
+
+@writes
+def test_a_repeated_add_does_not_duplicate_the_invitee(zoom_client, zoom_plugin_live):
+    """Retry safety against a real account: participant flows can re-run.
+
+    BOB is deliberately *not* seeded at create. Re-adding someone the create
+    already listed short-circuits on the read and never issues a second write,
+    so it would prove nothing about a repeated PATCH.
+    """
+    alice = f"alice-{uuid.uuid4().hex[:8]}@example.invalid"
+    bob = f"bob-{uuid.uuid4().hex[:8]}@example.invalid"
+
+    created_ids = []
+
+    try:
+        create_test_meeting(zoom_plugin_live, created_ids, participants=[alice])
+        meeting_id = created_ids[0]
+
+        try:
+            zoom_plugin_live.add_participant(meeting_id, bob)
+            zoom_plugin_live.add_participant(meeting_id, bob)
+        except ConferenceRosterUnreadable as e:
+            pytest.skip(f"Zoom does not report the roster, so there is nothing to retry: {e}")
+
+        response = zoom_client.get(f"meetings/{meeting_id}")
+        invitees = reported_invitees(response.json())
+        assert invitees is not None, describe_roster(response.json())
+
+        assert sorted(i.get("email") for i in invitees) == sorted([alice, bob])
+    finally:
+        for meeting_id in created_ids:
+            zoom_client.delete(f"meetings/{meeting_id}")

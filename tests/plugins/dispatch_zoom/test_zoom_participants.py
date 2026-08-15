@@ -10,16 +10,20 @@ properties of Zoom rather than of this code:
   forum to be consumed only by their calendar integrations, so an invitee added
   through it may never appear in the Zoom client. The plugin sends what issue
   #106 specifies; whether Zoom acts on it is not something these tests can say.
-- The live suite (``test_zoom_live.py``) is deliberately read-only and creates
-  no meeting, so it cannot settle the question either.
+- A read *does* report the roster back -- verified against a real account
+  2026-08-15, settling issue #129 in the negative. The staff claim that invitees
+  cannot be queried back does not hold for this endpoint.
 
-What the tests below *do* establish is that the request we build is the one the
-API documents: the right verb, the right path, and a complete invitee list.
+What the tests below establish is that the request we build is the one the API
+documents -- the right verb, the right path, and a complete invitee list -- and
+that nobody loses their place on the roster even if that stops being true,
+because a read that reports nothing is never treated as a read that reported an
+empty list.
 """
 
 import pytest
 
-from dispatch.exceptions import DispatchPluginException
+from dispatch.exceptions import ConferenceRosterUnreadable, DispatchPluginException
 
 from tests.plugins.dispatch_zoom.conftest import MEETING_ID
 
@@ -189,23 +193,187 @@ def test_removing_from_a_meeting_with_no_invitees_sends_no_patch(zoom, zoom_plug
     assert [r.method for r in zoom.api_requests()] == ["GET"]
 
 
-# --- shapes Zoom really returns ---------------------------------------------
+# --- response shapes ---------------------------------------------------------
+#
+# Two of these are grounded: the key being absent is spec-legal (Zoom's schema
+# lists no `required` fields), and the explicit null is the behaviour the old
+# docstring here recorded as observed. The malformed ones are invented, and are
+# robustness cases rather than claims about what Zoom does.
 
 
-def test_a_meeting_with_no_settings_can_still_be_added_to(zoom, zoom_plugin):
+def test_an_explicitly_empty_invitee_list_is_an_answer_and_is_added_to(zoom, zoom_plugin):
+    """``[]`` is Zoom saying the roster is empty, which is a thing it can say.
+
+    The pair below is the same wire shape with the answer withheld, and the two
+    must not be confused -- that conflation is issue #129.
+    """
+    zoom.get = (200, {"id": 987654321, "settings": {"meeting_invitees": []}})
+
+    zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert emails(zoom.last_api_request()) == ["responder@example.com"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"id": 987654321},
+        {"id": 987654321, "settings": {}},
+        {"id": 987654321, "settings": {"meeting_invitees": None}},
+        {"id": 987654321, "settings": None},
+        {"id": 987654321, "settings": []},
+        {"id": 987654321, "settings": {"meeting_invitees": {"email": "someone@example.com"}}},
+        {"id": 987654321, "settings": {"meeting_invitees": "someone@example.com"}},
+        {"id": 987654321, "settings": {"meeting_invitees": ["someone@example.com"]}},
+    ],
+    ids=[
+        "settings-absent",
+        "key-absent",
+        "explicit-null",
+        "settings-null",
+        "settings-not-an-object",
+        "roster-is-an-object",
+        "roster-is-a-string",
+        "roster-holds-a-string",
+    ],
+)
+def test_a_roster_zoom_did_not_report_is_never_rewritten(zoom, zoom_plugin, body):
+    """Every shape that is not a list of objects means Zoom did not answer.
+
+    Rewriting the list from a non-answer is what would discard the roster #127
+    seeds, since the API replaces it wholesale (issue #129). The last three are
+    malformed rather than merely absent, and land in the same place on purpose:
+    a roster that cannot be round-tripped faithfully must not be round-tripped.
+    """
+    zoom.get = (200, body)
+
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert "did not report" in str(excinfo.value)
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
+
+
+@pytest.mark.parametrize(
+    "roster",
+    [
+        [{"email": "real@example.com"}, "bob@example.com"],
+        [{"email": "real@example.com"}, None],
+        [{"email": "real@example.com"}, {"email": 12345}],
+        [None],
+    ],
+    ids=["one-string", "one-null", "one-numeric-email", "only-a-null"],
+)
+def test_a_roster_with_one_bad_entry_is_refused_whole(zoom, zoom_plugin, roster):
+    """The shape a permissive reader silently shortens.
+
+    Dropping the entry it cannot understand and keeping the rest looks like
+    robustness and is data loss: the surviving list is then written back as the
+    whole roster, so the bad entry's owner is off the meeting. Refusing the
+    whole read leaves every one of them where they were.
+
+    The numeric email is the one that used to escape as an ``AttributeError``
+    out of ``invitee_matches`` rather than as a plugin exception, which reaches
+    the incident timeline reading like a Dispatch bug.
+    """
+    zoom.get = (200, {"id": 987654321, "settings": {"meeting_invitees": roster}})
+
+    with pytest.raises(ConferenceRosterUnreadable):
+        zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
+
+
+def test_a_read_that_is_not_json_is_a_failure_and_not_a_decline(zoom, zoom_plugin):
+    """HTTP 200 with an HTML body: a captive portal or a proxy answering for Zoom.
+
+    A different path from the refusal -- `get_meeting` raises before
+    `reported_invitees` sees anything -- and it must stay a failure, because
+    something is wrong rather than merely unreported.
+    """
+    zoom.get = (200, b"<html>Sign in to continue</html>")
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert "not JSON" in str(excinfo.value)
+    assert not isinstance(excinfo.value, ConferenceRosterUnreadable)
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
+
+
+def test_a_roster_zoom_did_not_report_is_not_rewritten_on_removal_either(zoom, zoom_plugin):
+    """The removal half of the same rule.
+
+    A rewrite here could only shorten the list, and the pre-#129 code did in
+    fact send nothing -- but it returned as though the participant had already
+    been off the roster, which is a claim about state Zoom never made.
+    """
     zoom.get = (200, {"id": 987654321})
 
-    zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        zoom_plugin.remove_participant(MEETING_ID, "responder@example.com")
 
-    assert emails(zoom.last_api_request()) == ["responder@example.com"]
+    assert "did not report" in str(excinfo.value)
+    assert [r.method for r in zoom.api_requests()] == ["GET"]
 
 
-def test_a_null_invitee_list_is_treated_as_empty(zoom, zoom_plugin):
+@pytest.mark.parametrize(
+    "failure",
+    [
+        (404, {"code": 3001, "message": "Meeting does not exist."}),
+        (503, {"message": "Unavailable."}),
+    ],
+    ids=["gone", "unavailable"],
+)
+def test_a_read_that_failed_is_a_failure_and_not_a_decline(zoom, zoom_plugin, failure):
+    """The two must not collapse into one another.
+
+    A decline is kept off the incident timeline because nothing went wrong; a
+    read Zoom refused *is* something going wrong and has to stay visible there.
+    ``ConferenceRosterUnreadable`` subclasses ``DispatchPluginException``, so
+    only asserting the parent would pass with the distinction gone.
+    """
+    zoom.get = failure
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert not isinstance(excinfo.value, ConferenceRosterUnreadable)
+
+
+def test_the_refusal_names_neither_the_participant_nor_the_meeting(zoom, zoom_plugin):
+    """It is logged, and a caller is free to surface it."""
+    zoom.get = (200, {"id": 987654321})
+
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    message = str(excinfo.value)
+    assert "responder@example.com" not in message
+    assert MEETING_ID not in message
+
+
+def test_the_refusal_says_the_roster_is_not_access_control(zoom, zoom_plugin):
+    """ "Could not be added to the conference" invites exactly one wrong reading,
+    and the person reading it is running an incident. The message says outright
+    that nobody's ability to join changed."""
+    zoom.get = (200, {"id": 987654321})
+
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert "does not control who can join" in str(excinfo.value)
+
+
+def test_the_refusal_names_the_shape_zoom_answered_with(zoom, zoom_plugin):
+    """Four different providers otherwise share one string. The phrase is what
+    an operator records on issue #129."""
     zoom.get = (200, {"id": 987654321, "settings": {"meeting_invitees": None}})
 
-    zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        zoom_plugin.add_participant(MEETING_ID, "responder@example.com")
 
-    assert emails(zoom.last_api_request()) == ["responder@example.com"]
+    assert "explicit null" in str(excinfo.value)
 
 
 def test_an_invitee_without_an_email_is_preserved_rather_than_dropped(zoom, zoom_plugin):
