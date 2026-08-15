@@ -32,7 +32,12 @@ Creating the app
    - delete: ``meeting:write:admin``  or ``meeting:delete:meeting:admin``
 
    A missing scope is not visible at token time -- the token is issued and the
-   API call fails later. This suite only needs the read scope.
+   API call fails later, which is why the read-only tests below assert on the
+   status code and say to check the scope.
+
+   **The read scope alone runs the read-only tests and nothing else.** The
+   ``@writes`` tests -- including the one that settles issue #129 -- create,
+   update and delete a meeting, so all four scopes are needed to run them.
 4. Copy the Account ID, Client ID and Client Secret from App Credentials.
 
 What this covers that the mocked suite cannot
