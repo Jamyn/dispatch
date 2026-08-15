@@ -3,7 +3,7 @@
 import logging
 
 from dispatch.decorators import apply, counter, timer
-from dispatch.exceptions import DispatchPluginException
+from dispatch.exceptions import ConferenceCreatedButUnusable
 from dispatch.plugins.bases import ConferencePlugin
 from dispatch.plugins.dispatch_microsoft_teams import conference as teams_plugin
 
@@ -95,20 +95,45 @@ class MicrosoftTeamsConferencePlugin(ConferencePlugin):
             require_passcode=self.configuration.require_passcode,
         )
 
+        # Graph has committed the meeting by the time it answers 2xx, so every
+        # rejection below strands a live bridge. They all raise
+        # `ConferenceCreatedButUnusable`, which is what tells `create_conference`
+        # to delete it -- carrying the id when the response yielded one, and
+        # None when it did not, which still gets the possible leak logged rather
+        # than filed under "the provider was down" (issue #114).
+        #
         # conference/flows.py subscripts these without a default, so an
         # incomplete meeting has to fail here rather than downstream. The body
         # itself is deliberately not quoted -- it carries the passcode and the
         # dial-in conference id, and this message reaches the incident timeline.
-        for field in ("joinWebUrl", "id"):
-            if not meeting.get(field):
-                raise DispatchPluginException(
-                    f"Microsoft Graph created a meeting without a {field}."
-                )
+        #
+        # Collected rather than raised on the first miss, so a meeting missing
+        # both still reports the absent id -- the fact that explains why nothing
+        # could be cleaned up.
+        missing = [field for field in ("joinWebUrl", "id") if not meeting.get(field)]
+        if missing:
+            raise ConferenceCreatedButUnusable(
+                f"Microsoft Graph created a meeting without {', '.join(missing)}.",
+                # Never a fallback to joinWebUrl or subject: those are not
+                # unique and could name another incident's meeting.
+                resource_id=meeting.get("id") or None,
+            )
+
+        try:
+            challenge = build_challenge(meeting)
+        except Exception as e:
+            # `build_challenge` runs after the id guard, so a malformed
+            # `joinMeetingIdSettings` would otherwise throw away a meeting id we
+            # are holding.
+            raise ConferenceCreatedButUnusable(
+                "Microsoft Graph created a meeting whose passcode settings could not be read.",
+                resource_id=meeting["id"],
+            ) from e
 
         return {
             "weblink": meeting["joinWebUrl"],
             "id": meeting["id"],
-            "challenge": build_challenge(meeting),
+            "challenge": challenge,
         }
 
     def delete(self, event_id: str):

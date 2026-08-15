@@ -67,8 +67,8 @@ class SimpleRequest:
 class FakeZoom:
     """Records every call and answers the endpoints the plugin touches.
 
-    Tests override ``token`` / ``get`` / ``patch`` / ``response`` with a
-    ``(status, body)`` pair to drive a failure path.
+    Tests override ``token`` / ``get`` / ``patch`` / ``delete`` / ``response``
+    with a ``(status, body)`` pair to drive a failure path.
     """
 
     def __init__(self):
@@ -77,6 +77,10 @@ class FakeZoom:
         self.response = (201, CREATE_BODY)
         self.get = (200, {"id": 987654321, "settings": {"meeting_invitees": []}})
         self.patch = (204, None)
+        # None means "answer as ``response`` does". A dedicated route is only
+        # needed when a test has to make the create succeed and the delete fail
+        # in the same run, which the compensating cleanup does.
+        self.delete = None
 
     def meeting_with_invitees(self, *emails) -> dict:
         return {
@@ -95,6 +99,8 @@ class FakeZoom:
             return self.get
         if method == "PATCH" and "/meetings/" in url:
             return self.patch
+        if method == "DELETE" and "/meetings/" in url and self.delete is not None:
+            return self.delete
         return self.response
 
     def send(self, request, timeout=None, **kwargs):

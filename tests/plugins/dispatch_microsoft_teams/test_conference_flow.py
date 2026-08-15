@@ -15,6 +15,7 @@ from tests.plugins.dispatch_microsoft_teams.graph_fake import (
     JOIN_URL,
     MEETING_ID,
     PASSCODE,
+    USER_ID,
 )
 
 
@@ -94,3 +95,89 @@ def test_a_failed_create_leaves_no_conference_attached(
     create_conference(incident=incident, participants=[], db_session=session)
 
     assert incident.conference is None
+
+
+# --- compensating cleanup (issue #114) --------------------------------------
+#
+# The generic lifecycle lives in `tests/conference/test_conference_create_flow.py`
+# and runs against a recording plugin. These tests exist because the id the flow
+# deletes by has to be the one *Graph* understands, and only the real client and
+# the real URL can show that. They assert on the request that reached the fake
+# transport, not on a call to the plugin.
+
+
+def deleted_meeting_paths(graph) -> list[str]:
+    """The full paths Graph was asked to DELETE, read off the wire.
+
+    The whole path, not the trailing segment: an id interpolated into the wrong
+    route, or a delete aimed at a different user's meetings, would both pass a
+    check that only compared the last component.
+    """
+    return [request.path for request in graph.graph_requests() if request.method == "DELETE"]
+
+
+def meeting_path(meeting_id: str) -> str:
+    return f"/v1.0/users/{USER_ID}/onlineMeetings/{meeting_id}"
+
+
+def test_a_successful_create_deletes_nothing(graph, session, incident, active_teams_plugin):
+    from dispatch.conference.flows import create_conference
+
+    create_conference(incident=incident, participants=[], db_session=session)
+
+    assert deleted_meeting_paths(graph) == []
+
+
+def test_a_meeting_graph_created_without_a_join_url_is_deleted(
+    graph, session, incident, active_teams_plugin
+):
+    """Graph accepted the meeting; the plugin then found it unusable.
+
+    Without the delete this is a live Teams meeting with no `Conference` row,
+    and `incident_delete_flow` has no way to reach it.
+    """
+    from dispatch.conference.flows import create_conference
+
+    graph.meeting = (201, {"id": MEETING_ID}, {})
+
+    assert create_conference(incident=incident, participants=[], db_session=session) is None
+
+    assert deleted_meeting_paths(graph) == [meeting_path(MEETING_ID)]
+    assert incident.conference is None
+
+
+def test_a_meeting_dispatch_cannot_persist_is_deleted(
+    graph, session, incident, active_teams_plugin, monkeypatch
+):
+    """Graph returned a perfectly good meeting and the database refused it."""
+    from dispatch.conference.flows import create_conference
+
+    def refuse(**kwargs):
+        raise RuntimeError("the conference could not be persisted")
+
+    monkeypatch.setattr("dispatch.conference.flows.create", refuse)
+
+    with pytest.raises(RuntimeError):
+        create_conference(incident=incident, participants=[], db_session=session)
+
+    assert deleted_meeting_paths(graph) == [meeting_path(MEETING_ID)]
+    assert incident.conference is None
+
+
+def test_a_graph_delete_failure_does_not_replace_the_original_error(
+    graph, session, incident, active_teams_plugin, monkeypatch
+):
+    from dispatch.conference.flows import create_conference
+
+    graph.delete = (403, {"error": {"code": "Forbidden", "message": "no delete for you"}}, {})
+
+    def refuse(**kwargs):
+        raise RuntimeError("the conference could not be persisted")
+
+    monkeypatch.setattr("dispatch.conference.flows.create", refuse)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        create_conference(incident=incident, participants=[], db_session=session)
+
+    assert "could not be persisted" in str(excinfo.value)
+    assert deleted_meeting_paths(graph) == [meeting_path(MEETING_ID)]

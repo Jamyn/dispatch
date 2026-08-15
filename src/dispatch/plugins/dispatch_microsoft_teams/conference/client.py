@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 import msal
 import requests
 
-from dispatch.exceptions import DispatchPluginException
+from dispatch.exceptions import ConferenceCreatedButUnusable, DispatchPluginException
 
 log = logging.getLogger(__name__)
 
@@ -190,7 +190,16 @@ class MSTeamsClient:
         }
 
         response = self._request("POST", f"/users/{self.user_id}/onlineMeetings", json=body)
-        return self._parse(response)
+
+        # Graph has committed the meeting by the time it answers 2xx, so a body
+        # we cannot read is an orphaned bridge rather than a failed create.
+        # `ConferenceCreatedButUnusable` is what gets that logged as a possible
+        # leak; there is no id to delete by (issue #114). Only `create_meeting`
+        # converts -- a bad body from a read or an update leaves nothing behind.
+        try:
+            return self._parse(response)
+        except DispatchPluginException as e:
+            raise ConferenceCreatedButUnusable(str(e)) from e
 
     def delete_meeting(self, meeting_id: str) -> None:
         """Delete an online meeting."""

@@ -51,6 +51,9 @@ What this covers that the mocked suite cannot
 - ``delete`` really removes the meeting, and so does ``delete_conference``, the
   flow that calls it (issue #105) -- including that the identifier the flow
   passes is the one Graph accepts.
+- ``create_conference`` really deletes a meeting Dispatch failed to persist
+  (issue #114). That path has no ``Conference`` row behind it, so a delete
+  aimed at the wrong identifier leaves a meeting nothing can ever find.
 - Graph accepts the ``participants.attendees`` payload built for issue #106, and
   a re-added attendee is not duplicated.
 
@@ -476,3 +479,75 @@ def test_an_unresolvable_attendee_is_reported_rather_than_silently_dropped(plugi
         plugin.add_participant(conference["id"], "definitely-not-a-user@invalid.example")
     except DispatchPluginException as e:
         assert "HTTP" in str(e), str(e)
+
+
+def test_a_meeting_dispatch_cannot_persist_is_really_deleted(client, plugin, cleanup, monkeypatch):
+    """The compensating cleanup, end to end against a real tenant (issue #114).
+
+    The mocked suite proves the flow issues a DELETE. Only Graph can say the id
+    the flow hands over is one it accepts -- and this is the path with no
+    ``Conference`` row behind it, so if the delete misses, nothing else will
+    ever find the meeting.
+
+    No database is involved and none is written to. The persistence step is
+    replaced by a raise, which is the failure under test; every other
+    ``db_session`` use on this path is stubbed with it.
+    """
+    instance = SimpleNamespace(
+        instance=plugin,
+        plugin=SimpleNamespace(
+            slug="microsoft-teams-conference",
+            title="Microsoft Teams Plugin - Conference Management",
+        ),
+    )
+    monkeypatch.setattr(
+        conference_flows.plugin_service, "get_active_instance", lambda **kwargs: instance
+    )
+
+    # Registered with `cleanup` as the plugin creates it, because the flow
+    # re-raises without ever returning the meeting -- and an id we never
+    # captured is one this test could not tear down either.
+    created_ids = []
+    real_create = plugin.create
+
+    def record_then_create(*args, **kwargs):
+        meeting = real_create(*args, **kwargs)
+        created_ids.append(meeting["id"])
+        cleanup.append(meeting["id"])
+        return meeting
+
+    monkeypatch.setattr(plugin, "create", record_then_create)
+
+    def refuse(**kwargs):
+        raise RuntimeError("simulated Dispatch persistence failure")
+
+    monkeypatch.setattr(conference_flows, "create", refuse)
+
+    incident = SimpleNamespace(
+        id=1,
+        name="dispatch-live-test",
+        title=_subject(),
+        project=SimpleNamespace(id=1),
+    )
+
+    with pytest.raises(RuntimeError):
+        conference_flows.create_conference(incident=incident, participants=[], db_session=None)
+
+    assert created_ids, "Graph never created a meeting, so nothing was under test"
+    meeting_id = created_ids[0]
+
+    # Graph is eventually consistent on this read; poll rather than assert once.
+    deadline = time.monotonic() + 30
+    while True:
+        try:
+            client._request("GET", f"/users/{USER_ID}/onlineMeetings/{meeting_id}")
+        except DispatchPluginException as e:
+            assert "HTTP 404" in str(e), str(e)
+            break
+        if time.monotonic() > deadline:
+            pytest.fail("the orphaned meeting was still readable 30s after the failure")
+        time.sleep(2)
+
+    # The compensation removed it, so the fixture has nothing left to do and
+    # would otherwise warn about a meeting it cannot delete twice.
+    cleanup.remove(meeting_id)

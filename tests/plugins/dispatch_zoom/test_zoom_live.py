@@ -49,10 +49,11 @@ left behind. Authentication is proven by listing meetings, which needs only the
 read scope this file tells you to add -- a ``GET /users/me`` probe would need a
 ``user:read`` scope that the plugin itself never uses.
 
-The one exception is the conference-teardown test at the bottom (issue #105),
-which has to create a meeting in order to delete one. It is skipped unless
-``DISPATCH_ZOOM_TEST_ALLOW_WRITES=1`` is set as well, so the four variables
-above still buy you a suite that touches nothing.
+The exceptions are the two teardown tests at the bottom -- the ``delete_conference``
+flow (issue #105) and the compensating cleanup in ``create_conference`` (issue
+#114) -- which have to create a meeting in order to delete one. Both are skipped
+unless ``DISPATCH_ZOOM_TEST_ALLOW_WRITES=1`` is set as well, so the four
+variables above still buy you a suite that touches nothing.
 
 Note on assertions: a failing ``assert SECRET not in text`` renders **both**
 operands into the pytest report, publishing the very secret it checks for. Every
@@ -322,3 +323,73 @@ def test_the_delete_conference_flow_really_removes_the_meeting(
         # is a 404 and a no-op. It must stay after the probe above, never
         # before, or the cleanup would be what satisfies the check.
         zoom_client.delete(f"meetings/{meeting_id}")
+
+
+@writes
+def test_a_meeting_dispatch_cannot_persist_is_really_deleted(
+    zoom_client, zoom_plugin_live, monkeypatch
+):
+    """The compensating cleanup, end to end against a real Zoom account (issue #114).
+
+    The mocked suite proves the flow issues a DELETE. Only Zoom can say the id
+    the flow hands over is one it accepts -- and this is the path with no
+    ``Conference`` row behind it, so if the delete misses, nothing else will
+    ever find the meeting.
+
+    No database is involved and none is written to. The persistence step is
+    replaced by a raise, which is the failure under test; every other
+    ``db_session`` use on this path is stubbed with it.
+    """
+    instance = SimpleNamespace(
+        instance=zoom_plugin_live,
+        plugin=SimpleNamespace(slug="zoom-conference", title="Zoom Plugin - Conference Management"),
+    )
+    monkeypatch.setattr(
+        conference_flows.plugin_service, "get_active_instance", lambda **kwargs: instance
+    )
+
+    # Recorded as the plugin creates it, because the flow re-raises without ever
+    # returning the meeting -- and an id we never captured is one this test
+    # could not clean up either.
+    created_ids = []
+    real_create = zoom_plugin_live.create
+
+    def record_then_create(*args, **kwargs):
+        meeting = real_create(*args, **kwargs)
+        created_ids.append(meeting["id"])
+        return meeting
+
+    monkeypatch.setattr(zoom_plugin_live, "create", record_then_create)
+
+    def refuse(**kwargs):
+        raise RuntimeError("simulated Dispatch persistence failure")
+
+    monkeypatch.setattr(conference_flows, "create", refuse)
+
+    incident = SimpleNamespace(
+        id=1,
+        name=f"dispatch-live-test-{uuid.uuid4().hex[:8]}",
+        title="Dispatch live test (safe to delete)",
+        project=SimpleNamespace(id=1),
+    )
+
+    try:
+        with pytest.raises(RuntimeError):
+            conference_flows.create_conference(incident=incident, participants=[], db_session=None)
+
+        assert created_ids, "Zoom never created a meeting, so nothing was under test"
+        meeting_id = created_ids[0]
+
+        # Polled, as the teardown test above is: a single probe flakes if Zoom
+        # is eventually consistent on this read.
+        deadline = time.monotonic() + 30
+        while zoom_client.get(f"meetings/{meeting_id}").status_code != 404:
+            if time.monotonic() > deadline:
+                pytest.fail("the orphaned meeting was still readable 30s after the failure")
+            time.sleep(2)
+    finally:
+        # Only does anything when the compensation did *not* run -- otherwise a
+        # 404 and a no-op. After the probe, never before, or this would be what
+        # satisfies the check.
+        for meeting_id in created_ids:
+            zoom_client.delete(f"meetings/{meeting_id}")

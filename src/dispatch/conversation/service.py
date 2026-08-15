@@ -23,7 +23,13 @@ def get_by_channel_id_ignoring_channel_type(
     # The code below disambiguates between incident threads, case threads, and incident messages
     if not thread_id:
         # assume incident message
-        conversation = conversations.first()
+        #
+        # Ordered because `first()` on an unordered query returns whichever row
+        # Postgres happens to yield, which changes with the table's physical
+        # layout -- so the same duplicated channel_id could resolve to a
+        # different conversation from one call to the next. Oldest wins, which
+        # is what the caller means by "the" conversation for this channel.
+        conversation = conversations.order_by(Conversation.id).first()
 
     if not conversation:
         conversation = conversations.filter(Conversation.thread_id == thread_id).one_or_none()

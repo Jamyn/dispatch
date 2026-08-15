@@ -16,6 +16,7 @@ from googleapiclient.errors import HttpError
 from pytz import timezone
 from tenacity import TryAgain, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
+from dispatch.exceptions import ConferenceCreatedButUnusable
 from dispatch.decorators import apply, counter, timer
 from dispatch.plugins.bases import ConferencePlugin
 from dispatch.plugins.dispatch_google import calendar as google_calendar_plugin
@@ -149,12 +150,46 @@ class GoogleCalendarConferencePlugin(ConferencePlugin):
             duration=self.configuration.default_duration_minutes,
         )
 
-        meet_url = ""
-        for entry_point in conference["conferenceData"]["entryPoints"]:
-            if entry_point["entryPointType"] == "video":
-                meet_url = entry_point["uri"]
+        # Google has committed the event by the time `create_event` returns, so
+        # every rejection below strands a live Meet bridge. They raise
+        # `ConferenceCreatedButUnusable`, which is what tells `create_conference`
+        # to delete it, carrying the event id when the response yielded one
+        # (issue #114). This is not hypothetical here: Google attaches the
+        # conference asynchronously -- see the TODO in `create_event` -- and
+        # reports `conferenceData.createRequest.status.statusCode == "pending"`
+        # meanwhile, with no `entryPoints` at all.
+        #
+        # Unlike Zoom and Teams, this plugin invites `participants` on insert,
+        # so the link is already in responders' mailboxes. Deleting the event
+        # withdraws those invitations, which is still better than leaving a
+        # bridge the incident does not know about and a retry will duplicate.
+        event_id = conference.get("id") if isinstance(conference, dict) else None
 
-        return {"weblink": meet_url, "id": conference["id"], "challenge": ""}
+        try:
+            entry_points = conference["conferenceData"]["entryPoints"]
+        except (KeyError, TypeError) as e:
+            raise ConferenceCreatedButUnusable(
+                "Google created the event but has not attached a conference to it.",
+                resource_id=event_id,
+            ) from e
+
+        meet_url = ""
+        for entry_point in entry_points:
+            if entry_point.get("entryPointType") == "video":
+                meet_url = entry_point.get("uri")
+
+        if not meet_url or not event_id:
+            # conference/flows.py subscripts both without a default. The event
+            # body is deliberately not quoted -- it carries the attendee list,
+            # and this message reaches the incident timeline.
+            raise ConferenceCreatedButUnusable(
+                "Google created the event without a usable video entry point.",
+                # Never a fallback to the summary or the htmlLink: neither is
+                # unique and either could name another incident's event.
+                resource_id=event_id,
+            )
+
+        return {"weblink": meet_url, "id": event_id, "challenge": ""}
 
     def delete(self, event_id: str):
         """Deletes an existing event."""
