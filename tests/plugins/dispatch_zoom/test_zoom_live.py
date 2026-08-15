@@ -181,14 +181,24 @@ def test_a_wrong_account_id_is_reported(zoom_client):
     assert "HTTP 400" in message or "HTTP 401" in message, message
 
 
-def test_zoom_does_not_grant_this_app_the_client_credentials_grant():
-    """Settles the one claim the issue got wrong.
+def test_a_client_credentials_token_cannot_reach_the_meetings_api():
+    """Why the grant type is ``account_credentials`` (issue #70).
 
-    Issue #70 proposed a ``client_credentials`` grant. Zoom's token endpoint
-    does recognise that grant -- it belongs to General Apps -- but a
-    Server-to-Server app is not entitled to it, which is why the client sends
-    ``account_credentials``. If this ever starts succeeding, that choice is no
-    longer load-bearing, and that is worth knowing either way.
+    This test used to assert that Zoom's token endpoint *refuses*
+    ``client_credentials`` for a Server-to-Server app. Run against a real
+    account 2026-08-15, it does not: it answers **200 with a usable token**.
+    The token simply carries a different scope family -- `marketplace:*`, for
+    managing the app itself -- and none of the `meeting:*` scopes.
+
+    So the rejection happens one step later, at `api.zoom.us`, as **code 124
+    "Invalid access token"** -- which is exactly what `client.py`'s module
+    docstring has always said. The docstring was right and the test was wrong,
+    and the test passed for two releases because no account was configured to
+    run it.
+
+    Asserted where the failure actually is. A token endpoint check cannot
+    distinguish the two grants at all, so it would have gone on passing while
+    proving nothing.
     """
     response = requests.post(
         "https://zoom.us/oauth/token",
@@ -197,13 +207,25 @@ def test_zoom_does_not_grant_this_app_the_client_credentials_grant():
         timeout=15,
     )
 
-    if response.ok:
-        pytest.fail(
-            "Zoom accepted the client_credentials grant for a Server-to-Server app; "
-            "the account_credentials value is no longer load-bearing."
+    if not response.ok:
+        pytest.skip(
+            f"Zoom refused the client_credentials grant outright (HTTP "
+            f"{response.status_code}); it answered 200 with a marketplace-scoped "
+            "token when this was last observed."
         )
 
-    assert response.status_code in (400, 401), f"unexpected HTTP {response.status_code}"
+    token = response.json()["access_token"]
+    probe = requests.get(
+        f"{'https://api.zoom.us/v2'}/{READ_ONLY_PROBE.format(API_USER_ID)}",
+        headers={"authorization": f"Bearer {token}"},
+        timeout=15,
+    )
+
+    assert probe.status_code == 401, (
+        f"a client_credentials token reached the meetings API with HTTP "
+        f"{probe.status_code}; the account_credentials value is no longer load-bearing"
+    )
+    assert probe.json().get("code") == 124
 
 
 def test_the_token_is_reused_within_its_lifetime(zoom_client, monkeypatch):
