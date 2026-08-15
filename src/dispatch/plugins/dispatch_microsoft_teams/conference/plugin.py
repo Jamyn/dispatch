@@ -44,6 +44,23 @@ def current_attendees(meeting: dict) -> list[dict]:
     return list(participants.get("attendees") or [])
 
 
+def as_attendee(participant: str) -> dict:
+    """One participant as Graph's attendee list represents them.
+
+    Shared by `create` and `add_participant` so the two never disagree about what
+    an attendee looks like -- they write to the same list, and Graph replaces it
+    wholesale.
+
+    `attendee` is the only role safe to assign unconditionally: presenter and
+    coorganizer are unsupported for identities Entra cannot resolve, and
+    responders may be external. `identity` is left to Graph, which is documented
+    as optional and could not be populated without resolving the address to an
+    Entra object id -- that needs User.Read.All, which this plugin does not ask
+    for.
+    """
+    return {"upn": participant, "role": "attendee"}
+
+
 def matches(attendee: dict, participant: str) -> bool:
     """Whether an attendee is the given participant. UPNs are case-insensitive."""
     upn = attendee.get("upn")
@@ -84,15 +101,31 @@ class MicrosoftTeamsConferencePlugin(ConferencePlugin):
     ):
         """Create a new event.
 
-        `description` and `participants` are accepted for interface parity and
-        unused: an onlineMeeting has no agenda field, and responders join
-        through the link Dispatch publishes rather than being invited.
+        `participants` becomes the meeting's initial attendee roster (issue
+        #110). Invitation metadata as far as Dispatch is concerned: responders
+        join through the link Dispatch publishes, and nothing here gates that
+        link. **Inferred, and the one caveat worth knowing:** a tenant whose lobby
+        policy admits only invited people (`lobbyBypassSettings.scope = invited`,
+        which this plugin never sets) may treat the attendee list as its
+        bypass list, so an absent responder could wait in the lobby rather than
+        be kept out. Graph does not document whether a standalone onlineMeeting's
+        attendee counts as "invited" there.
+
+        `description` is accepted for interface parity and unused: an
+        onlineMeeting has no agenda field.
+
+        A roster Graph rejects fails the create, and that is the intended
+        behaviour: the meeting does not exist yet, so nothing is stranded and the
+        error names the reason. Nothing is truncated to fit -- Graph's documented
+        limits are about contact lists larger than 150 and 1000 members, and a
+        silently shortened roster would be a worse answer than a failed create.
         """
         meeting = self._client().create_meeting(
             subject=title if title else f"Situation Room for {name}",
             duration_minutes=self.configuration.default_duration_minutes,
             record_automatically=self.configuration.allow_auto_recording,
             require_passcode=self.configuration.require_passcode,
+            attendees=[as_attendee(p) for p in participants or []],
         )
 
         # Graph has committed the meeting by the time it answers 2xx, so every
@@ -155,18 +188,12 @@ class MicrosoftTeamsConferencePlugin(ConferencePlugin):
         if find_attendee(attendees, participant) is not None:
             return
 
-        # `attendee` is the only role safe to assign unconditionally: presenter
-        # and coorganizer are unsupported for identities Entra cannot resolve,
-        # and responders may be external.
-        #
-        # A new attendee is identified by `upn` alone. Graph documents `identity`
-        # as optional and we cannot populate it without resolving the address to
-        # an Entra object id, which would need User.Read.All on top of the
-        # permissions this plugin asks for. Unverified against a live tenant, and
-        # there are reports of Graph answering 200 to an attendee update made
-        # with application permissions without applying it -- so the live suite
-        # asserts by reading the meeting back rather than trusting the status.
-        client.update_attendees(event_id, attendees + [{"upn": participant, "role": "attendee"}])
+        # Built by `as_attendee`, which carries the reasoning about role and
+        # identity. Unverified against a live tenant, and there are reports of
+        # Graph answering 200 to an attendee update made with application
+        # permissions without applying it -- so the live suite asserts by reading
+        # the meeting back rather than trusting the status.
+        client.update_attendees(event_id, attendees + [as_attendee(participant)])
 
     def remove_participant(self, event_id: str, participant: str):
         """Remove a participant from the meeting's attendee roster.

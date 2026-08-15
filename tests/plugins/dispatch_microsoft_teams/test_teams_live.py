@@ -551,3 +551,51 @@ def test_a_meeting_dispatch_cannot_persist_is_really_deleted(client, plugin, cle
     # The compensation removed it, so the fixture has nothing left to do and
     # would otherwise warn about a meeting it cannot delete twice.
     cleanup.remove(meeting_id)
+
+
+# --- the initial roster (issue #110) ----------------------------------------
+
+# `create` seeds `participants.attendees` rather than PATCHing them on
+# afterwards, and only Graph can say it stores what the create sends -- it
+# accepts an unresolvable attendee and silently keeps nothing, so a 201 proves
+# nothing on its own. Read back, like every other assertion in this file.
+#
+# These reuse DISPATCH_MSTEAMS_TEST_ATTENDEE_UPN, the dedicated test identity the
+# attendee suite above already requires. A synthetic `.invalid` address would be
+# discarded by Graph and the test would assert nothing. Nobody is emailed either
+# way: `/onlineMeetings` creates no calendar item, which is what makes seeding a
+# roster safe to do against a real tenant.
+
+
+@needs_attendee
+def test_a_created_meeting_really_carries_the_seeded_attendee(client, plugin, cleanup):
+    conference = plugin.create("dispatch-live-test", title=_subject(), participants=[ATTENDEE_UPN])
+    cleanup.append(conference["id"])
+
+    meeting = client.get_meeting(conference["id"])
+    assert ATTENDEE_UPN.casefold() in [u.casefold() for u in _attendee_upns(meeting) if u]
+
+
+@needs_attendee
+def test_seeding_then_adding_the_same_attendee_does_not_duplicate(client, plugin, cleanup):
+    """The founding roster and a later join are the same list, so a responder who
+    was seeded and then joins the incident must not be listed twice."""
+    conference = plugin.create("dispatch-live-test", title=_subject(), participants=[ATTENDEE_UPN])
+    cleanup.append(conference["id"])
+
+    plugin.add_participant(conference["id"], ATTENDEE_UPN)
+
+    meeting = client.get_meeting(conference["id"])
+    listed = [u.casefold() for u in _attendee_upns(meeting) if u]
+    assert listed.count(ATTENDEE_UPN.casefold()) == 1
+
+
+def test_a_meeting_created_with_no_roster_really_has_none(client, plugin, cleanup):
+    """The empty case: no attendees requested, none stored, and a usable meeting
+    either way. Needs no test identity, so it runs wherever the tenant does."""
+    conference = plugin.create("dispatch-live-test", title=_subject(), participants=[])
+    cleanup.append(conference["id"])
+
+    meeting = client.get_meeting(conference["id"])
+    assert _attendee_upns(meeting) == []
+    assert conference["weblink"]

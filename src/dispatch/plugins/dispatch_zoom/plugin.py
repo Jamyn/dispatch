@@ -113,6 +113,16 @@ def meeting_invitees(meeting: dict) -> list[dict]:
     return list(settings.get("meeting_invitees") or [])
 
 
+def as_invitee(participant: str) -> dict:
+    """One participant as Zoom's invitee list represents them.
+
+    Shared by `create` and `add_participant` so the two never disagree about what
+    an invitee looks like -- they write to the same list, and Zoom replaces it
+    wholesale.
+    """
+    return {"email": participant}
+
+
 def invitee_matches(invitee: dict, participant: str) -> bool:
     """Whether an invitee is the given participant. Email is case-insensitive."""
     email = invitee.get("email")
@@ -151,12 +161,38 @@ def create_meeting(
     name: str,
     description: str = None,
     title: str = None,
+    participants: list[str] = None,
     duration: int = 1440,
 ):
     """Create a Zoom Meeting.
 
     Zoom caps `duration` at 1440 minutes (24 hours); the previous default of
     60000 claimed six weeks and was rejected by the API.
+
+    `participants` seeds `settings.meeting_invitees`, the same list
+    `add_participant` maintains (issue #110). The key is omitted entirely rather
+    than sent empty when there is no one to list, which keeps the request
+    identical to what a deployment with no bridge participants sends today.
+
+    Zoom does not email an invitee. Its staff's answer is *"That value is just a
+    list of the meeting's invitees. It does not generate an email, though all
+    participants are emailed"* -- quoted whole because the trailing clause is the
+    only ambiguous part, and it is read as referring to the separate registrants
+    API the same reply points at, which this plugin never calls. Multiple later
+    staff replies say plainly that the field triggers no email.
+
+    **Unverified, and it bounds what this is worth:** staff have also said the
+    field is consumed only by their calendar integrations, and that invitees may
+    not be readable back at all. If a `GET` does not echo them, the roster is
+    write-only and the first `add_participant` replaces it -- see
+    `test_a_seeded_roster_zoom_does_not_echo_back_is_lost_on_the_first_add`. The
+    request this builds is what the API documents; only the live suite can say
+    what Zoom does with it.
+
+    The invitees ride along in the create rather than being PATCHed on
+    afterwards, so a list Zoom rejects fails while there is still no meeting to
+    strand (issue #114). Nothing is truncated: Zoom documents no invitee cap, and
+    a silently shortened roster is worse than a create that says why it failed.
     """
     body = {
         "topic": title if title else f"Situation Room for {name}",
@@ -165,6 +201,9 @@ def create_meeting(
         "password": gen_conference_challenge(8),
         "settings": {"join_before_host": True},
     }
+
+    if participants:
+        body["settings"]["meeting_invitees"] = [as_invitee(p) for p in participants]
 
     return request(
         client,
@@ -210,7 +249,12 @@ class ZoomConferencePlugin(ConferencePlugin):
     def create(
         self, name: str, description: str = None, title: str = None, participants: list[str] = None
     ):
-        """Create a new event."""
+        """Create a new event.
+
+        `participants` becomes the meeting's initial invitee roster. Roster
+        metadata only -- the join_url works for anyone holding it whatever the
+        list says.
+        """
         client = self._zoom_client()
 
         conference_response = create_meeting(
@@ -219,6 +263,7 @@ class ZoomConferencePlugin(ConferencePlugin):
             name,
             description=description,
             title=title,
+            participants=participants,
             duration=self.configuration.default_duration_minutes,
         )
 
@@ -284,8 +329,12 @@ class ZoomConferencePlugin(ConferencePlugin):
 
         Zoom support has stated that `meeting_invitees` is consumed only by their
         calendar integrations, so the invitee may never surface in the Zoom
-        client. This sends what the API documents; the live suite is read-only
-        and creates no meeting, so that behaviour remains unconfirmed here.
+        client. This sends what the API documents.
+
+        Resending in full only preserves the existing roster if Zoom reports it on
+        a read, which is unconfirmed and which staff have suggested it does not --
+        if it does not, this replaces whatever `create` seeded (issue #110). The
+        write-gated live tests are the only thing that can settle it.
         """
         client = self._zoom_client()
         invitees = meeting_invitees(get_meeting(client, event_id))
@@ -293,7 +342,7 @@ class ZoomConferencePlugin(ConferencePlugin):
         if any(invitee_matches(i, participant) for i in invitees):
             return
 
-        update_invitees(client, event_id, invitees + [{"email": participant}])
+        update_invitees(client, event_id, invitees + [as_invitee(participant)])
 
     def remove_participant(self, event_id: str, participant: str):
         """Remove a participant from the meeting's invitee roster.
