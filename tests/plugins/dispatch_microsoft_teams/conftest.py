@@ -4,6 +4,8 @@ The fake transport itself lives in ``graph_fake`` so the test modules can
 import its constants without importing a conftest.
 """
 
+from urllib.parse import urlparse
+
 import pytest
 from requests.adapters import HTTPAdapter
 
@@ -11,9 +13,13 @@ from dispatch.plugins.dispatch_microsoft_teams.conference import client as clien
 from tests.plugins.dispatch_microsoft_teams.graph_fake import (
     AUTHORITY,
     CLIENT_ID,
+    GRAPH_HOST,
+    MEETING_BODY,
     SECRET,
     USER_ID,
     FakeGraph,
+    RecordedRequest,
+    _response,
 )
 
 
@@ -29,6 +35,34 @@ def graph(monkeypatch):
     fake = FakeGraph()
     monkeypatch.setattr(HTTPAdapter, "send", lambda self, request, **kw: fake.send(request, **kw))
     return fake
+
+
+@pytest.fixture
+def graph_capture(graph, monkeypatch):
+    """Like ``graph``, but answers *any* Graph-host request instead of routing
+    on a literal ``MEETINGS_URL``-prefix match.
+
+    Path-encoding regression tests deliberately supply ids that -- before the
+    fix -- retarget the request to a different path entirely. ``FakeGraph``'s
+    strict routing would raise "unexpected request" for those before a test
+    ever got to inspect the URL. This fixture still delegates token/OIDC
+    traffic to the real fake so authentication continues to run for real.
+    """
+    captured: list[RecordedRequest] = []
+
+    def send(self, request, timeout=None, **kwargs):
+        if urlparse(request.url).hostname == GRAPH_HOST:
+            captured.append(RecordedRequest(request, timeout))
+            status = 204 if request.method == "DELETE" else 200
+            body = None if request.method == "DELETE" else MEETING_BODY
+            response = _response(status, body)
+            response.url = request.url
+            response.request = request
+            return response
+        return graph.send(request, **kwargs)
+
+    monkeypatch.setattr(HTTPAdapter, "send", send)
+    return captured
 
 
 @pytest.fixture

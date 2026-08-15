@@ -2,6 +2,7 @@
 
 import logging
 from datetime import UTC, datetime, timedelta
+from urllib.parse import quote
 
 import msal
 import requests
@@ -11,6 +12,37 @@ from dispatch.exceptions import ConferenceCreatedButUnusable, DispatchPluginExce
 log = logging.getLogger(__name__)
 
 GRAPH_API_BASE_URI = "https://graph.microsoft.com/v1.0"
+
+
+def _quote_path_component(value: str) -> str:
+    """Percent-encode one dynamic URL path segment.
+
+    ``safe=""`` is deliberate: a bare ``quote()`` leaves ``/`` unescaped, which
+    is exactly the character that lets a value walk out of its own path
+    segment (see issue #123). Only ever call this on a single path component,
+    never on a full URL or a query string.
+
+    A component that is *exactly* ``.`` or ``..`` is refused rather than
+    encoded: ``quote()`` can never escape ``.`` (Python's always-safe set --
+    letters, digits, ``_.-~`` -- is only ever added to by ``safe``, never
+    subtracted from), and hand-escaping it (``.`` -> ``%2E``) doesn't help
+    either -- ``requests.utils.requote_uri``, which every ``PreparedRequest``
+    runs through, decodes any percent-triplet of an unreserved character back
+    to its literal form before the request line is built, precisely because
+    ``.`` is unreserved. So a value of ``".."`` always reaches the wire as a
+    literal, un-encoded dot-segment no matter how it was escaped going in.
+    Neither Graph nor Microsoft's ``requests`` documents whether the server
+    also normalises it away, so this codebase cannot prove it is safe to
+    send -- it is refused instead.
+    """
+    if value in (".", ".."):
+        raise DispatchPluginException(
+            f"Refusing to build a Microsoft Graph request with a path "
+            f"component of {value!r}: it cannot be percent-encoded in a way "
+            f"that survives requests' own URL normalization."
+        )
+    return quote(value, safe="")
+
 
 # The client-credentials flow accepts only `/.default`; a resource scope such as
 # `User.Read` is rejected with AADSTS1002012.
@@ -189,7 +221,9 @@ class MSTeamsClient:
             "joinMeetingIdSettings": {"isPasscodeRequired": require_passcode},
         }
 
-        response = self._request("POST", f"/users/{self.user_id}/onlineMeetings", json=body)
+        response = self._request(
+            "POST", f"/users/{_quote_path_component(self.user_id)}/onlineMeetings", json=body
+        )
 
         # Graph has committed the meeting by the time it answers 2xx, so a body
         # we cannot read is an orphaned bridge rather than a failed create.
@@ -203,11 +237,15 @@ class MSTeamsClient:
 
     def delete_meeting(self, meeting_id: str) -> None:
         """Delete an online meeting."""
-        self._request("DELETE", f"/users/{self.user_id}/onlineMeetings/{meeting_id}")
+        user = _quote_path_component(self.user_id)
+        meeting = _quote_path_component(meeting_id)
+        self._request("DELETE", f"/users/{user}/onlineMeetings/{meeting}")
 
     def get_meeting(self, meeting_id: str) -> dict:
         """Read an online meeting."""
-        response = self._request("GET", f"/users/{self.user_id}/onlineMeetings/{meeting_id}")
+        user = _quote_path_component(self.user_id)
+        meeting = _quote_path_component(meeting_id)
+        response = self._request("GET", f"/users/{user}/onlineMeetings/{meeting}")
         return self._parse(response)
 
     def update_attendees(self, meeting_id: str, attendees: list[dict]) -> dict:
@@ -218,9 +256,11 @@ class MSTeamsClient:
         the delta silently removes everyone else. `organizer` is deliberately
         absent -- it cannot be updated and sending it is rejected.
         """
+        user = _quote_path_component(self.user_id)
+        meeting = _quote_path_component(meeting_id)
         response = self._request(
             "PATCH",
-            f"/users/{self.user_id}/onlineMeetings/{meeting_id}",
+            f"/users/{user}/onlineMeetings/{meeting}",
             json={"participants": {"attendees": attendees}},
         )
         return self._parse(response)
