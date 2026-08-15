@@ -144,12 +144,11 @@ def test_a_seeded_roster_zoom_does_not_report_survives_the_first_add(zoom, zoom_
     with a single entry -- the create-time roster of #127 buying nothing beyond
     the create request itself.
 
-    Whether Zoom reports them is still unsettled: its API reference documents
-    the field on the 200 of ``GET /meetings/{meetingId}``, while its staff have
-    said on the developer forum that invitees cannot be queried back. This test
-    does not decide that. It fixes what happens in the branch where the answer
-    is bad -- the roster is left standing and the failure is reported, rather
-    than the roster being overwritten from an answer that was never given.
+    Zoom does report them -- verified against a real account 2026-08-15 -- so
+    this is a guard rather than a live bug. It stays because the guarantee must
+    not depend on that: where the answer is not given, the roster is left
+    standing and the refusal is reported, rather than the roster being
+    overwritten from an answer that was never given.
 
     Deliberately asserts on the *absence* of a PATCH. Asserting the exception
     alone would still pass against an implementation that raised after writing.

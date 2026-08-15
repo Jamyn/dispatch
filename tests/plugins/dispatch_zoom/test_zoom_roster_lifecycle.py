@@ -5,19 +5,18 @@ create, then adds and removals -- against a fake that actually stores what it is
 sent, because the failure #129 is about only appears on the *second* call: the
 create seeds a roster and the first ``add_participant`` replaces it.
 
-The file is organised around the two providers Zoom might be, and each test
-names which one it drives:
+The file is organised around two providers, and each test names which one it
+drives:
 
-- ``reports_roster=True`` -- Zoom's API reference documents
-  ``settings.meeting_invitees`` on the 200 of ``GET /meetings/{meetingId}``, with
-  an item schema richer than the request's.
-- ``reports_roster=False`` -- Zoom's staff say on the developer forum that
-  invitees cannot be queried back, and that the field feeds their calendar
-  integrations only.
+- ``reports_roster=True`` -- **what Zoom actually does**, verified against a real
+  account 2026-08-15: the roster comes back in full on the 200 of
+  ``GET /meetings/{meetingId}``, and as ``[]`` when the meeting has none.
+- ``reports_roster=False`` -- a provider that accepts the field and never
+  reports it, which is what Zoom's staff described on the developer forum and
+  what issue #129 feared. Not Zoom, on the evidence; kept because the plugin's
+  guarantee must not rest on the provider staying friendly.
 
-Which one is real is unsettled and is not decided here; only
-``test_zoom_live.py`` can decide it. What is decided here is that the invariant
-holds either way:
+The invariant holds against both:
 
     one participant update never discards the others.
 

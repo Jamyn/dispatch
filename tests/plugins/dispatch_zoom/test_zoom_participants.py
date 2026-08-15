@@ -10,16 +10,15 @@ properties of Zoom rather than of this code:
   forum to be consumed only by their calendar integrations, so an invitee added
   through it may never appear in the Zoom client. The plugin sends what issue
   #106 specifies; whether Zoom acts on it is not something these tests can say.
-- Whether a read reports the roster back is likewise unsettled: Zoom's API
-  reference documents the field on the 200 of ``GET /meetings/{meetingId}``,
-  and its staff have said invitees cannot be queried back (issue #129). Only
-  ``test_zoom_live.py``'s write-gated round trip can decide it.
+- A read *does* report the roster back -- verified against a real account
+  2026-08-15, settling issue #129 in the negative. The staff claim that invitees
+  cannot be queried back does not hold for this endpoint.
 
-What the tests below *do* establish is that the request we build is the one the
-API documents -- the right verb, the right path, and a complete invitee list --
-and that the answer to that second question cannot cost anyone their place on
-the roster either way, because a read that reports nothing is never treated as
-a read that reported an empty list.
+What the tests below establish is that the request we build is the one the API
+documents -- the right verb, the right path, and a complete invitee list -- and
+that nobody loses their place on the roster even if that stops being true,
+because a read that reports nothing is never treated as a read that reported an
+empty list.
 """
 
 import pytest

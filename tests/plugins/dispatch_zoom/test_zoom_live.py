@@ -42,17 +42,25 @@ Creating the app
 
 What this covers that the mocked suite cannot
 ---------------------------------------------
-- The ``account_credentials`` grant is really what Zoom accepts, and a
-  Server-to-Server app really is not entitled to ``client_credentials``.
+- The ``account_credentials`` grant is really what Zoom accepts. It is *not*
+  true that Zoom refuses ``client_credentials`` here -- it issues a token for
+  it, carrying ``marketplace:*`` scopes and no ``meeting:*`` ones, which the
+  meetings API then rejects as code 124 (observed 2026-08-15).
 - The Basic-auth credential encoding is what Zoom expects.
 - A real access token comes back and authenticates a real API call.
 - Wrong credentials fail the way the client reports them.
 
 These tests are deliberately **read-only**: they create, modify and delete
 nothing in the account, so there is nothing to clean up and nothing that can be
-left behind. Authentication is proven by listing meetings, which needs only the
-read scope this file tells you to add -- a ``GET /users/me`` probe would need a
-``user:read`` scope that the plugin itself never uses.
+left behind. Authentication is proven by listing meetings -- a ``GET /users/me``
+probe would need a ``user:read`` scope that the plugin itself never uses.
+
+Note the list probe needs ``meeting:read:list_meetings:admin`` while reading one
+meeting needs ``meeting:read:meeting:admin``. An app granted only the first
+authenticates, passes every read-only test here, and then fails the roster tests
+with **HTTP 400 code 4711** naming the missing scope. Seen for real, so it is
+written down: passing the authentication tests does not prove the read scope the
+plugin actually uses.
 
 The exceptions are the ``@writes`` tests at the bottom, which have to create a
 meeting to have anything to assert about: the two teardown tests -- the
@@ -63,11 +71,14 @@ the invitees it is sent. They are skipped unless
 ``DISPATCH_ZOOM_TEST_ALLOW_WRITES=1`` is set as well, so the four variables
 above still buy you a suite that touches nothing.
 
-``test_zoom_reports_the_seeded_invitees_on_a_read`` is the one to run to settle
-issue #129, and a failure there is an answer rather than a defect: its message
-names the shape Zoom answered with -- via the plugin's own ``describe_roster``,
-so the classification cannot drift from the one the plugin acts on -- and that
-phrase is what to record on the issue.
+``test_zoom_reports_the_seeded_invitees_on_a_read`` settled issue #129, and is
+kept as the regression guard for it. **Run against a real account 2026-08-15:
+Zoom reports the seeded roster in full**, with the ``internal_user`` its write
+schemas cannot send, and reports ``[]`` for a meeting created with none. A
+failure here is an answer rather than a defect: its message names the shape Zoom
+answered with -- via the plugin's own ``describe_roster``, so the classification
+cannot drift from the one the plugin acts on -- and that phrase is what to record
+on the issue.
 
 Note on assertions: a failing ``assert SECRET not in text`` renders **both**
 operands into the pytest report, publishing the very secret it checks for. Every
