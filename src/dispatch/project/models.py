@@ -1,6 +1,6 @@
 from pydantic import ConfigDict, EmailStr, Field
 from slugify import slugify
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, ForeignKey, Index, Integer, String, func
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import false
@@ -83,6 +83,24 @@ class Project(Base):
 
     search_vector = Column(
         TSVectorType("name", "description", weights={"name": "A", "description": "B"})
+    )
+
+    __table_args__ = (
+        # Matches `project_service.get_all_enabled`'s ordering expression
+        # exactly -- an expression index is only usable by a query that repeats
+        # the expression, so the two have to be changed together. Partial on
+        # `enabled` because that service only ever asks for enabled projects.
+        #
+        # The path this exists for is not really the type-ahead: `project_select`
+        # probes with `limit=MAX_SELECT_OPTIONS + 1` on every modal build that
+        # offers a project, which without this is a sequential scan plus a top-N
+        # sort of the whole table (#145).
+        Index(
+            "project_label_idx",
+            func.lower(func.coalesce(func.nullif(display_name, ""), name)),
+            id,
+            postgresql_where=enabled,
+        ),
     )
 
 
