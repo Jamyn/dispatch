@@ -85,11 +85,18 @@ class CompositeSearch(object):
         Ordering is applied to the wrapping select, on the subquery's own rank
         column, so the ordering term is a column the outer scope exports rather
         than a per-arm label addressed by name from outside the union.
+
+        `rank` alone does not order anything totally: `ts_rank_cd` returns a
+        float4, and every row matching once in one indexed column scores the
+        same value, so ranked ties are the ordinary case. Postgres' sort is not
+        stable, so `(type, id)` breaks them -- without it two identical searches
+        may return the tied rows in different orders, and any LIMIT/OFFSET over
+        the result would drop rows and repeat others across pages (#160).
         """
         combined = self.union_query(search_query).subquery()
         qs = self.session.query(combined.c.id, combined.c.vector, combined.c.type, combined.c.rank)
         if sort:
-            qs = qs.order_by(desc(combined.c.rank))
+            qs = qs.order_by(desc(combined.c.rank), combined.c.type, combined.c.id)
         return qs
 
     def split_filter(self, model_class, obj):
