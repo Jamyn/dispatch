@@ -1,3 +1,6 @@
+from sqlalchemy import func
+
+
 def test_get(session, project):
     from dispatch.project.service import get
 
@@ -139,3 +142,64 @@ def test_get_all_enabled_limits_in_the_database(session):
     assert "LIMIT" in statements[0].upper()
     assert "ORDER BY" in statements[0].upper()
     assert "ILIKE" in statements[0].upper()
+
+
+def test_the_label_index_matches_the_ordering_it_exists_for(session):
+    """The index expression and `get_all_enabled`'s ordering must stay identical.
+
+    An expression index is only usable by a query that repeats the expression
+    verbatim, so these two are one change split across two files -- the model's
+    `__table_args__` and `project_service`'s `order_by`. Nothing links them, and
+    a near miss is invisible: the query keeps working and silently goes back to
+    scanning and sorting the whole table.
+
+    Asserting on the compiled SQL rather than on a plan keeps this deterministic
+    -- the planner will not choose an index on a table holding a handful of test
+    rows, so a plan assertion here would prove nothing.
+    """
+    import re
+
+    from sqlalchemy import text
+    from sqlalchemy.dialects import postgresql
+
+    from dispatch.project.models import Project
+    from dispatch.project.service import PROJECT_LABEL, _relevance
+
+    def canonical(expression: str) -> str:
+        """Strip everything the two renderings disagree on but the shape.
+
+        Postgres reports the index with bare, parenthesised column names; the
+        compiled ORDER BY carries the tenant schema qualifier and no parens.
+        Reducing both to their operators and identifiers compares what the
+        planner actually cares about -- the expression -- without pinning either
+        side's punctuation.
+        """
+        expression = expression.lower().replace("::text", "")
+        expression = re.sub(r"\b[a-z_][a-z0-9_]*\.", "", expression)  # schema/table qualifiers
+        return re.sub(r"[\s(),]", "", expression)
+
+    # The ordering the no-query probe issues -- `project_select` builds every
+    # modal that offers a project this way.
+    assert not _relevance(None), "a no-query call must not lead with a relevance term"
+    ordering = [*_relevance(None), func.lower(PROJECT_LABEL), Project.id]
+
+    order_sql = " ".join(
+        str(term.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+        for term in ordering
+    )
+
+    indexdef = session.execute(
+        text(
+            "SELECT indexdef FROM pg_indexes "
+            "WHERE tablename = 'project' AND indexname = 'project_label_idx'"
+        )
+    ).scalar_one_or_none()
+
+    assert indexdef, "project_label_idx is missing; the model no longer declares it"
+
+    index_sql = indexdef.lower().split("using btree (", 1)[1].rsplit(")", 1)[0]
+
+    assert canonical(index_sql) == canonical(order_sql), (
+        "the index expression and the query's ordering have drifted, so the index "
+        f"can no longer serve it:\n  index: {index_sql}\n  order: {order_sql}"
+    )
