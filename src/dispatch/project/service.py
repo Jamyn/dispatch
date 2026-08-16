@@ -1,5 +1,5 @@
 from pydantic import ValidationError
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import true
 
@@ -15,6 +15,36 @@ PROJECT_LABEL = func.coalesce(func.nullif(Project.display_name, ""), Project.nam
 # Escaped so a display name containing % or _ matches literally rather than
 # turning into a wildcard.
 _LIKE_ESCAPE = "\\"
+
+
+def _escape_like(value: str) -> str:
+    """`value` with every LIKE metacharacter made literal."""
+    return (
+        value.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
+        .replace("%", f"{_LIKE_ESCAPE}%")
+        .replace("_", f"{_LIKE_ESCAPE}_")
+    )
+
+
+def _relevance(query_str: str | None) -> tuple:
+    """Ordering terms that put the best matches first, or nothing for no query.
+
+    Compared against the whole query string rather than the individual words it
+    was matched on: "exact" and "prefix" are properties of what the user typed,
+    and a multi-word query that is an exact label is still an exact label.
+    """
+    if not query_str or not query_str.strip():
+        return ()
+
+    lowered = query_str.strip().lower()
+    label = func.lower(PROJECT_LABEL)
+    return (
+        case(
+            (label == lowered, 0),
+            (label.startswith(_escape_like(lowered), escape=_LIKE_ESCAPE), 1),
+            else_=2,
+        ),
+    )
 
 
 def get(*, db_session: Session, project_id: int) -> Project | None:
@@ -99,15 +129,23 @@ def get_all_enabled(
 
     Both `display_name` and `name` are matched even though only the label is
     displayed, because operators know projects under both.
+
+    A query of several words matches in any order: each word is its own
+    `ILIKE`, ANDed. One pattern over the whole string would find "Security
+    Engineering" for `security eng` but nothing at all for "Security Platform
+    Engineering", which is the same project to the person typing.
+
+    Results are tiered by match quality before the alphabetical sort -- exact
+    label, then label prefix, then anything else. Without that, `sec` against
+    200 projects named `aaa-sec-NNN` fills the whole limit alphabetically and
+    the project actually called `Security` is not in the response at all, even
+    though the user typed an exact prefix of it (#146).
     """
     query = db_session.query(Project).filter(Project.enabled == true())
 
-    if query_str:
-        pattern = "%{}%".format(
-            query_str.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
-            .replace("%", f"{_LIKE_ESCAPE}%")
-            .replace("_", f"{_LIKE_ESCAPE}_")
-        )
+    words = query_str.split() if query_str else []
+    for word in words:
+        pattern = f"%{_escape_like(word)}%"
         query = query.filter(
             or_(
                 Project.display_name.ilike(pattern, escape=_LIKE_ESCAPE),
@@ -115,7 +153,7 @@ def get_all_enabled(
             )
         )
 
-    query = query.order_by(func.lower(PROJECT_LABEL), Project.id)
+    query = query.order_by(*_relevance(query_str), func.lower(PROJECT_LABEL), Project.id)
 
     if limit is not None:
         query = query.limit(limit)

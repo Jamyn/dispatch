@@ -53,10 +53,13 @@ def handle_project_search_action(
     query can reach.
     """
     try:
+        # One past the limit, so a full page can be told apart from a page that
+        # happens to be exactly full. Cheaper than a COUNT and enough to say
+        # whether anything was left out (#146).
         projects = project_service.get_all_enabled(
             db_session=db_session,
             query_str=payload.get("value"),
-            limit=MAX_SELECT_OPTIONS,
+            limit=MAX_SELECT_OPTIONS + 1,
         )
     except Exception:
         # Slack renders whatever comes back; an error here would leave the user
@@ -68,8 +71,9 @@ def handle_project_search_action(
         )
         return ack(options=[])
 
+    truncated = len(projects) > MAX_SELECT_OPTIONS
     options = []
-    for project in projects:
+    for project in projects[:MAX_SELECT_OPTIONS]:
         option = project_option(project)
         options.append(
             {
@@ -79,7 +83,23 @@ def handle_project_search_action(
             }
         )
 
-    ack(options=options)
+    if not truncated:
+        return ack(options=options)
+
+    # An option_group carries a label; a bare option list has nowhere to say
+    # that more matched. Without it the menu simply stops and the user has no
+    # way to tell a complete answer from a truncated one.
+    ack(
+        option_groups=[
+            {
+                "label": {
+                    "type": "plain_text",
+                    "text": f"First {MAX_SELECT_OPTIONS} matches - type more to narrow",
+                },
+                "options": options,
+            }
+        ]
+    )
 
 
 @listeners.options(
