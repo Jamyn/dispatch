@@ -32,7 +32,7 @@ const state = {
       page: 1,
       itemsPerPage: 25,
       sortBy: ["text"],
-      descending: true,
+      descending: [true],
       filters: {
         project: [],
       },
@@ -48,7 +48,13 @@ const getters = {
 const actions = {
   getAll: debounce(({ commit, state }) => {
     commit("SET_TABLE_LOADING", "primary")
-    let params = SearchUtils.createParametersFromTableOptions(state.table.options, "Definition")
+    // A copy, not the store's own object: createParametersFromTableOptions
+    // deletes `sortBy` and `filters` off what it is given, which would strip
+    // them from the state every table in the app reads them back out of.
+    let params = SearchUtils.createParametersFromTableOptions(
+      { ...state.table.options },
+      "Definition"
+    )
     return DefinitionApi.getAll(params)
       .then((response) => {
         commit("SET_TABLE_LOADING", false)

@@ -28,9 +28,9 @@
             :items="items"
             :items-length="total || 0"
             v-model:page="page"
-            :items-per-page="itemsPerPage"
-            :sort-by="sortBy"
-            :sort-desc="descending"
+            v-model:items-per-page="itemsPerPage"
+            v-model:sort-by="sortBy"
+            v-model:sort-desc="descending"
             :loading="loading"
             loading-text="Loading... Please wait"
           >

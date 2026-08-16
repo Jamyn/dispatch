@@ -4,6 +4,7 @@ import { differenceInMilliseconds, fromUnixTime, subMinutes } from "date-fns"
 import { getField, updateField } from "vuex-map-fields"
 import { debounce } from "lodash"
 import UserApi from "./api"
+import SearchUtils from "@/search/utils"
 
 const getDefaultSelectedState = () => {
   return {
@@ -53,7 +54,13 @@ const state = {
 const actions = {
   getAll: debounce(({ commit, state }) => {
     commit("SET_TABLE_LOADING", "primary")
-    return UserApi.getAll(state.table.options).then((response) => {
+    // See the note in project/store.js: the raw options carry Vuetify 3's
+    // `[{key, order}]` sortBy, which the backend does not read as a sort.
+    let params = SearchUtils.createParametersFromTableOptions(
+      { ...state.table.options },
+      "DispatchUser"
+    )
+    return UserApi.getAll(params).then((response) => {
       commit("SET_TABLE_LOADING", false)
       commit("SET_TABLE_ROWS", response.data)
     })
