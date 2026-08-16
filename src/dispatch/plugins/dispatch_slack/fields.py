@@ -443,6 +443,27 @@ def project_select(
     )
 
 
+def typed_title(view: dict) -> str | None:
+    """The title the user has already typed, read off the view state.
+
+    For carrying text through a re-render: a modal rebuilt without it discards
+    whatever the reporter had typed, with no warning (#144). Returns None
+    rather than "" for an untouched input -- Slack rejects an empty
+    ``initial_value``.
+    """
+    return _input_value(view, DefaultBlockIds.title_input, DefaultActionIds.title_input)
+
+
+def typed_description(view: dict) -> str | None:
+    """The description the user has already typed. See ``typed_title``."""
+    return _input_value(view, DefaultBlockIds.description_input, DefaultActionIds.description_input)
+
+
+def _input_value(view: dict, block_id: str, action_id: str) -> str | None:
+    values = view.get("state", {}).get("values", {})
+    return values.get(block_id, {}).get(action_id, {}).get("value") or None
+
+
 def title_input(
     label: str = "Title",
     placeholder: str = "A brief explanatory title. You can change this later.",

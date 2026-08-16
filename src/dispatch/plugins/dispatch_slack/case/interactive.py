@@ -89,6 +89,8 @@ from dispatch.plugins.dispatch_slack.fields import (
     relative_date_picker_input,
     resolution_input,
     title_input,
+    typed_description,
+    typed_title,
 )
 from dispatch.plugins.dispatch_slack.middleware import (
     action_context_middleware,
@@ -2419,8 +2421,10 @@ def handle_report_project_select_action(
     )
 
     blocks = [
-        title_input(),
-        description_input(),
+        # Carried through the re-render: rebuilt blank, whatever the reporter
+        # had already typed is silently discarded (#144).
+        title_input(initial_value=typed_title(body["view"])),
+        description_input(initial_value=typed_description(body["view"])),
         project_select(
             db_session=db_session,
             initial_option=project_option(project),
@@ -2529,8 +2533,10 @@ def handle_report_case_type_select_action(
             assignee_slack_id = None
 
     blocks = [
-        title_input(),
-        description_input(),
+        # Carried through the re-render, same as the project select above (#144)
+        # -- Open a Case loses them a second time here without this.
+        title_input(initial_value=typed_title(body["view"])),
+        description_input(initial_value=typed_description(body["view"])),
         project_select(
             db_session=db_session,
             initial_option=project_option(project),
