@@ -373,3 +373,63 @@ def test_report_incident_files_against_the_selected_project(
     assert created["project"].name == target.name, (
         "the incident was filed against the wrong project"
     )
+
+
+def test_report_issue_files_against_the_selected_project(
+    session, only_projects, dispatch_interaction, single_default_organization
+):
+    """Same failure as above, on the case side: the select drove the cascading
+    re-render and was then dropped at submit, so `CaseCreate.project` was None
+    and `get_by_name_or_default` filed every case against the default project
+    (#142). The case type, severity and priority are all resolved inside
+    whatever project wins, so this decides more than the case's home.
+    """
+    from dispatch.plugins.dispatch_slack.case.interactive import (
+        handle_report_submission_event,
+    )
+
+    default_project, target = only_projects(display_names=["", "A Friendly Display Name"])
+    default_project.default = True
+    target.default = False
+    session.commit()
+
+    assert target.display_name != target.name, "the test needs the two to differ"
+
+    form_data = {
+        DefaultBlockIds.title_input: "a title",
+        DefaultBlockIds.description_input: "a description",
+        DefaultBlockIds.project_select: {
+            "name": target.display_name,
+            "value": str(target.id),
+        },
+        # The handler matches this block id by prefix, not equality.
+        f"{DefaultBlockIds.case_assignee_select}-0": {"name": "user", "value": "U456"},
+    }
+
+    created = {}
+
+    def capture(*, db_session, case_in, current_user):
+        created["project"] = case_in.project
+        raise RuntimeError("stop after the project is resolved")
+
+    client = MagicMock()
+    client.users_info.return_value = {"user": {"profile": {"email": "assignee@example.com"}}}
+    client.views_update.return_value = {"view": {"id": "V123"}, "trigger_id": "TRIGGER"}
+
+    with patch(
+        "dispatch.plugins.dispatch_slack.case.interactive.case_service.create",
+        side_effect=capture,
+    ):
+        with pytest.raises(RuntimeError, match="stop after"):
+            handle_report_submission_event(
+                ack=MagicMock(),
+                body={"view": {"id": "V123"}, "trigger_id": "TRIGGER"},
+                context=MagicMock(),
+                client=client,
+                db_session=session,
+                form_data=form_data,
+                user=MagicMock(email="reporter@example.com"),
+            )
+
+    assert created["project"] is not None, "the case was filed with no project at all"
+    assert created["project"].name == target.name, "the case was filed against the wrong project"
