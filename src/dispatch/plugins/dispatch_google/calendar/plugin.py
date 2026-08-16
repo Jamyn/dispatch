@@ -151,12 +151,18 @@ def get_event(client: Any, event_id: str):
     return make_call(client.events(), "get", calendarId="primary", eventId=event_id)
 
 
+# `attendees` is optional on the Events resource, so an event that lists nobody
+# comes back with the key absent rather than as an empty list. Subscripting it
+# raised `KeyError: 'attendees'`, which the conference flow catches and writes
+# to the incident timeline as a bare quoted key -- and since a bridge that has
+# been emptied stays empty until somebody is added, the failure latched and no
+# responder could be added again (issue #148).
 def remove_participant(client: Any, event_id: int, participant: str):
     """Remove participant from calendar event."""
     event = get_event(client, event_id)
 
     attendees = []
-    for a in event["attendees"]:
+    for a in event.get("attendees", []):
         if a["email"] != participant:
             attendees.append(a)
 
@@ -165,8 +171,9 @@ def remove_participant(client: Any, event_id: int, participant: str):
 
 
 def add_participant(client: Any, event_id: int, participant: str):
+    """Add participant to calendar event."""
     event = get_event(client, event_id)
-    event["attendees"].append({"email": participant})
+    event["attendees"] = [*event.get("attendees", []), {"email": participant}]
     return make_call(client.events(), "update", calendarId="primary", eventId=event_id, body=event)
 
 
