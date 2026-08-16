@@ -60,7 +60,7 @@ from dispatch.plugins.dispatch_slack import service as dispatch_slack_service
 from dispatch.plugins.dispatch_slack.bolt import app
 from dispatch.plugins.dispatch_slack.decorators import message_dispatcher
 from dispatch.plugins.dispatch_slack.enums import SlackAPIErrorCode
-from dispatch.plugins.dispatch_slack.exceptions import CommandError, EventError
+from dispatch.plugins.dispatch_slack.exceptions import CommandError, EventError, SubmissionError
 from dispatch.plugins.dispatch_slack.fields import (
     DefaultActionIds,
     DefaultBlockIds,
@@ -72,6 +72,7 @@ from dispatch.plugins.dispatch_slack.fields import (
     incident_status_select,
     incident_type_select,
     participant_select,
+    project_option,
     project_select,
     resolution_input,
     static_select_block,
@@ -335,7 +336,7 @@ def handle_update_incident_project_select_action(
         incident_status_select(initial_option={"text": incident.status, "value": incident.status}),
         project_select(
             db_session=db_session,
-            initial_option={"text": project.display_name, "value": project.id},
+            initial_option=project_option(project),
             action_id=IncidentUpdateActions.project_select,
             dispatch_action=True,
         ),
@@ -2739,7 +2740,19 @@ def handle_report_incident_submission_event(
         tag = tag_service.get(db_session=db_session, tag_id=int(t["value"]))
         tags.append(tag)
 
-    project = {"name": form_data[DefaultBlockIds.project_select]["name"]}
+    # Resolved from the option's value, not its text: the text is the project's
+    # label, which is its display name where it has one and is truncated to
+    # Slack's 75 characters, while the lookup downstream matches on `name` and
+    # silently falls back to the default project when it misses.
+    selected_project = project_service.get(
+        db_session=db_session,
+        project_id=int(form_data[DefaultBlockIds.project_select]["value"]),
+    )
+    if not selected_project:
+        raise SubmissionError(
+            msg="The selected project no longer exists. Please reopen this form and try again."
+        )
+    project = {"name": selected_project.name}
 
     incident_type = None
     if form_data.get(DefaultBlockIds.incident_type_select):
@@ -2849,6 +2862,7 @@ def handle_report_incident_project_select_action(
         description_input(),
         project_select(
             db_session=db_session,
+            initial_option=project_option(project),
             action_id=IncidentReportActions.project_select,
             dispatch_action=True,
         ),

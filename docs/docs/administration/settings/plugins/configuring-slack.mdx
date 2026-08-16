@@ -61,6 +61,12 @@ Then, under the `Subscribe to bot events` section, add the following bot user ev
 
 To enable Dispatch to generate interactive components such as dialogs and modals, ensure that the `Request URL` points to the events action API endpoint of the Dispatch server at `/api/v1/<organization>/events/slack/action`. Replace `<organization>` with your organization's name. The default one is `default`.
 
+### Select Menus
+
+On the same `Interactivity & Shortcuts` page, under `Select Menus`, set the `Options Load URL` to `/api/v1/<organization>/events/slack/menu`. Replace `<organization>` with your organization's name. The default one is `default`.
+
+This is a separate field from the `Request URL` above and does not inherit from it. Dispatch uses it for the type-ahead menus that load their choices on demand rather than embedding them in the modal: tag selection, and project selection in deployments with more than 100 enabled projects. If it is unset, those menus open empty and stay empty, and because the field is required the form cannot be submitted.
+
 ### Slash Commands
 
 To enable Dispatch's slash commands, you must add them to your Slack app first. Ensure that the `Command` field in the Slack API Web UI matches the name of the command name in the Slack plugin in the Dispatch Web UI and that the `Request URL` points to the events command API endpoint of the Dispatch server at `/api/v1/<organization>/events/slack/command`.

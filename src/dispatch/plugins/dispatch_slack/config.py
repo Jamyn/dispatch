@@ -4,6 +4,14 @@ from dispatch.config import BaseConfigurationModel
 
 MAX_SECTION_TEXT_LENGTH = 2999
 
+# Slack caps a static select at 100 options and an options-load response at 100
+# options. Both limits are the same number and both are hard: over either one
+# the payload is rejected, so nothing may be built or returned past this.
+MAX_SELECT_OPTIONS = 100
+
+# Longest plain_text an option label may carry.
+MAX_OPTION_TEXT_LENGTH = 75
+
 
 class SlackConfiguration(BaseConfigurationModel):
     """Slack configuration description."""

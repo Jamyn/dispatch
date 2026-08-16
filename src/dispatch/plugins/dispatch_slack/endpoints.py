@@ -19,6 +19,10 @@ from .feedback.interactive import configure as feedback_configure
 from .workflow import configure as workflow_configure
 from .messaging import get_incident_conversation_command_message
 
+# Registers the options-load listener with `app` on import; nothing here calls
+# into it, so without this the /slack/menu route has no project handler.
+from . import options  # noqa: F401
+
 router = APIRouter()
 
 
@@ -139,7 +143,13 @@ async def slack_actions(request: Request, organization: str, body: bytes = Depen
 @router.post(
     "/slack/menu",
 )
-async def slack_menus(request: Request, organization: str, body: bytes = Depends(get_body)):
-    """Handle all incoming Slack menus."""
+def slack_menus(request: Request, organization: str, body: bytes = Depends(get_body)):
+    """Handle all incoming Slack menus.
+
+    Deliberately not `async`. `handler.handle` is synchronous all the way down
+    and Bolt polls for the listener's ack in a sleep loop, so awaiting it here
+    would block the event loop -- for every keystroke, now that the project
+    select loads its options through this route.
+    """
     handler = get_request_handler(request=request, body=body, organization=organization)
     return handler.handle(req=request, body=body)
