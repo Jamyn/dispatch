@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.sql.operators import desc_op
 
+from dispatch.database.core import get_class_by_tablename
 from dispatch.database.service import search
 from dispatch.enums import SearchTypes
 from dispatch.incident.models import Incident
@@ -566,3 +567,49 @@ def test_the_order_is_the_same_across_models_at_equal_rank(session, three_regcon
     rows = rows_for(session, models)
 
     assert [(-r.rank, r.type, r.id) for r in rows] == sorted((-r.rank, r.type, r.id) for r in rows)
+
+
+# --- the result set is bounded (#158) ----------------------------------------
+
+
+def test_composite_search_is_bounded(session):
+    """Unlimited, this returns every matching row in the tenant.
+
+    The bound has to be on the combined query, not per arm, or the highest
+    ranked rows of one type could be displaced by lower ranked rows of another.
+    Asserted against the real limit rather than a small stubbed one so that
+    raising `MAX_SEARCH_RESULTS` past what Postgres will do cheaply is a
+    deliberate act.
+    """
+    from dispatch.database.service import MAX_SEARCH_RESULTS, composite_search
+    from tests.factories import DocumentFactory
+
+    for i in range(MAX_SEARCH_RESULTS + 10):
+        DocumentFactory(name=f"{STEMMED}-bounded-{i:04d}")
+    session.flush()
+
+    results = composite_search(
+        db_session=session,
+        query_str=STEMMED,
+        models=[get_class_by_tablename("Document")],
+        current_user=None,
+    )
+
+    assert len(results["Document"]) == MAX_SEARCH_RESULTS
+
+
+def test_the_bound_keeps_the_highest_ranked_rows(session, three_regconfig_hits):
+    """A cap that dropped the top of the ranking would be worse than none."""
+    from dispatch.database.service import MAX_SEARCH_RESULTS
+    from dispatch.search.fulltext.composite_search import CompositeSearch
+
+    models = [get_class_by_tablename(t) for t in ("Document", "Tag", "Incident")]
+
+    unbounded = list(CompositeSearch(session, models).build_query(STEMMED, sort=True))
+    bounded = list(
+        CompositeSearch(session, models).build_query(STEMMED, sort=True).limit(MAX_SEARCH_RESULTS)
+    )
+
+    assert [(r.type, r.id) for r in bounded] == [
+        (r.type, r.id) for r in unbounded[:MAX_SEARCH_RESULTS]
+    ]
