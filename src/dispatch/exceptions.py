@@ -103,6 +103,13 @@ class InvalidConfigurationError(PydanticValueError):
     code = "invalid.configuration"
     msg_template = "{msg}"
 
+    def __init__(self, *, fields: list[str] | None = None, **ctx) -> None:
+        super().__init__(**ctx)
+        # The dotted paths the validation named, already stripped of every
+        # submitted value. Carried structurally so the API can answer with a
+        # `loc` per field; `msg` alone would make the caller parse a sentence.
+        self.fields = fields or []
+
 
 class InvalidFilterError(PydanticValueError):
     code = "invalid.filter"

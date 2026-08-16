@@ -116,3 +116,76 @@ def test_setting_an_invalid_configuration_raises_without_the_values(session):
     leaked = SECRET in message
     assert not leaked, "the rejected configuration was echoed back"
     assert "client_secret" in message, "the operator still needs the failing fields"
+
+
+# --- the response the operator actually gets (#151) --------------------------
+#
+# The redacted message is only useful if it survives to the API. Pydantic v1's
+# PydanticValueError is a plain ValueError, so before this these fell through
+# ExceptionMiddleware's ValueError arm and the operator got a fixed
+# {"msg": "Unknown", "loc": ["Unknown"]} naming no field at all.
+
+
+def error_response(exception: Exception) -> dict:
+    """What ExceptionMiddleware answers for a route that raises `exception`."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from dispatch.main import ExceptionMiddleware
+
+    app = FastAPI()
+    app.add_middleware(ExceptionMiddleware)
+
+    @app.get("/boom")
+    def boom():
+        raise exception
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/boom")
+
+    assert response.status_code == 422, response.text
+    return response.json()
+
+
+def test_a_rejected_configuration_names_the_fields_it_rejected():
+    error = InvalidConfigurationError(
+        msg="The configuration submitted for plugin Zoom is not valid: "
+        "ValidationError on account_id, client_id",
+        fields=["account_id", "client_id"],
+    )
+
+    detail = error_response(error)["detail"]
+
+    assert [d["loc"] for d in detail] == [["account_id"], ["client_id"]]
+    assert all(d["type"] == "invalid.configuration" for d in detail), detail
+    assert all("Unknown" not in d["msg"] for d in detail), detail
+
+
+def test_a_rejected_configuration_response_carries_no_submitted_value():
+    """The whole point of the redaction is that it reaches the wire intact."""
+    from dispatch.plugin.models import redacted_error, redacted_fields
+
+    validation_error = _zoom_validation_error()
+    error = InvalidConfigurationError(
+        msg=f"not valid: {redacted_error(validation_error)}",
+        fields=redacted_fields(validation_error),
+    )
+
+    body = str(error_response(error))
+    leaked = SECRET in body
+
+    assert not leaked, "the rejected configuration was echoed back to the client"
+    assert "client_secret" in body, "the operator still needs the failing fields"
+
+
+def test_an_error_naming_no_field_still_says_which_thing_was_rejected():
+    detail = error_response(InvalidConfigurationError(msg="not valid: ValidationError"))["detail"]
+
+    assert [d["loc"] for d in detail] == [["configuration"]]
+
+
+def test_an_unrelated_value_error_is_still_answered_generically():
+    """Only InvalidConfigurationError is trusted to have been redacted."""
+    detail = error_response(ValueError("a raw value: hunter2"))["detail"]
+
+    assert detail == [{"msg": "Unknown", "loc": ["Unknown"], "type": "Unknown"}]

@@ -43,21 +43,30 @@ def redacted_error(e: Exception) -> str:
     `extra_forbidden` and for `dict[str, X]`, `loc` carries an operator-supplied
     *key* rather than a schema field name. Keep it that way, or filter `loc`.
     """
-    errors = getattr(e, "errors", None)
-    if not callable(errors):
-        return type(e).__name__
-
-    try:
-        fields = sorted(
-            {".".join(str(p) for p in detail.get("loc", ())) for detail in errors()} - {""}
-        )
-    except Exception:
-        return type(e).__name__
-
+    fields = redacted_fields(e)
     if not fields:
         return type(e).__name__
 
     return f"{type(e).__name__} on {', '.join(fields)}"
+
+
+def redacted_fields(e: Exception) -> list[str]:
+    """The dotted paths a validation error names, and nothing else.
+
+    Split out from ``redacted_error`` so the API can answer with a ``loc`` per
+    field rather than only a sentence -- see ``redacted_error`` for why nothing
+    beyond these paths may leave this function.
+    """
+    errors = getattr(e, "errors", None)
+    if not callable(errors):
+        return []
+
+    try:
+        return sorted(
+            {".".join(str(p) for p in detail.get("loc", ())) for detail in errors()} - {""}
+        )
+    except Exception:
+        return []
 
 
 class Plugin(Base):
@@ -195,7 +204,8 @@ class PluginInstance(Base, ProjectMixin):
                     msg=(
                         f"The configuration submitted for plugin {self.plugin.title} is not "
                         f"valid: {redacted_error(e)}"
-                    )
+                    ),
+                    fields=redacted_fields(e),
                 ) from None
             self._configuration = json.dumps(
                 config_object.model_dump(), default=show_secrets_encoder
