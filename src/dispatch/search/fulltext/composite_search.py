@@ -36,7 +36,7 @@ Adding other objects::
 """
 
 from collections import defaultdict
-from sqlalchemy import desc, func
+from sqlalchemy import desc, func, union
 from sqlalchemy.sql.expression import literal
 
 from . import inspect_search_vectors, search_manager
@@ -54,29 +54,42 @@ class CompositeSearch(object):
         regconfigs into one column, so a single tsquery applied afterwards is
         necessarily wrong for some arm. Both the predicate and the rank are
         therefore built per model, before the union.
+
+        Returns a selectable, not a Query. All arms are combined in one n-ary
+        union: folding them pairwise nests each union inside the next, and from
+        the third arm on the nested arm's columns are renamed while the new
+        arm's are not, so the two stop corresponding and the combined columns
+        lose their names entirely.
         """
-        qs = None
+        arms = []
         for model_class in self.model_classes:
             search_vectors = inspect_search_vectors(model_class)
             vector = search_vectors[0]
             regconfig = search_manager.option(vector, "regconfig")
             tsquery = func.tsq_parse(regconfig, search_query)
-            q = self.session.query(
-                model_class.id.label("id"),
-                vector.label("vector"),
-                literal(model_class.__name__).label("type"),
-                func.ts_rank_cd(vector, tsquery).label("rank"),
-            ).filter(vector.op("@@")(tsquery))
-            if qs is None:
-                qs = q
-            else:
-                qs = qs.union(q)
-        return qs
+            arms.append(
+                self.session.query(
+                    model_class.id.label("id"),
+                    vector.label("vector"),
+                    literal(model_class.__name__).label("type"),
+                    func.ts_rank_cd(vector, tsquery).label("rank"),
+                )
+                .filter(vector.op("@@")(tsquery))
+                .statement
+            )
+        return union(*arms)
 
     def build_query(self, search_query, sort=False):
-        qs = self.union_query(search_query)
+        """Selects from the union, ranked across every arm.
+
+        Ordering is applied to the wrapping select, on the subquery's own rank
+        column, so the ordering term is a column the outer scope exports rather
+        than a per-arm label addressed by name from outside the union.
+        """
+        combined = self.union_query(search_query).subquery()
+        qs = self.session.query(combined.c.id, combined.c.vector, combined.c.type, combined.c.rank)
         if sort:
-            qs = qs.order_by(desc("rank"))
+            qs = qs.order_by(desc(combined.c.rank))
         return qs
 
     def split_filter(self, model_class, obj):
