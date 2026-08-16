@@ -10,20 +10,24 @@ import pytest
 
 from dispatch.plugins.dispatch_slack.case.interactive import (
     handle_engage_user_command,
+    handle_escalate_case_command,
     handle_update_case_command,
+    report_issue,
     resolve_button_click,
 )
 
-# Three handlers are deliberately absent.
-# handle_list_signals_command puts the Bolt-context plugin config into a query,
-# so a stub config cannot drive it. handle_escalate_case_command and
-# report_issue call project_select, which emits one option per project with no
-# cap; the suite accumulates far more than Slack's 100-option limit, so they
-# only build in isolation.
+# handle_list_signals_command is deliberately absent: it puts the Bolt-context
+# plugin config into a query, so a stub config cannot drive it.
 MODAL_HANDLERS = [
     handle_update_case_command,
     handle_engage_user_command,
     resolve_button_click,
+    # These two build a project select, which the suite's accumulated projects
+    # used to push past Slack's 100-option limit -- so they only built in
+    # isolation, and only when they ran early enough (#86). Their behaviour
+    # either side of that limit is covered in ../test_project_modals.py.
+    handle_escalate_case_command,
+    report_issue,
 ]
 
 

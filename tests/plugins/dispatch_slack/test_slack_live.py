@@ -70,6 +70,7 @@ import pytest
 
 from dispatch.plugins.dispatch_slack.case.interactive import (
     handle_engage_user_command,
+    handle_escalate_case_command,
     handle_update_case_command,
 )
 from dispatch.plugins.dispatch_slack.case.messages import (
@@ -177,3 +178,23 @@ def test_incident_modal_is_accepted(slack, handler, build_incident_modal):
 @pytest.mark.parametrize("handler", CASE_MODAL_HANDLERS, ids=lambda h: h.__name__)
 def test_case_modal_is_accepted(slack, handler, build_case_modal):
     assert publish(slack, handler.__name__, build_case_modal(handler)["blocks"])["ok"]
+
+
+# Only Slack can say whether a static select at exactly its limit and an
+# external select with no options of its own are both acceptable -- blockkit
+# validates against its own model, and #86 is precisely a case where the two
+# disagreed. views.publish puts these through the same server-side validation
+# as views.open.
+PROJECT_SELECT_COUNTS = [1, 100, 101, 500]
+
+
+@needs_user_id
+@pytest.mark.parametrize("count", PROJECT_SELECT_COUNTS)
+def test_project_select_is_accepted_at_any_project_count(
+    slack, session, only_projects, build_case_modal, case_with_related_records, count
+):
+    only_projects(count, keep=[case_with_related_records.project])
+
+    blocks = build_case_modal(handle_escalate_case_command)["blocks"]
+
+    assert publish(slack, f"escalate_case_{count}_projects", blocks)["ok"]

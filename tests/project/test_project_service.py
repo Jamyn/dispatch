@@ -111,3 +111,31 @@ def test_get_by_name_or_default__default(session, project, organization):
     project_in = ProjectRead(name="nonexistent", organization=organization)
     result = get_by_name_or_default(db_session=session, project_in=project_in)
     assert result.id == project.id
+
+
+def test_get_all_enabled_limits_in_the_database(session):
+    """The Slack project type-ahead runs on every keystroke against a table
+    that can hold thousands of rows, so the limit has to be the database's."""
+    from sqlalchemy import event
+
+    from dispatch.database.core import engine
+    from dispatch.project.service import get_all_enabled
+    from tests.factories import ProjectFactory
+
+    ProjectFactory.create_batch(3, enabled=True)
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "after_cursor_execute", record)
+    try:
+        results = get_all_enabled(db_session=session, query_str="proj", limit=2)
+    finally:
+        event.remove(engine, "after_cursor_execute", record)
+
+    assert len(results) <= 2
+    assert len(statements) == 1, statements
+    assert "LIMIT" in statements[0].upper()
+    assert "ORDER BY" in statements[0].upper()
+    assert "ILIKE" in statements[0].upper()

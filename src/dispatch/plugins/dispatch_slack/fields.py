@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from blockkit import (
     Checkboxes,
     DatePicker,
+    ExternalSelect,
     Input,
     MultiExternalSelect,
     MultiStaticSelect,
@@ -24,8 +25,13 @@ from dispatch.incident.priority import service as incident_priority_service
 from dispatch.incident.severity import service as incident_severity_service
 from dispatch.incident.type import service as incident_type_service
 from dispatch.participant.models import Participant
-from dispatch.plugins.dispatch_slack.config import MAX_SECTION_TEXT_LENGTH
+from dispatch.plugins.dispatch_slack.config import (
+    MAX_OPTION_TEXT_LENGTH,
+    MAX_SECTION_TEXT_LENGTH,
+    MAX_SELECT_OPTIONS,
+)
 from dispatch.project import service as project_service
+from dispatch.project.models import Project
 from dispatch.signal.models import Signal
 
 log = logging.getLogger(__name__)
@@ -321,6 +327,76 @@ def multi_select_block(
     )
 
 
+def external_select_block(
+    placeholder: str,
+    action_id: str = None,
+    block_id: str = None,
+    initial_option: dict[str, str] = None,
+    label: str = None,
+    # Slack's own default is 3 characters. One keeps the menu responsive on a
+    # short project name while still bounding how much a keystroke costs. It is
+    # also the floor the blockkit library imposes -- Slack itself accepts 0,
+    # but blockkit refuses to build it, and 0 would buy nothing here: Slack
+    # loads the menu on open regardless, and this only gates typing.
+    min_query_length: int = 1,
+    **kwargs,
+):
+    """Builds an external select block, whose options are loaded on demand.
+
+    Slack asks for the options over the block_suggestion route rather than
+    reading them out of the view, so nothing here is bounded by the 100-option
+    limit a static select carries.
+    """
+    processed_initial_option = None
+    if initial_option:
+        processed_initial_option = {
+            k: str(v) if k == "value" else v for k, v in initial_option.items()
+        }
+
+    return Input(
+        element=ExternalSelect(
+            placeholder=placeholder,
+            initial_option=(
+                Option(**processed_initial_option) if processed_initial_option else None
+            ),
+            min_query_length=min_query_length,
+            action_id=action_id,
+        ),
+        block_id=block_id,
+        label=label,
+        **kwargs,
+    )
+
+
+def project_label(project: Project) -> str:
+    """The option text for a project, within Slack's length limit.
+
+    Never empty, because Slack rejects an option with empty text and this is
+    used for the preselected option too, where no query has filtered anything
+    out. ``display_name`` is only defaulted to '' at the column level, so a
+    project created without one falls back to its name -- the same pairing the
+    rest of Dispatch lists a project under, and what the migration that added
+    the column seeded it from. Falling back past that to the id keeps a
+    project whose name is null selectable rather than dropping it from the
+    menu; it cannot be found by typing, since there is nothing to match on.
+    """
+    label = project.display_name or project.name or f"Project {project.id}"
+    return label[:MAX_OPTION_TEXT_LENGTH]
+
+
+def project_option(project: Project) -> dict[str, str]:
+    """Builds the select option for a project.
+
+    The text is what a project is called everywhere else it is listed; the
+    value is its id, which is what every handler reads back. They are not
+    interchangeable -- two projects may share a display name.
+    """
+    return {
+        "text": project_label(project),
+        "value": str(project.id),
+    }
+
+
 def project_select(
     db_session: Session,
     action_id: str = DefaultActionIds.project_select,
@@ -329,19 +405,36 @@ def project_select(
     initial_option: dict = None,
     **kwargs,
 ):
-    """Creates a project select."""
-    projects = [
-        {"text": p.display_name, "value": p.id}
-        for p in project_service.get_all(db_session=db_session)
-        if p.enabled
-    ]
+    """Creates a project select.
+
+    Embedding the options only works while there are few enough of them to
+    embed, so past Slack's limit this hands over to an external select and the
+    options handler in ``.options``. Both produce the same block and action
+    ids and the same ``selected_option`` shape, so callers cannot tell which
+    one they got.
+    """
+    # One row past the limit is all it takes to know which of the two applies,
+    # and is far cheaper than counting a large project table.
+    projects = project_service.get_all_enabled(db_session=db_session, limit=MAX_SELECT_OPTIONS + 1)
     if not projects:
         log.warning("Unable to create a select block for projects. No projects found.")
         return
 
+    if len(projects) > MAX_SELECT_OPTIONS:
+        return external_select_block(
+            # Slack loads the menu on open, so this is still a browse; past a
+            # hundred projects it is also worth saying that typing narrows it.
+            placeholder="Select or search for a project",
+            initial_option=initial_option,
+            action_id=action_id,
+            block_id=block_id,
+            label=label,
+            **kwargs,
+        )
+
     return static_select_block(
         placeholder="Select Project",
-        options=projects,
+        options=[project_option(p) for p in projects],
         initial_option=initial_option,
         action_id=action_id,
         block_id=block_id,

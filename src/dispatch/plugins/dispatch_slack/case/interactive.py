@@ -83,6 +83,7 @@ from dispatch.plugins.dispatch_slack.fields import (
     extension_request_checkbox,
     incident_priority_select,
     incident_type_select,
+    project_option,
     project_select,
     relative_date_picker_input,
     resolution_input,
@@ -194,7 +195,7 @@ def handle_escalate_case_command(
 
     default_title = case.title
     default_description = case.description
-    default_project = {"text": case.project.display_name, "value": case.project.id}
+    default_project = project_option(case.project)
 
     blocks = [
         Context(elements=[Text(type="mrkdwn", text="Accept the defaults or adjust as needed.")]),
@@ -1472,7 +1473,7 @@ def escalate_button_click(
         description_input(initial_value=case.description),
         project_select(
             db_session=db_session,
-            initial_option={"text": case.project.display_name, "value": case.project.id},
+            initial_option=project_option(case.project),
             action_id=CaseEscalateActions.project_select,
             dispatch_action=True,
         ),
@@ -1529,7 +1530,7 @@ def handle_project_select_action(
         description_input(),
         project_select(
             db_session=db_session,
-            initial_option={"text": project.display_name, "value": project.id},
+            initial_option=project_option(project),
             action_id=CaseEscalateActions.project_select,
             dispatch_action=True,
         ),
@@ -2407,7 +2408,7 @@ def handle_report_project_select_action(
         description_input(),
         project_select(
             db_session=db_session,
-            initial_option={"text": project.display_name, "value": project.id},
+            initial_option=project_option(project),
             action_id=CaseReportActions.project_select,
             dispatch_action=True,
         ),
@@ -2517,7 +2518,7 @@ def handle_report_case_type_select_action(
         description_input(),
         project_select(
             db_session=db_session,
-            initial_option={"text": project.display_name, "value": project.id},
+            initial_option=project_option(project),
             action_id=CaseReportActions.project_select,
             dispatch_action=True,
         ),
