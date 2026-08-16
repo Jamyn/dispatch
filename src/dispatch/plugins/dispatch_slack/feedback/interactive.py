@@ -11,6 +11,7 @@ from blockkit import (
     PlainTextInput,
     Section,
 )
+from slack_bolt import App
 from slack_bolt import Ack, BoltContext, Respond
 from slack_sdk.web.client import WebClient
 from sqlalchemy.orm import Session
@@ -29,7 +30,7 @@ from dispatch.participant import service as participant_service
 from dispatch.feedback.service.reminder import service as reminder_service
 from dispatch.plugin import service as plugin_service
 from dispatch.project import service as project_service
-from dispatch.plugins.dispatch_slack.bolt import app
+from dispatch.plugins.dispatch_slack.bolt import listeners
 from dispatch.plugins.dispatch_slack.fields import static_select_block
 from dispatch.plugins.dispatch_slack.middleware import (
     action_context_middleware,
@@ -58,7 +59,7 @@ from dispatch.messaging.strings import (
 log = logging.getLogger(__file__)
 
 
-def configure(config):
+def configure(app: App, config) -> None:
     """Placeholder configure function."""
     pass
 
@@ -122,7 +123,7 @@ def anonymous_checkbox(
     )
 
 
-@app.action(
+@listeners.action(
     IncidentFeedbackNotificationActions.provide,
     middleware=[button_context_middleware, db_middleware],
 )
@@ -178,7 +179,7 @@ def ack_incident_feedback_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     IncidentFeedbackNotificationActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -308,7 +309,7 @@ def oncall_shift_feedback_anonymous_checkbox(
     )
 
 
-@app.action(
+@listeners.action(
     ServiceFeedbackNotificationActions.provide,
     middleware=[db_middleware],
 )
@@ -372,7 +373,7 @@ def ack_with_error(ack: Ack) -> None:
     )
 
 
-@app.view(
+@listeners.view(
     ServiceFeedbackNotificationActions.submit,
     middleware=[db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -476,7 +477,7 @@ def handle_oncall_shift_feedback_submission_event(
             log.exception(e)
 
 
-@app.action(
+@listeners.action(
     CaseFeedbackNotificationActions.provide,
     middleware=[button_context_middleware, db_middleware],
 )
@@ -537,7 +538,7 @@ def ack_case_feedback_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     CaseFeedbackNotificationActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )

@@ -24,6 +24,7 @@ from blockkit import (
     UsersSelect,
 )
 from dispatch.ai.constants import TACTICAL_REPORT_SLACK_ACTION
+from slack_bolt import App
 from slack_bolt import Ack, BoltContext, BoltRequest, Respond
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web.client import WebClient
@@ -57,7 +58,7 @@ from dispatch.incident.severity import service as incident_severity_service
 from dispatch.participant_role.enums import ParticipantRoleType
 from dispatch.plugin import service as plugin_service
 from dispatch.plugins.dispatch_slack import service as dispatch_slack_service
-from dispatch.plugins.dispatch_slack.bolt import app
+from dispatch.plugins.dispatch_slack.bolt import listeners
 from dispatch.plugins.dispatch_slack.decorators import message_dispatcher
 from dispatch.plugins.dispatch_slack.enums import SlackAPIErrorCode
 from dispatch.plugins.dispatch_slack.exceptions import CommandError, EventError, SubmissionError
@@ -160,7 +161,7 @@ def is_target_reaction(reaction: str) -> bool:
     return is_target
 
 
-def configure(config):
+def configure(app: App, config) -> None:
     """Maps commands/events to their functions."""
     incident_command_context_middleware = partial(
         command_context_middleware,
@@ -251,7 +252,7 @@ def configure(config):
     )(handle_not_configured_reaction_event)
 
 
-@app.options(
+@listeners.options(
     DefaultActionIds.tags_multi_select, middleware=[action_context_middleware, db_middleware]
 )
 def handle_tag_search_action(
@@ -298,7 +299,7 @@ def handle_tag_search_action(
     ack(options=options)
 
 
-@app.action(
+@listeners.action(
     IncidentUpdateActions.project_select, middleware=[action_context_middleware, db_middleware]
 )
 def handle_update_incident_project_select_action(
@@ -1165,7 +1166,7 @@ def handle_message_monitor(
                     )
 
 
-@app.event(
+@listeners.event(
     "member_joined_channel",
     middleware=[
         message_context_middleware,
@@ -1353,7 +1354,7 @@ def handle_member_joined_channel(
         log.warning(f"Failed to generate read-in summary: {summary_response.error_message}")
 
 
-@app.event(
+@listeners.event(
     "member_left_channel",
     middleware=[
         message_context_middleware,
@@ -1450,7 +1451,7 @@ def ack_add_timeline_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     AddTimelineEventActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -1560,7 +1561,7 @@ def ack_update_participant_submission_event(ack: Ack):
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     UpdateParticipantActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -1660,7 +1661,7 @@ def ack_update_notifications_group_submission_event(ack: Ack):
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     UpdateNotificationGroupActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -1753,7 +1754,7 @@ def ack_assign_role_submission_event(ack: Ack):
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     AssignRoleActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -1884,7 +1885,7 @@ def ack_create_task_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     CreateTaskActionIds.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -1995,7 +1996,7 @@ def ack_engage_oncall_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     EngageOncallActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -2180,7 +2181,7 @@ def handle_report_tactical_command(
     client.views_open(trigger_id=body["trigger_id"], view=modal)
 
 
-@app.action(
+@listeners.action(
     TACTICAL_REPORT_SLACK_ACTION,
     middleware=[
         button_context_middleware,
@@ -2289,7 +2290,7 @@ def ack_report_tactical_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     ReportTacticalActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -2401,7 +2402,7 @@ def ack_report_executive_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     ReportExecutiveActions.submit,
     middleware=[
         action_context_middleware,
@@ -2535,7 +2536,7 @@ def ack_incident_update_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     IncidentUpdateActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -2616,7 +2617,7 @@ def handle_update_incident_submission_event(
     )
 
 
-@app.shortcut(
+@listeners.shortcut(
     IncidentShortcutCallbacks.report, middleware=[db_middleware, shortcut_context_middleware]
 )
 def report_incident(
@@ -2720,7 +2721,7 @@ def ack_report_incident_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     IncidentReportActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -2831,7 +2832,7 @@ def handle_report_incident_submission_event(
     )
 
 
-@app.action(
+@listeners.action(
     IncidentReportActions.project_select, middleware=[action_context_middleware, db_middleware]
 )
 def handle_report_incident_project_select_action(
@@ -2890,7 +2891,7 @@ def handle_report_incident_project_select_action(
 
 
 # BUTTONS
-@app.action(
+@listeners.action(
     IncidentNotificationActions.invite_user, middleware=[button_context_middleware, db_middleware]
 )
 def handle_incident_notification_join_button_click(
@@ -2922,7 +2923,7 @@ def handle_incident_notification_join_button_click(
     respond(text=message, response_type="ephemeral", replace_original=False, delete_original=False)
 
 
-@app.action(
+@listeners.action(
     IncidentNotificationActions.subscribe_user,
     middleware=[button_context_middleware, db_middleware],
 )
@@ -2963,7 +2964,7 @@ def handle_incident_notification_subscribe_button_click(
     respond(text=message, response_type="ephemeral", replace_original=False, delete_original=False)
 
 
-@app.action(
+@listeners.action(
     LinkMonitorActionIds.monitor,
     middleware=[button_context_middleware, db_middleware, user_middleware],
 )
@@ -2994,7 +2995,7 @@ def handle_monitor_link_monitor_button_click(
     )
 
 
-@app.action(
+@listeners.action(
     LinkMonitorActionIds.ignore,
     middleware=[button_context_middleware, db_middleware, user_middleware],
 )
@@ -3061,7 +3062,7 @@ def monitor_link_button_click(
     )
 
 
-@app.action(
+@listeners.action(
     TaskNotificationActionIds.update_status,
     middleware=[button_context_middleware, db_middleware],
 )
@@ -3143,7 +3144,7 @@ def handle_update_task_status_button_click(
         )
 
 
-@app.action(RemindAgainActions.submit, middleware=[select_context_middleware, db_middleware])
+@listeners.action(RemindAgainActions.submit, middleware=[select_context_middleware, db_middleware])
 def handle_remind_again_select_action(
     ack: Ack,
     body: dict,

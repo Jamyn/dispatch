@@ -54,7 +54,21 @@ def dispatch_interaction():
     to be answered locally or nothing reaches a listener. Everything past it,
     matcher and middleware included, is the real thing.
     """
-    from dispatch.plugins.dispatch_slack.bolt import app
+    from dispatch.plugins.dispatch_slack.config import SlackConversationConfiguration
+    from dispatch.plugins.dispatch_slack.app import build_app
+
+    # There is no process-global app to dispatch through any more: an App is
+    # built per Slack configuration so that no two tenants share one. Building
+    # the suite's own gives the listeners a real App without reaching for a
+    # tenant's.
+    app = build_app(
+        SlackConversationConfiguration(
+            api_bot_token="xoxb-valid",
+            signing_secret="not-a-real-signing-secret-tests-only",
+            socket_mode_app_token="xapp-not-real-tests-only",
+            app_user_slug="dispatch",
+        )
+    )
 
     auth_test = SlackResponse(
         client=None,

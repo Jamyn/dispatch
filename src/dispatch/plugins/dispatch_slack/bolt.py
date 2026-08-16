@@ -1,6 +1,7 @@
 import logging
 import uuid
 from http import HTTPStatus
+from collections.abc import Callable
 from typing import Any
 
 from blockkit import Context, Text, Modal
@@ -30,11 +31,93 @@ from .middleware import (
     select_context_middleware,
 )
 
-app = App(token="xoxb-valid", request_verification_enabled=False, token_verification_enabled=False)
+
+class ListenerRegistry:
+    """Records listener registrations so they can be applied to any App.
+
+    These listeners carry no tenant state -- they are the same for every
+    organization -- but binding them to one process-global App at import time
+    is what forced that App to be shared, and so forced each request to mutate
+    its token and configuration in place. Recording the registrations instead
+    lets every per-configuration App receive its own copy of them.
+
+    The decorator surface deliberately mirrors Bolt's, so a listener is
+    declared here exactly as it would be on an App.
+    """
+
+    def __init__(self) -> None:
+        self._registrations: list[tuple[str, tuple, dict, Callable]] = []
+        self._error_handler: Callable | None = None
+        self._applied = False
+
+    def _check_open(self, what: str) -> None:
+        """Registrations must all be declared before the first App is built.
+
+        Everything here is replayed onto each App as it is created, so a
+        registration added afterwards reaches only the Apps built later --
+        tenants would silently disagree about which listeners exist. Worse, a
+        registration made from `configure()` would grow this list on every
+        build, which is the unbounded growth the per-App design removes. Both
+        are startup mistakes, so they are raised rather than tolerated.
+        """
+        if self._applied:
+            raise RuntimeError(
+                f"cannot register {what} after the first Slack app has been built; "
+                "listeners that vary per configuration belong in a configure() "
+                "function, which is passed the app to register them on"
+            )
+
+    def _defer(self, method: str, args: tuple, kwargs: dict) -> Callable:
+        self._check_open(method)
+
+        def register(func: Callable) -> Callable:
+            self._check_open(method)
+            self._registrations.append((method, args, kwargs, func))
+            # Bolt's decorators return the original function; callers rely on
+            # the name still referring to the undecorated callable.
+            return func
+
+        return register
+
+    def action(self, *args, **kwargs) -> Callable:
+        return self._defer("action", args, kwargs)
+
+    def command(self, *args, **kwargs) -> Callable:
+        return self._defer("command", args, kwargs)
+
+    def event(self, *args, **kwargs) -> Callable:
+        return self._defer("event", args, kwargs)
+
+    def options(self, *args, **kwargs) -> Callable:
+        return self._defer("options", args, kwargs)
+
+    def shortcut(self, *args, **kwargs) -> Callable:
+        return self._defer("shortcut", args, kwargs)
+
+    def view(self, *args, **kwargs) -> Callable:
+        return self._defer("view", args, kwargs)
+
+    def error(self, func: Callable) -> Callable:
+        # Bolt's @app.error takes the function directly rather than returning a
+        # decorator factory.
+        self._check_open("an error handler")
+        self._error_handler = func
+        return func
+
+    def apply(self, app: App) -> None:
+        """Binds every recorded listener to `app`, and closes the registry."""
+        self._applied = True
+        for method, args, kwargs, func in self._registrations:
+            getattr(app, method)(*args, **kwargs)(func)
+        if self._error_handler is not None:
+            app.error(self._error_handler)
+
+
+listeners = ListenerRegistry()
 logging.basicConfig(level=logging.DEBUG)
 
 
-@app.error
+@listeners.error
 def app_error_handler(
     error: Any,
     client: WebClient,
@@ -134,7 +217,7 @@ def build_and_log_error(
     return message
 
 
-@app.event(
+@listeners.event(
     {"type": "message"},
     middleware=[
         message_context_middleware,

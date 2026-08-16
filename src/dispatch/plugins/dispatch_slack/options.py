@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from dispatch.project import service as project_service
 
-from .bolt import app
+from .bolt import listeners
 from .config import MAX_SELECT_OPTIONS
 from .fields import project_option
 from .middleware import action_context_middleware, db_middleware
@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 PROJECT_SELECT_ACTION_ID_PATTERN = re.compile(r"(^|-)project-select$")
 
 
-@app.options(
+@listeners.options(
     PROJECT_SELECT_ACTION_ID_PATTERN, middleware=[action_context_middleware, db_middleware]
 )
 def handle_project_search_action(
