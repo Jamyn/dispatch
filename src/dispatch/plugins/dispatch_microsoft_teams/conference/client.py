@@ -1,7 +1,9 @@
 """Microsoft Graph client for the Teams conference plugin."""
 
 import logging
+import re
 from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from urllib.parse import quote
 
 import msal
@@ -46,6 +48,38 @@ def _quote_path_component(value: str) -> str:
             f"that survives requests' own URL normalization."
         )
     return quote(value, safe="")
+
+
+_RETRY_AFTER_SECONDS_RE = re.compile(r"^\d+$")
+
+
+def _looks_like_retry_after(value: str) -> bool:
+    """Whether ``value`` has one of the two shapes RFC 9110 defines for it.
+
+    A rogue responder controls every header on a response it forges, not just
+    the body, so this is a security check, not a parsing convenience -- a
+    value outside both shapes is refused rather than repeated (issue #156).
+    """
+    if _RETRY_AFTER_SECONDS_RE.match(value):
+        return True
+    try:
+        parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+_REQUEST_ID_RE = re.compile(r"^[0-9a-fA-F-]{1,64}$")
+
+
+def _looks_like_request_id(value: str) -> bool:
+    """Whether ``value`` has the GUID shape Graph documents for ``request-id``.
+
+    Same rationale as ``_looks_like_retry_after``: the header is attacker-
+    controlled on a forged response, so it is validated by shape before being
+    repeated rather than trusted outright.
+    """
+    return bool(_REQUEST_ID_RE.match(value))
 
 
 # The client-credentials flow accepts only `/.default`; a resource scope such as
@@ -176,24 +210,38 @@ class MSTeamsClient:
 
     @staticmethod
     def _error_message(method: str, path: str, response: requests.Response) -> str:
+        """The reason Graph gave, with nothing else from the body or headers.
+
+        Only the structured `error.message` key is read from the body, and the
+        `Retry-After`/`request-id` headers are repeated only when they have the
+        shape Graph documents for them. None of this is a courtesy to the
+        provider -- it is the security boundary: this request carries a live
+        bearer token, and a proxy, captive portal, or WAF answering in Graph's
+        place controls the whole response, headers included, and may quote the
+        request back at us in any of them. That string would land on the
+        incident timeline, which is broadly readable, so nothing outside these
+        explicitly validated shapes is ever repeated.
+        """
         try:
             detail = response.json()["error"]["message"]
         except (ValueError, KeyError, TypeError):
-            detail = response.text.strip()[:200] or "no response body"
+            detail = "no reason given"
 
         message = (
             f"Microsoft Graph {method} {path} failed with HTTP {response.status_code}: {detail}"
         )
 
         # Graph answers 429 with Retry-After as either a seconds count or an
-        # HTTP date, so it is repeated verbatim rather than given a unit.
+        # HTTP date -- the only two shapes RFC 9110 defines for it -- so it is
+        # repeated verbatim rather than given a unit. Anything else is dropped.
         retry_after = response.headers.get("Retry-After")
-        if retry_after:
+        if retry_after and _looks_like_retry_after(retry_after):
             message = f"{message} (Retry-After: {retry_after})"
 
-        # The first thing a Microsoft support case asks for.
+        # The first thing a Microsoft support case asks for. Graph always
+        # returns a GUID here; anything else is dropped.
         request_id = response.headers.get("request-id")
-        if request_id:
+        if request_id and _looks_like_request_id(request_id):
             message = f"{message} (request-id: {request_id})"
 
         return message

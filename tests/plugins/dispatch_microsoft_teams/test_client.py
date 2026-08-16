@@ -232,7 +232,7 @@ def test_a_non_json_error_body_still_raises_cleanly(graph):
     assert "502" in str(excinfo.value)
 
 
-def test_a_success_with_an_unparseable_body_raises(graph):
+def test_a_success_with_an_unparsable_body_raises(graph):
     graph.meeting = (201, b"not json at all", {})
 
     with pytest.raises(DispatchPluginException):
@@ -401,13 +401,20 @@ def test_the_graph_request_id_is_surfaced_for_support(graph):
     assert "a1b2c3d4-0000-1111-2222-333344445555" in str(excinfo.value)
 
 
-def test_the_error_detail_is_preserved_for_a_non_json_body(graph):
+def test_a_non_json_error_body_is_not_echoed(graph):
+    """A non-JSON body must never reach the exception (issue #156).
+
+    The fallback used to be ``response.text.strip()[:200]``, which repeats
+    whatever an intermediary answering in Graph's place puts in its body --
+    and that request carries a live bearer token in its Authorization header.
+    """
     graph.meeting = (502, b"upstream connect error reading from gateway", {})
 
     with pytest.raises(DispatchPluginException) as excinfo:
         build_client().create_meeting(subject="Situation Room")
 
-    assert "upstream connect error" in str(excinfo.value)
+    assert "upstream connect error" not in str(excinfo.value)
+    assert "no reason given" in str(excinfo.value)
 
 
 def test_an_empty_error_body_still_produces_a_message(graph):
@@ -416,7 +423,7 @@ def test_an_empty_error_body_still_produces_a_message(graph):
     with pytest.raises(DispatchPluginException) as excinfo:
         build_client().create_meeting(subject="Situation Room")
 
-    assert "no response body" in str(excinfo.value)
+    assert "no reason given" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("body", [[], "a string", 12])
@@ -439,3 +446,145 @@ def test_a_redirect_is_not_followed(graph):
 
     assert "307" in str(excinfo.value)
     assert len(graph.graph_requests()) == 1
+
+
+# --- issue #156: arbitrary response bodies must never reach the exception ---
+#
+# The request carries a live `Authorization: Bearer <token>` header. A non-JSON
+# response fires precisely when something other than Graph answers -- a proxy,
+# captive portal, WAF, or gateway -- and those are exactly the responders that
+# sometimes echo inbound request headers back in the body. `TEST_SECRET_DO_NOT_LEAK_12345`
+# stands in for that token: it must never appear in the raised exception, no
+# matter where in the body it sits or how long the body is.
+
+SECRET_CANARY = "TEST_SECRET_DO_NOT_LEAK_12345"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param(
+            f"<html><body>upstream error\nAuthorization: Bearer {SECRET_CANARY}</body></html>".encode(),
+            id="html-with-reflected-authorization-header",
+        ),
+        pytest.param(
+            f"prefix... {SECRET_CANARY} ...suffix".encode(), id="plaintext-secret-in-middle"
+        ),
+        pytest.param(f"{SECRET_CANARY} trailing text".encode(), id="secret-at-start"),
+        pytest.param(f"leading text {SECRET_CANARY}".encode(), id="secret-at-end"),
+        pytest.param(b"{not valid json", id="malformed-json"),
+        pytest.param(b"upstream service failure", id="plain-text"),
+        pytest.param(
+            ("x" * 50 + SECRET_CANARY + "y" * 500).encode(), id="long-body-secret-near-start"
+        ),
+        pytest.param(
+            ("x" * 500 + SECRET_CANARY + "y" * 50).encode(), id="long-body-secret-near-end"
+        ),
+    ],
+)
+def test_a_reflected_secret_never_reaches_the_exception(graph, body):
+    graph.meeting = (502, body, {})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert SECRET_CANARY not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 429, 500, 502, 503])
+def test_a_reflected_secret_never_reaches_the_exception_for_any_status(graph, status):
+    """Status is preserved; body is not -- across the whole range the client sees."""
+    body = f"gateway says: Authorization: Bearer {SECRET_CANARY}".encode()
+    graph.meeting = (status, body, {})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert SECRET_CANARY not in str(excinfo.value)
+    assert str(status) in str(excinfo.value)
+
+
+# A rogue responder controls every header on the forged response, not just the
+# body -- a reflected `Authorization` header landing in `Retry-After` or
+# `request-id` is the identical leak, just moved to a different field.
+
+
+def test_a_reflected_secret_in_retry_after_never_reaches_the_exception(graph):
+    graph.meeting = (
+        429,
+        {"error": {"code": "TooManyRequests", "message": "Slow down."}},
+        {"Retry-After": f"Bearer {SECRET_CANARY}"},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert SECRET_CANARY not in str(excinfo.value)
+
+
+def test_a_reflected_secret_in_request_id_never_reaches_the_exception(graph):
+    graph.meeting = (
+        500,
+        {"error": {"code": "InternalServerError", "message": "Try again."}},
+        {"request-id": f"Bearer {SECRET_CANARY}"},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert SECRET_CANARY not in str(excinfo.value)
+
+
+def test_a_retry_after_seconds_count_still_surfaces(graph):
+    """The security fix must not break the legitimate, documented shape."""
+    graph.meeting = (
+        429,
+        {"error": {"code": "TooManyRequests", "message": "Slow down."}},
+        {"Retry-After": "17"},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "Retry-After: 17" in str(excinfo.value)
+
+
+def test_a_retry_after_http_date_still_surfaces(graph):
+    graph.meeting = (
+        429,
+        {"error": {"code": "TooManyRequests", "message": "Slow down."}},
+        {"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "Retry-After: Wed, 21 Oct 2026 07:28:00 GMT" in str(excinfo.value)
+
+
+def test_a_valid_request_id_still_surfaces(graph):
+    graph.meeting = (
+        500,
+        {"error": {"code": "InternalServerError", "message": "Try again."}},
+        {"request-id": "a1b2c3d4-0000-1111-2222-333344445555"},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "a1b2c3d4-0000-1111-2222-333344445555" in str(excinfo.value)
+
+
+def test_a_valid_json_graph_error_still_surfaces_its_message(graph):
+    """The security fix must not make useful, structured errors disappear."""
+    graph.meeting = (
+        403,
+        {"error": {"code": "Forbidden", "message": "Application access policy is missing."}},
+        {},
+    )
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        build_client().create_meeting(subject="Situation Room")
+
+    assert "Application access policy is missing." in str(excinfo.value)
+    assert SECRET_CANARY not in str(excinfo.value)

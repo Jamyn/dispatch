@@ -164,6 +164,35 @@ def test_a_meeting_dispatch_cannot_persist_is_deleted(
     assert incident.conference is None
 
 
+# --- issue #156: source-to-sink -- an arbitrary Graph response must never
+# reach the incident timeline, which is broadly readable by every incident
+# participant. The request that fails carries a live bearer token, so a proxy,
+# captive portal, or WAF answering in Graph's place could echo it straight
+# into the timeline via the raw-body fallback this test guards against.
+
+SECRET_CANARY = "TEST_SECRET_DO_NOT_LEAK_12345"
+
+
+def test_a_reflected_secret_does_not_reach_the_incident_timeline(
+    graph, session, incident, active_teams_plugin
+):
+    from dispatch.conference.flows import create_conference
+
+    graph.meeting = (
+        502,
+        f"<html>upstream error\nAuthorization: Bearer {SECRET_CANARY}</html>".encode(),
+        {},
+    )
+
+    assert create_conference(incident=incident, participants=[], db_session=session) is None
+
+    descriptions = [event.description for event in incident.events]
+    assert descriptions, "expected a timeline entry recording the failure"
+    assert all(SECRET_CANARY not in d for d in descriptions), descriptions
+    # The failure is still recognisable to a responder -- status is preserved.
+    assert any("502" in d for d in descriptions), descriptions
+
+
 def test_a_graph_delete_failure_does_not_replace_the_original_error(
     graph, session, incident, active_teams_plugin, monkeypatch
 ):
