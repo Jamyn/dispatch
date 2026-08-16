@@ -57,14 +57,33 @@ def suggestion_payload(query: str = "", action_id: str = DefaultActionIds.projec
 
 
 @pytest.fixture
-def load_options(dispatch_interaction):
-    """Run a block_suggestion through Bolt and return the options it answered with."""
+def load_response(dispatch_interaction):
+    """Run a block_suggestion through Bolt and return the body it answered with."""
 
-    def load(query: str = "", action_id: str = DefaultActionIds.project_select) -> list[dict]:
+    def load(query: str = "", action_id: str = DefaultActionIds.project_select) -> dict:
         response = dispatch_interaction(suggestion_payload(query, action_id))
 
         assert response.status == 200, response.body
-        return json.loads(response.body)["options"]
+        return json.loads(response.body)
+
+    return load
+
+
+@pytest.fixture
+def load_options(load_response):
+    """The options offered, however they were carried.
+
+    A truncated answer comes back as a single labelled `option_group` rather
+    than a bare option list (#146); to everything asserting on which projects
+    were offered, the two are the same answer.
+    """
+
+    def load(query: str = "", action_id: str = DefaultActionIds.project_select) -> list[dict]:
+        body = load_response(query, action_id)
+        if "option_groups" in body:
+            (group,) = body["option_groups"]
+            return group["options"]
+        return body["options"]
 
     return load
 
@@ -200,3 +219,81 @@ def test_a_failed_lookup_answers_with_no_options_rather_than_an_error(
         "dispatch.project.service.get_all_enabled", side_effect=RuntimeError("database is down")
     ):
         assert load_options() == []
+
+
+# --- relevance and truncation (#146) -----------------------------------------
+
+
+def test_an_exact_match_survives_a_flood_of_substring_matches(session, only_projects, load_options):
+    """The bug: typing a project's whole name and not seeing it.
+
+    200 projects whose names merely contain "sec" fill the limit alphabetically
+    and push the one actually called Security out of the response entirely.
+    """
+    only_projects(display_names=["Security", *(f"aaa-sec-{i:03d}" for i in range(200))])
+
+    labels = [o["text"]["text"] for o in load_options("sec")]
+
+    assert labels[0] == "Security", labels[:5]
+
+
+def test_a_prefix_match_outranks_a_substring_match(session, only_projects, load_options):
+    only_projects(display_names=["aaa-contains-sec", "Security Engineering"])
+
+    labels = [o["text"]["text"] for o in load_options("sec")]
+
+    assert labels == ["Security Engineering", "aaa-contains-sec"]
+
+
+def test_within_a_tier_results_are_still_alphabetical(session, only_projects, load_options):
+    only_projects(display_names=["sec-zulu", "sec-alpha", "sec-mike"])
+
+    labels = [o["text"]["text"] for o in load_options("sec")]
+
+    assert labels == ["sec-alpha", "sec-mike", "sec-zulu"]
+
+
+def test_a_multi_word_query_matches_in_any_order(session, only_projects, load_options):
+    """`security eng` is the same request whatever sits between the words."""
+    only_projects(display_names=["Security Platform Engineering", "Payments"])
+
+    labels = [o["text"]["text"] for o in load_options("security eng")]
+
+    assert labels == ["Security Platform Engineering"]
+
+
+def test_every_word_of_a_multi_word_query_must_match(session, only_projects, load_options):
+    only_projects(display_names=["Security Engineering", "Security Ops"])
+
+    labels = [o["text"]["text"] for o in load_options("security ops")]
+
+    assert labels == ["Security Ops"]
+
+
+def test_a_wildcard_in_one_word_of_a_query_is_matched_literally(
+    session, only_projects, load_options
+):
+    only_projects(display_names=["Security Engineering"])
+
+    assert load_options("security %") == []
+
+
+def test_a_full_answer_is_not_labelled_as_truncated(session, only_projects, load_response):
+    """Exactly the limit is a complete answer, not a truncated one."""
+    only_projects(MAX_SELECT_OPTIONS)
+
+    body = load_response()
+
+    assert "option_groups" not in body, body
+    assert len(body["options"]) == MAX_SELECT_OPTIONS
+
+
+def test_a_truncated_answer_says_so(session, only_projects, load_response):
+    only_projects(MAX_SELECT_OPTIONS + 1)
+
+    body = load_response()
+
+    assert "options" not in body, body
+    (group,) = body["option_groups"]
+    assert len(group["options"]) == MAX_SELECT_OPTIONS
+    assert str(MAX_SELECT_OPTIONS) in group["label"]["text"], group["label"]
