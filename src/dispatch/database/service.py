@@ -509,10 +509,24 @@ def apply_filter_specific_joins(model: Base, filter_spec: dict, query: orm.query
     return query
 
 
+# Applied to the combined, ranked result rather than per arm, so the
+# highest-ranked rows survive whichever type they came from. Well above what
+# the UI can show -- it renders each type in its own panel at ten rows a page,
+# and there are seven types -- so this bounds the work without changing what a
+# user sees. `items_per_page` is deliberately not used here: nothing on this
+# path sends it, and its default of 5 is far below one page of one panel.
+MAX_SEARCH_RESULTS = 500
+
+
 def composite_search(*, db_session, query_str: str, models: list[Base], current_user: DispatchUser):
     """Perform a multi-table search based on the supplied query."""
     s = CompositeSearch(db_session, models)
-    query = s.build_query(query_str, sort=True)
+    # Bounded: unlimited, this materialises every matching row across every
+    # requested type and then reads each one back by id, so the cost scales
+    # with the size of the tenant rather than with what the user can see
+    # (#158). The bound is only meaningful because the ordering is total --
+    # see `build_query`.
+    query = s.build_query(query_str, sort=True).limit(MAX_SEARCH_RESULTS)
 
     # TODO can we do this with composite filtering?
     # for model in models:
