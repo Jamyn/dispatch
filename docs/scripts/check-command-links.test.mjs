@@ -4,7 +4,11 @@ import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
 
-import { checkCommandLinks } from "./check-command-links.mjs"
+import {
+  checkCommandCoverage,
+  checkCommandLinks,
+  registeredCommands,
+} from "./check-command-links.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const commanderPage = path.join(here, "..", "docs/user-guide/incidents/commander.mdx")
@@ -37,7 +41,7 @@ test("the real Incident Commander page is consistent", async () => {
 test("a linked command with a matching section passes", () => {
   assert.deepEqual(
     checkCommandLinks(page(["- [`/dispatch-summary`](#dispatch-summary)"], ["/dispatch-summary"])),
-    []
+    [],
   )
 })
 
@@ -68,7 +72,7 @@ test("a linked command with no section fails", () => {
 test("a link pointing at the wrong anchor fails", () => {
   assert.match(
     only(page(["- [`/dispatch-summary`](#dispatch-sumary)"], ["/dispatch-summary"])),
-    /links to #dispatch-sumary, expected #dispatch-summary/
+    /links to #dispatch-sumary, expected #dispatch-summary/,
   )
 })
 
@@ -79,7 +83,7 @@ test("a section missing from the list fails", () => {
 test("a command listed twice fails", () => {
   const source = page(
     ["- [`/dispatch-summary`](#dispatch-summary)", "- [`/dispatch-summary`](#dispatch-summary)"],
-    ["/dispatch-summary"]
+    ["/dispatch-summary"],
   )
   assert.match(only(source), /is listed twice/)
 })
@@ -89,14 +93,14 @@ test("a command listed twice fails", () => {
 test("a heading is expected to resolve to its lowercased anchor", () => {
   assert.deepEqual(
     checkCommandLinks(page(["- [`/dispatch-Summary`](#dispatch-summary)"], ["/dispatch-Summary"])),
-    []
+    [],
   )
 })
 
 test("a link matching the heading's case rather than the generated id fails", () => {
   assert.match(
     only(page(["- [`/dispatch-Summary`](#dispatch-Summary)"], ["/dispatch-Summary"])),
-    /expected #dispatch-summary/
+    /expected #dispatch-summary/,
   )
 })
 
@@ -141,7 +145,7 @@ for (const [name, entry] of [
     const problems = checkCommandLinks(page([entry], []))
     assert.ok(
       problems.some((p) => /must be `- \[`\/command`\]\(#anchor\)`/.test(p)),
-      `expected a shape complaint, got ${JSON.stringify(problems)}`
+      `expected a shape complaint, got ${JSON.stringify(problems)}`,
     )
   })
 }
@@ -154,7 +158,7 @@ test("blank lines and comments in the command list are allowed", () => {
       "{/* a note to editors */}",
       "<!-- another note -->",
     ],
-    ["/dispatch-summary"]
+    ["/dispatch-summary"],
   )
   assert.deepEqual(checkCommandLinks(source), [])
 })
@@ -170,7 +174,7 @@ test("a comment spanning several lines in the command list is allowed", () => {
       "<!-- and another",
       "     one -->",
     ],
-    ["/dispatch-summary"]
+    ["/dispatch-summary"],
   )
   assert.deepEqual(checkCommandLinks(source), [])
 })
@@ -233,5 +237,74 @@ test("a ``` inside a ~~~ fence does not flip fence tracking", () => {
 test("a page without the command list is reported, not silently skipped", () => {
   assert.deepEqual(checkCommandLinks("# Some other page\n"), [
     'no "## All Slack commands" heading found',
+  ])
+})
+
+// --- coverage against the code (#134) ---------------------------------------
+//
+// checkCommandLinks only checks that a page agrees with itself, so a command
+// documented on no page at all reports ok. These cover the check that reads the
+// plugin's configuration schema instead.
+
+const configPy = path.join(here, "..", "..", "src/dispatch/plugins/dispatch_slack/config.py")
+const adminPage = path.join(
+  here,
+  "..",
+  "docs/administration/settings/plugins/configuring-slack.mdx",
+)
+
+/** A `config.py` fragment declaring the given commands. */
+function config(commands) {
+  return commands
+    .map(
+      (c, i) =>
+        `    slack_command_${i}: str = Field(\n        "${c}",\n        title="T",\n    )\n`,
+    )
+    .join("\n")
+}
+
+test("every registered command really is documented", async () => {
+  const [source, ...pages] = await Promise.all(
+    [configPy, commanderPage, adminPage].map((f) => readFile(f, "utf8")),
+  )
+  assert.deepEqual(checkCommandCoverage(source, pages), [])
+})
+
+test("the real config.py still parses as the expected field shape", async () => {
+  const commands = registeredCommands(await readFile(configPy, "utf8"))
+  assert.ok(commands.length > 15, `only found ${commands.length} commands`)
+  assert.ok(
+    commands.every((c) => c.startsWith("/dispatch-")),
+    commands.join(", "),
+  )
+})
+
+test("a command documented on any one page is enough", () => {
+  assert.deepEqual(
+    checkCommandCoverage(config(["/dispatch-x"]), ["nothing", "`/dispatch-x` is a"]),
+    [],
+  )
+})
+
+test("a command documented on no page is reported", () => {
+  assert.deepEqual(checkCommandCoverage(config(["/dispatch-x"]), ["", ""]), [
+    "`/dispatch-x` is registered in src/dispatch/plugins/dispatch_slack/config.py but documented nowhere",
+  ])
+})
+
+test("a longer command name does not count as documenting a shorter one", () => {
+  // Without the trailing word boundary, `/dispatch-list-tasks` in the docs
+  // would silently vouch for an undocumented `/dispatch-list-task`.
+  assert.deepEqual(
+    checkCommandCoverage(config(["/dispatch-list-task"]), ["`/dispatch-list-tasks`"]),
+    [
+      "`/dispatch-list-task` is registered in src/dispatch/plugins/dispatch_slack/config.py but documented nowhere",
+    ],
+  )
+})
+
+test("a config.py the regex cannot read is reported, not treated as passing", () => {
+  assert.deepEqual(checkCommandCoverage("class C:\n    pass\n", ["", ""]), [
+    "no slack_command_* defaults found in src/dispatch/plugins/dispatch_slack/config.py; has the field shape changed?",
   ])
 })
