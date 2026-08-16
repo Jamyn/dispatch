@@ -2398,7 +2398,7 @@ def report_issue(
 
 
 @listeners.action(
-    CaseReportActions.project_select, middleware=[db_middleware, action_context_middleware]
+    CaseReportActions.project_select, middleware=[action_context_middleware, db_middleware]
 )
 def handle_report_project_select_action(
     ack: Ack,
@@ -2468,8 +2468,8 @@ def handle_report_project_select_action(
 @listeners.action(
     CaseReportActions.case_type_select,
     middleware=[
-        db_middleware,
         action_context_middleware,
+        db_middleware,
     ],
 )
 def handle_report_case_type_select_action(
@@ -2648,7 +2648,7 @@ def ack_report_case_submission_event(ack: Ack) -> None:
 
 @listeners.view(
     CaseReportActions.submit,
-    middleware=[db_middleware, action_context_middleware, modal_submit_middleware, user_middleware],
+    middleware=[action_context_middleware, db_middleware, modal_submit_middleware, user_middleware],
 )
 def handle_report_submission_event(
     ack: Ack,
