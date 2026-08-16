@@ -1,4 +1,5 @@
 from blockkit import Context, Input, Text, Modal, PlainTextInput, Section
+from slack_bolt import App
 from slack_bolt import Ack, BoltContext
 from slack_sdk.web import WebClient
 from sqlalchemy.orm import Session
@@ -10,7 +11,7 @@ from dispatch.enums import DispatchEnum
 from dispatch.incident import service as incident_service
 from dispatch.messaging.strings import INCIDENT_WORKFLOW_CREATED_NOTIFICATION
 from dispatch.participant import service as participant_service
-from dispatch.plugins.dispatch_slack.bolt import app
+from dispatch.plugins.dispatch_slack.bolt import listeners
 from dispatch.plugins.dispatch_slack.fields import static_select_block
 from dispatch.plugins.dispatch_slack.middleware import (
     action_context_middleware,
@@ -42,7 +43,7 @@ class RunWorkflowActions(DispatchEnum):
     workflow_select = "run-workflow-workflow-select"
 
 
-def configure(config):
+def configure(app: App, config) -> None:
     """Maps commands/events to their functions."""
     middleware = [
         command_context_middleware,
@@ -193,7 +194,7 @@ def handle_workflow_run_command(
     client.views_open(trigger_id=body["trigger_id"], view=modal)
 
 
-@app.view(
+@listeners.view(
     RunWorkflowActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -264,7 +265,7 @@ def handle_workflow_submission_event(
     )
 
 
-@app.action(
+@listeners.action(
     RunWorkflowActions.workflow_select, middleware=[action_context_middleware, db_middleware]
 )
 def handle_run_workflow_select_action(

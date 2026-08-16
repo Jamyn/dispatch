@@ -18,6 +18,7 @@ from blockkit import (
     Section,
     UsersSelect,
 )
+from slack_bolt import App
 from slack_bolt import Ack, BoltContext, Respond, BoltRequest
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web.client import WebClient
@@ -47,7 +48,7 @@ from dispatch.participant_role import service as participant_role_service
 from dispatch.participant_role.models import ParticipantRoleType
 from dispatch.plugin import service as plugin_service
 from dispatch.plugins.dispatch_slack import service as dispatch_slack_service
-from dispatch.plugins.dispatch_slack.bolt import app
+from dispatch.plugins.dispatch_slack.bolt import listeners
 from dispatch.plugins.dispatch_slack.case.enums import (
     CaseEditActions,
     CaseEscalateActions,
@@ -130,7 +131,7 @@ from dispatch.ticket import flows as ticket_flows
 log = logging.getLogger(__name__)
 
 
-def configure(config: SlackConversationConfiguration):
+def configure(app: App, config: SlackConversationConfiguration) -> None:
     """Maps commands/events to their functions."""
     case_command_context_middleware = partial(
         command_context_middleware,
@@ -413,7 +414,7 @@ def handle_engage_user_command(
     )
 
 
-@app.view(
+@listeners.view(
     "manual-engage-mfa",
     middleware=[
         action_context_middleware,
@@ -681,7 +682,7 @@ def _build_signal_list_modal_blocks(
     return blocks + pagination_blocks if len(signals) > limit else blocks
 
 
-@app.action(
+@listeners.action(
     CasePaginateActions.list_signal_next, middleware=[action_context_middleware, db_middleware]
 )
 def handle_next_action(ack: Ack, body: dict, client: WebClient, db_session: Session):
@@ -718,7 +719,7 @@ def handle_next_action(ack: Ack, body: dict, client: WebClient, db_session: Sess
     )
 
 
-@app.action(
+@listeners.action(
     CasePaginateActions.list_signal_previous, middleware=[action_context_middleware, db_middleware]
 )
 def handle_previous_action(ack: Ack, body: dict, client: WebClient, db_session: Session):
@@ -755,7 +756,9 @@ def handle_previous_action(ack: Ack, body: dict, client: WebClient, db_session: 
     )
 
 
-@app.action(SignalNotificationActions.snooze, middleware=[button_context_middleware, db_middleware])
+@listeners.action(
+    SignalNotificationActions.snooze, middleware=[button_context_middleware, db_middleware]
+)
 def snooze_button_click(
     ack: Ack, body: dict, client: WebClient, context: BoltContext, db_session: Session
 ) -> None:
@@ -841,7 +844,7 @@ def snooze_button_click(
         client.views_open(trigger_id=body["trigger_id"], view=modal)
 
 
-@app.view(
+@listeners.view(
     SignalSnoozeActions.preview,
     middleware=[
         action_context_middleware,
@@ -940,7 +943,7 @@ def handle_snooze_preview_event(
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     SignalSnoozeActions.submit,
     middleware=[
         action_context_middleware,
@@ -1425,13 +1428,15 @@ def handle_thread_creation(
         )
 
 
-@app.action("button-link")
+@listeners.action("button-link")
 def ack_button_link(ack: Ack):
     """Handles noop button link action."""
     ack()
 
 
-@app.action(CaseNotificationActions.reopen, middleware=[button_context_middleware, db_middleware])
+@listeners.action(
+    CaseNotificationActions.reopen, middleware=[button_context_middleware, db_middleware]
+)
 def reopen_button_click(
     ack: Ack,
     client: WebClient,
@@ -1454,7 +1459,7 @@ def reopen_button_click(
     )
 
 
-@app.action(
+@listeners.action(
     CaseNotificationActions.escalate,
     middleware=[button_context_middleware, db_middleware, user_middleware],
 )
@@ -1503,7 +1508,7 @@ def escalate_button_click(
     client.views_open(trigger_id=body["trigger_id"], view=modal)
 
 
-@app.action(
+@listeners.action(
     CaseEscalateActions.project_select, middleware=[action_context_middleware, db_middleware]
 )
 def handle_project_select_action(
@@ -1578,7 +1583,7 @@ def ack_handle_escalation_submission_event(ack: Ack, case: Case) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     CaseEscalateActions.submit,
     middleware=[
         action_context_middleware,
@@ -1692,7 +1697,7 @@ def handle_escalation_submission_event(
     )
 
 
-@app.action(
+@listeners.action(
     CaseNotificationActions.migrate,
     middleware=[button_context_middleware, db_middleware, user_middleware],
 )
@@ -1726,7 +1731,7 @@ def create_channel_button_click(
     client.views_open(trigger_id=body["trigger_id"], view=modal)
 
 
-@app.action(
+@listeners.action(
     CaseNotificationActions.update,
     middleware=[button_context_middleware, db_middleware, user_middleware],
 )
@@ -1746,7 +1751,7 @@ def update_case_button_click(
     )
 
 
-@app.action(
+@listeners.action(
     CaseNotificationActions.user_mfa,
     middleware=[button_context_middleware, db_middleware, user_middleware],
 )
@@ -1783,7 +1788,7 @@ def ack_handle_create_channel_event(ack: Ack, case: Case) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     CaseMigrateActions.submit,
     middleware=[
         action_context_middleware,
@@ -1930,7 +1935,7 @@ def handle_user_mention(
         )
 
 
-@app.action(
+@listeners.action(
     CaseNotificationActions.add_user,
     middleware=[add_user_middleware, button_context_middleware, db_middleware, user_middleware],
 )
@@ -1968,7 +1973,7 @@ def add_users_to_case(
     respond(delete_original=True)
 
 
-@app.action(CaseNotificationActions.do_nothing)
+@listeners.action(CaseNotificationActions.do_nothing)
 def handle_do_nothing_button(
     ack: Ack,
     respond: Respond,
@@ -1983,7 +1988,7 @@ def handle_do_nothing_button(
         log.error(f"Error deleting ephemeral message: {e.response['error']}")
 
 
-@app.action(
+@listeners.action(
     CaseNotificationActions.join_incident,
     middleware=[button_context_middleware, db_middleware, user_middleware],
 )
@@ -2002,7 +2007,7 @@ def join_incident_button_click(
     )
 
 
-@app.action(
+@listeners.action(
     CaseNotificationActions.invite_user_case,
     middleware=[button_context_middleware, db_middleware, user_middleware],
 )
@@ -2043,7 +2048,9 @@ def handle_case_notification_join_button_click(
     respond(text=message, response_type="ephemeral", replace_original=False, delete_original=False)
 
 
-@app.action(CaseNotificationActions.edit, middleware=[button_context_middleware, db_middleware])
+@listeners.action(
+    CaseNotificationActions.edit, middleware=[button_context_middleware, db_middleware]
+)
 def edit_button_click(
     ack: Ack, body: dict, db_session: Session, context: BoltContext, client: WebClient
 ):
@@ -2095,7 +2102,7 @@ def edit_button_click(
     client.views_open(trigger_id=body["trigger_id"], view=modal)
 
 
-@app.view(
+@listeners.view(
     CaseEditActions.submit,
     middleware=[
         action_context_middleware,
@@ -2163,7 +2170,9 @@ def handle_edit_submission_event(
     return case
 
 
-@app.action(CaseNotificationActions.resolve, middleware=[button_context_middleware, db_middleware])
+@listeners.action(
+    CaseNotificationActions.resolve, middleware=[button_context_middleware, db_middleware]
+)
 def resolve_button_click(
     ack: Ack, body: dict, db_session: Session, context: BoltContext, client: WebClient
 ):
@@ -2196,7 +2205,7 @@ def resolve_button_click(
     client.views_open(trigger_id=body["trigger_id"], view=modal)
 
 
-@app.action(
+@listeners.action(
     DefaultActionIds.case_resolution_reason_select,
     middleware=[action_context_middleware, db_middleware],
 )
@@ -2252,7 +2261,9 @@ def handle_resolution_reason_select_action(
     )
 
 
-@app.action(CaseNotificationActions.triage, middleware=[button_context_middleware, db_middleware])
+@listeners.action(
+    CaseNotificationActions.triage, middleware=[button_context_middleware, db_middleware]
+)
 def triage_button_click(
     ack: Ack, body: dict, db_session: Session, context: BoltContext, client: WebClient
 ):
@@ -2275,7 +2286,7 @@ def triage_button_click(
     case_flows.update_conversation(case, db_session)
 
 
-@app.view(
+@listeners.view(
     CaseResolveActions.submit,
     middleware=[action_context_middleware, db_middleware, user_middleware, modal_submit_middleware],
 )
@@ -2333,7 +2344,9 @@ def handle_resolve_submission_event(
         log.error(f"Error running case update flow from Slack plugin: {e}")
 
 
-@app.shortcut(CaseShortcutCallbacks.report, middleware=[db_middleware, shortcut_context_middleware])
+@listeners.shortcut(
+    CaseShortcutCallbacks.report, middleware=[db_middleware, shortcut_context_middleware]
+)
 def report_issue(
     ack: Ack,
     body: dict,
@@ -2381,7 +2394,9 @@ def report_issue(
     client.views_open(trigger_id=body["trigger_id"], view=modal)
 
 
-@app.action(CaseReportActions.project_select, middleware=[db_middleware, action_context_middleware])
+@listeners.action(
+    CaseReportActions.project_select, middleware=[db_middleware, action_context_middleware]
+)
 def handle_report_project_select_action(
     ack: Ack,
     body: dict,
@@ -2445,7 +2460,7 @@ def handle_report_project_select_action(
     )
 
 
-@app.action(
+@listeners.action(
     CaseReportActions.case_type_select,
     middleware=[
         db_middleware,
@@ -2624,7 +2639,7 @@ def ack_report_case_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     CaseReportActions.submit,
     middleware=[db_middleware, action_context_middleware, modal_submit_middleware, user_middleware],
 )
@@ -2699,7 +2714,7 @@ def handle_report_submission_event(
     )
 
 
-@app.action(
+@listeners.action(
     SignalEngagementActions.approve,
     middleware=[
         engagement_button_context_middleware,
@@ -2843,7 +2858,7 @@ def ack_mfa_required_submission_event(
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     SignalEngagementActions.approve_submit,
     middleware=[
         action_context_middleware,
@@ -3066,7 +3081,7 @@ def resolve_case(
     )
 
 
-@app.action(
+@listeners.action(
     SignalEngagementActions.deny,
     middleware=[engagement_button_context_middleware, db_middleware, user_middleware],
 )
@@ -3121,7 +3136,7 @@ def ack_engagement_deny_submission_event(ack: Ack) -> None:
     ack(response_action="update", view=modal)
 
 
-@app.view(
+@listeners.view(
     SignalEngagementActions.deny_submit,
     middleware=[
         action_context_middleware,
@@ -3190,7 +3205,7 @@ def handle_engagement_deny_submission_event(
     )
 
 
-@app.action(
+@listeners.action(
     CaseNotificationActions.investigate, middleware=[button_context_middleware, db_middleware]
 )
 def investigate_button_click(

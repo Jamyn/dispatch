@@ -11,17 +11,10 @@ from starlette.requests import Request, Headers
 from dispatch.database.core import refetch_db_session
 from dispatch.plugin.models import Plugin, PluginInstance
 
-from .bolt import app
-from .case.interactive import configure as case_configure
+from .app import get_app
+from .config import SlackConversationConfiguration
 from .handler import SlackRequestHandler
-from .incident.interactive import configure as incident_configure
-from .feedback.interactive import configure as feedback_configure
-from .workflow import configure as workflow_configure
 from .messaging import get_incident_conversation_command_message
-
-# Registers the options-load listener with `app` on import; nothing here calls
-# into it, so without this the /slack/menu route has no project handler.
-from . import options  # noqa: F401
 
 router = APIRouter()
 
@@ -53,28 +46,24 @@ def is_current_configuration(
     return verifier.is_valid_request(body, headers)
 
 
-def get_request_handler(request: Request, body: bytes, organization: str) -> SlackRequestHandler:
+def get_request_handler(
+    request: Request, body: bytes, organization: str
+) -> tuple[SlackRequestHandler, SlackConversationConfiguration]:
     """Creates a slack request handler for use by the api."""
     session = refetch_db_session(organization)
-    plugin_instances: list[PluginInstance] = (
-        session.query(PluginInstance)
-        .join(Plugin)
-        .filter(PluginInstance.enabled == true(), Plugin.slug == "slack-conversation")
-        .all()
-    )
-    for p in plugin_instances:
-        if is_current_configuration(body=body, headers=request.headers, plugin_instance=p):
-            case_configure(p.configuration)
-            feedback_configure(p.configuration)
-            incident_configure(p.configuration)
-            workflow_configure(p.configuration)
-            app._configuration = p.configuration
-            app._token = p.configuration.api_bot_token.get_secret_value()
-            app._signing_secret = p.configuration.signing_secret.get_secret_value()
-            session.close()
-            return SlackRequestHandler(app)
+    try:
+        plugin_instances: list[PluginInstance] = (
+            session.query(PluginInstance)
+            .join(Plugin)
+            .filter(PluginInstance.enabled == true(), Plugin.slug == "slack-conversation")
+            .all()
+        )
+        for p in plugin_instances:
+            if is_current_configuration(body=body, headers=request.headers, plugin_instance=p):
+                return SlackRequestHandler(get_app(organization, p)), p.configuration
+    finally:
+        session.close()
 
-    session.close()
     raise HTTPException(
         status_code=HTTPStatus.FORBIDDEN.value, detail=[{"msg": "Invalid request signature"}]
     )
@@ -86,7 +75,7 @@ def get_request_handler(request: Request, body: bytes, organization: str) -> Sla
 async def slack_events(request: Request, organization: str, body: bytes = Depends(get_body)):
     """Handle all incoming Slack events."""
 
-    handler = get_request_handler(request=request, body=body, organization=organization)
+    handler, _ = get_request_handler(request=request, body=body, organization=organization)
     try:
         body_json = json.loads(body)
         # if we're getting the url verification request,
@@ -111,7 +100,9 @@ async def slack_events(request: Request, organization: str, body: bytes = Depend
 async def slack_commands(organization: str, request: Request, body: bytes = Depends(get_body)):
     """Handle all incoming Slack commands."""
     # We build the background task
-    handler = get_request_handler(request=request, body=body, organization=organization)
+    handler, configuration = get_request_handler(
+        request=request, body=body, organization=organization
+    )
     task = BackgroundTask(
         handler.handle,
         req=request,
@@ -122,7 +113,7 @@ async def slack_commands(organization: str, request: Request, body: bytes = Depe
     request_body_form = await request.form()
     command = request_body_form._dict.get("command")
     message = get_incident_conversation_command_message(
-        config=app._configuration, command_string=command
+        config=configuration, command_string=command
     )
     return JSONResponse(
         background=task,
@@ -136,7 +127,7 @@ async def slack_commands(organization: str, request: Request, body: bytes = Depe
 )
 async def slack_actions(request: Request, organization: str, body: bytes = Depends(get_body)):
     """Handle all incoming Slack actions."""
-    handler = get_request_handler(request=request, body=body, organization=organization)
+    handler, _ = get_request_handler(request=request, body=body, organization=organization)
     return handler.handle(req=request, body=body)
 
 
@@ -151,5 +142,5 @@ def slack_menus(request: Request, organization: str, body: bytes = Depends(get_b
     would block the event loop -- for every keystroke, now that the project
     select loads its options through this route.
     """
-    handler = get_request_handler(request=request, body=body, organization=organization)
+    handler, _ = get_request_handler(request=request, body=body, organization=organization)
     return handler.handle(req=request, body=body)

@@ -1,5 +1,7 @@
 def test_configure():
     """Test that we can configure the plugin."""
+    from slack_bolt import App
+
     from dispatch.plugins.dispatch_slack.incident.interactive import (
         configure,
     )
@@ -35,7 +37,19 @@ def test_configure():
         }
     )
 
-    configure(config)
+    # configure() registers this configuration's commands on the app it is
+    # given; there is no process-global app to register them on any more.
+    app = App(
+        token="xoxb-12345",
+        signing_secret="test-123",
+        request_verification_enabled=False,
+        token_verification_enabled=False,
+    )
+    before = len(app._listeners)
+
+    configure(app, config)
+
+    assert len(app._listeners) > before
 
 
 def test_handle_tag_search_action(session, incident):

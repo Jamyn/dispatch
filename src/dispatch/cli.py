@@ -1159,10 +1159,7 @@ def run_slack_websocket(organization: str, project: str):
 
     from dispatch.common.utils.cli import install_plugins
     from dispatch.database.core import refetch_db_session
-    from dispatch.plugins.dispatch_slack.bolt import app
-    from dispatch.plugins.dispatch_slack.case.interactive import configure as case_configure
-    from dispatch.plugins.dispatch_slack.incident.interactive import configure as incident_configure
-    from dispatch.plugins.dispatch_slack.workflow import configure as workflow_configure
+    from dispatch.plugins.dispatch_slack.app import build_app
     from dispatch.project import service as project_service
     from dispatch.project.models import ProjectRead
 
@@ -1197,11 +1194,12 @@ def run_slack_websocket(organization: str, project: str):
     session.close()
 
     click.secho("Slack websocket process started...", fg="blue")
-    incident_configure(instance.configuration)
-    workflow_configure(instance.configuration)
-    case_configure(instance.configuration)
 
-    app._token = instance.configuration.api_bot_token.get_secret_value()
+    # Built the same way the HTTP routes build theirs, so socket mode gets the
+    # same listeners and the same configuration-owned token. Registering them
+    # here by hand is what previously left this path missing the module-level
+    # listeners and mutating a shared app's token.
+    app = build_app(instance.configuration)
 
     handler = SocketModeHandler(
         app, instance.configuration.socket_mode_app_token.get_secret_value()
