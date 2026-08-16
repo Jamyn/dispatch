@@ -71,6 +71,7 @@ from dispatch.plugins.dispatch_slack.case.messages import (
 from dispatch.plugins.dispatch_slack.config import SlackConversationConfiguration
 from dispatch.plugins.dispatch_slack.decorators import message_dispatcher
 from dispatch.plugins.dispatch_slack.enums import SlackAPIErrorCode
+from dispatch.plugins.dispatch_slack.exceptions import SubmissionError
 from dispatch.plugins.dispatch_slack.fields import (
     DefaultActionIds,
     DefaultBlockIds,
@@ -2674,12 +2675,28 @@ def handle_report_submission_event(
         "profile"
     ]["email"]
 
+    # Resolved from the option's value, not its text: the text is the project's
+    # label, which is its display name where it has one and is truncated to
+    # Slack's 75 characters, while the lookup downstream matches on `name` and
+    # silently falls back to the default project when it misses. Without the
+    # project here, `CaseCreate.project` is None and every case lands in the
+    # default project whatever the reporter chose (#142).
+    selected_project = project_service.get(
+        db_session=db_session,
+        project_id=int(form_data[DefaultBlockIds.project_select]["value"]),
+    )
+    if not selected_project:
+        raise SubmissionError(
+            msg="The selected project no longer exists. Please reopen this form and try again."
+        )
+
     case_in = CaseCreate(
         title=form_data[DefaultBlockIds.title_input],
         description=form_data[DefaultBlockIds.description_input],
         status=CaseStatus.new,
         case_priority=case_priority,
         case_type=case_type,
+        project={"name": selected_project.name},
         dedicated_channel=True,
         reporter=ParticipantUpdate(individual=IndividualContactRead(email=user.email)),
         assignee=ParticipantUpdate(individual=IndividualContactRead(email=assignee_email)),
