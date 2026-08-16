@@ -317,7 +317,7 @@ def test_composite_search_orders_on_a_column_of_the_outer_query(session):
     models = _search_type_models()[:3]
     statement = CompositeSearch(session, models).build_query(STEMMED, sort=True).statement
 
-    (ordering,) = statement._order_by_clauses
+    ordering, *tiebreakers = statement._order_by_clauses
     exported = {column for source in statement.get_final_froms() for column in source.c}
 
     assert ordering.element in exported, (
@@ -325,6 +325,9 @@ def test_composite_search_orders_on_a_column_of_the_outer_query(session):
     )
     assert ordering.element.name == "rank"
     assert ordering.modifier is desc_op
+    assert all(t in exported for t in tiebreakers), (
+        "a tiebreaker references something other than a column of the outer query"
+    )
 
 
 def test_composite_search_parses_every_arm_under_its_own_regconfig(session):
@@ -497,3 +500,69 @@ def test_search_matches_a_stemmed_token_on_an_english_configured_model(session):
         "the query side is no longer using the model's regconfig"
     )
     assert other.id not in ids
+
+
+# --- ordering is total, not just ranked (#160) -------------------------------
+
+
+@pytest.fixture
+def equally_ranked_hits(session):
+    """Several rows that all score exactly the same rank.
+
+    `ts_rank_cd` returns a float4, and a single occurrence of one token in one
+    indexed column scores the same value every time -- which is the ordinary
+    shape of a search hit, not a contrived one. Documents index `name` only, so
+    every one of these matches once, in one column, at one weight.
+    """
+    from tests.factories import DocumentFactory
+
+    hits = [DocumentFactory(name=f"{STEMMED}-{i:02d}") for i in range(6)]
+    session.flush()
+    return hits
+
+
+def rows_for(session, models):
+    from dispatch.search.fulltext.composite_search import CompositeSearch
+
+    return list(CompositeSearch(session, models).build_query(STEMMED, sort=True))
+
+
+def test_equally_ranked_rows_really_do_tie(session, equally_ranked_hits):
+    """Precondition. Without ties there is nothing for a tiebreaker to break."""
+    from dispatch.database.core import get_class_by_tablename
+
+    ranks = {r.rank for r in rows_for(session, [get_class_by_tablename("Document")])}
+
+    assert len(ranks) == 1, f"expected one rank shared by every row, got {ranks}"
+
+
+def test_the_ordering_is_total(session):
+    """Every column of the sort key, asserted on the statement itself.
+
+    Not left to a behavioural check alone: with no tiebreaker Postgres is free
+    to return tied rows in any order, and for a small set it usually returns
+    them in physical order -- which is the right answer by luck. A test that
+    only compared the rows would pass while the bug was still there.
+    """
+    from dispatch.search.fulltext.composite_search import CompositeSearch
+
+    models = _search_type_models()[:3]
+    statement = CompositeSearch(session, models).build_query(STEMMED, sort=True).statement
+
+    rank, *tiebreakers = statement._order_by_clauses
+
+    assert rank.element.name == "rank"
+    assert rank.modifier is desc_op
+    # `id` alone is not unique across a union of different models.
+    assert [t.name for t in tiebreakers] == ["type", "id"]
+
+
+def test_the_order_is_the_same_across_models_at_equal_rank(session, three_regconfig_hits):
+    """The tiebreaker has to be total across the whole union, not per arm."""
+    from dispatch.database.core import get_class_by_tablename
+
+    models = [get_class_by_tablename(t) for t in ("Document", "Tag", "Incident")]
+
+    rows = rows_for(session, models)
+
+    assert [(-r.rank, r.type, r.id) for r in rows] == sorted((-r.rank, r.type, r.id) for r in rows)
