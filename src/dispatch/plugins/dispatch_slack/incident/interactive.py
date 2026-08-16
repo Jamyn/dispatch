@@ -36,7 +36,6 @@ from dispatch.auth.models import DispatchUser
 from dispatch.case import service as case_service
 from dispatch.case import flows as case_flows
 from dispatch.config import DISPATCH_UI_URL
-from dispatch.database.service import search_filter_sort_paginate
 from dispatch.enums import Visibility, EventType, SubjectNames
 from dispatch.event import service as event_service
 from dispatch.exceptions import DispatchException
@@ -63,7 +62,6 @@ from dispatch.plugins.dispatch_slack.decorators import message_dispatcher
 from dispatch.plugins.dispatch_slack.enums import SlackAPIErrorCode
 from dispatch.plugins.dispatch_slack.exceptions import CommandError, EventError, SubmissionError
 from dispatch.plugins.dispatch_slack.fields import (
-    DefaultActionIds,
     DefaultBlockIds,
     TimezoneOptions,
     datetime_picker_block,
@@ -250,53 +248,6 @@ def configure(app: App, config) -> None:
         event="reaction_added",
         middleware=[reaction_context_middleware],
     )(handle_not_configured_reaction_event)
-
-
-@listeners.options(
-    DefaultActionIds.tags_multi_select, middleware=[action_context_middleware, db_middleware]
-)
-def handle_tag_search_action(
-    ack: Ack, payload: dict, context: BoltContext, db_session: Session
-) -> None:
-    """Handles tag lookup actions."""
-    query_str = payload["value"]
-
-    filter_spec = {
-        "and": [
-            {
-                "model": "Project",
-                "op": "==",
-                "field": "id",
-                "value": int(context["subject"].project_id),
-            }
-        ]
-    }
-
-    if "/" in query_str:
-        # first check to make sure there's only one slash
-        if query_str.count("/") > 1:
-            ack()
-            return
-
-        tag_type, query_str = query_str.split("/")
-        filter_spec["and"].append(
-            {"model": "TagType", "op": "==", "field": "name", "value": tag_type}
-        )
-
-    tags = search_filter_sort_paginate(
-        db_session=db_session, model="Tag", query_str=query_str, filter_spec=filter_spec
-    )
-
-    options = []
-    for t in tags["items"]:
-        options.append(
-            {
-                "text": {"type": "plain_text", "text": f"{t.tag_type.name}/{t.name}"},
-                "value": str(t.id),  # NOTE: slack doesn't accept int's as values (fails silently)
-            }
-        )
-
-    ack(options=options)
 
 
 @listeners.action(

@@ -52,18 +52,6 @@ def test_configure():
     assert len(app._listeners) > before
 
 
-def test_handle_tag_search_action(session, incident):
-    from dispatch.plugins.dispatch_slack.incident.interactive import (
-        handle_tag_search_action,
-    )
-    from slack_bolt import Ack
-
-    bolt_context = {"subject": incident}
-    payload = {"value": "payload"}
-
-    handle_tag_search_action(ack=Ack(), payload=payload, context=bolt_context, db_session=session)
-
-
 def test_handle_list_incidents_command(session, incident, mock_slack_client):
     """Test that we can handle the list incidents command."""
     from dispatch.plugins.dispatch_slack.incident.interactive import (
