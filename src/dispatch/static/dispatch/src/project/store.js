@@ -3,6 +3,8 @@ import ProjectApi from "@/project/api"
 import { getField, updateField } from "vuex-map-fields"
 import { debounce } from "lodash"
 
+import SearchUtils from "@/search/utils"
+
 const getDefaultSelectedState = () => {
   return {
     name: null,
@@ -65,7 +67,12 @@ const getters = {
 const actions = {
   getAll: debounce(({ commit, state }) => {
     commit("SET_TABLE_LOADING", "primary")
-    return ProjectApi.getAll(state.table.options)
+    // Through the shared chokepoint, not the raw options: once a header has
+    // been clicked, Vuetify 3 leaves `sortBy` as `[{key, order}]`, which axios
+    // serialises to a shape the backend does not read as a sort at all -- so it
+    // runs LIMIT/OFFSET with no ORDER BY and paging repeats or skips rows.
+    let params = SearchUtils.createParametersFromTableOptions({ ...state.table.options }, "Project")
+    return ProjectApi.getAll(params)
       .then((response) => {
         commit("SET_TABLE_LOADING", false)
         commit("SET_TABLE_ROWS", response.data)

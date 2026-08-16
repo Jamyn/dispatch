@@ -1,6 +1,7 @@
 import { getField, updateField } from "vuex-map-fields"
 import { debounce } from "lodash"
 import PromptApi from "./api"
+import SearchUtils from "@/search/utils"
 import api from "@/api"
 
 const getDefaultSelectedState = () => {
@@ -59,13 +60,15 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
 
     try {
-      const params = {
-        page: state.table.options.page,
-        itemsPerPage: state.table.options.itemsPerPage,
-        q: state.table.options.q || undefined,
-        sortBy: state.table.options.sortBy,
-        descending: state.table.options.descending,
-      }
+      // See the note in project/store.js: the raw options carry Vuetify 3's
+      // `[{key, order}]` sortBy, which the backend does not read as a sort.
+      // `filters` is dropped rather than passed on, which is what this store
+      // has always done -- the project scoper drives navigation here, not the
+      // query (#170).
+      const params = SearchUtils.createParametersFromTableOptions(
+        { ...state.table.options, filters: {}, q: state.table.options.q || undefined },
+        "Prompt"
+      )
 
       const response = await PromptApi.getAll(params)
       const { items, total } = response.data
