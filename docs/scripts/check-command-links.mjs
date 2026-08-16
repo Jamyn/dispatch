@@ -20,6 +20,14 @@ import path from "node:path"
 
 const DEFAULT_TARGET = "docs/user-guide/incidents/commander.mdx"
 
+// The pages a registered command has to appear on, and the source of truth it
+// is checked against. Relative to the repository root, not this directory.
+const CONFIG_SOURCE = "src/dispatch/plugins/dispatch_slack/config.py"
+const DOCUMENTED_IN = [
+  "docs/docs/user-guide/incidents/commander.mdx",
+  "docs/docs/administration/settings/plugins/configuring-slack.mdx",
+]
+
 const LIST_HEADING = "All Slack commands"
 
 // Entries are `- [`/cmd`](#anchor)`; sections are `### /cmd`. CommonMark allows
@@ -150,7 +158,7 @@ export function checkCommandLinks(source) {
     if (!command) {
       problems.push(
         `${at}: every line in the ${LIST_HEADING} list must be \`- [\`/command\`](#anchor)\`, ` +
-          `got: ${line.trim()}`
+          `got: ${line.trim()}`,
       )
       continue
     }
@@ -165,13 +173,15 @@ export function checkCommandLinks(source) {
       problems.push(
         `${at}: \`${command}\` is listed but not linked; ` +
           `use [\`${command}\`](#${anchor})` +
-          (section ? "" : ` and add a "### ${command}" section`)
+          (section ? "" : ` and add a "### ${command}" section`),
       )
       continue
     }
 
     if (!section) {
-      problems.push(`${at}: \`${command}\` links to ${linked[2]} but has no "### ${command}" section`)
+      problems.push(
+        `${at}: \`${command}\` links to ${linked[2]} but has no "### ${command}" section`,
+      )
     } else if (linked[2] !== `#${section.anchor}`) {
       problems.push(`${at}: \`${command}\` links to ${linked[2]}, expected #${section.anchor}`)
     }
@@ -184,6 +194,82 @@ export function checkCommandLinks(source) {
   }
 
   return problems
+}
+
+// `slack_command_x: str = Field(\n    "/dispatch-x",`. A regex rather than a
+// Python parse: the field shape is uniform and enforced by ruff-format, and a
+// dependency-free script is what lets the docs CI job skip `npm ci`.
+const COMMAND_DEFAULT = /slack_command_\w+\s*:\s*str\s*=\s*Field\(\s*"(\/[^"]+)"/g
+
+/**
+ * Every command the Slack plugin registers, read off its configuration schema.
+ *
+ * @param {string} source raw `config.py`
+ * @returns {string[]} the default command strings, in file order
+ */
+export function registeredCommands(source) {
+  return [...source.matchAll(COMMAND_DEFAULT)].map((m) => m[1])
+}
+
+/**
+ * Commands that exist in the code but appear on none of the documentation
+ * pages, which is what `checkCommandLinks` cannot see: it only checks that a
+ * page agrees with itself, so a command missing from every page reports ok.
+ *
+ * The test is a plain substring, not the list/section shape `checkCommandLinks`
+ * enforces -- the two pages present commands differently (a linked list and
+ * sections on one, a table on the other) and only one of them is worth holding
+ * to a fixed shape.
+ *
+ * @param {string} configSource raw `config.py`
+ * @param {string[]} pages raw MDX of every page a command may be documented on
+ * @returns {string[]} human-readable problems; empty means every command is documented
+ */
+export function checkCommandCoverage(configSource, pages) {
+  const commands = registeredCommands(configSource)
+  if (commands.length === 0) {
+    return [`no slack_command_* defaults found in ${CONFIG_SOURCE}; has the field shape changed?`]
+  }
+
+  const problems = []
+  for (const command of commands) {
+    // Word-boundary the trailing edge so `/dispatch-list-task` does not count
+    // itself as documented by a mention of `/dispatch-list-tasks`.
+    const mentioned = pages.some((page) => new RegExp(`${command}(?![\\w-])`).test(page))
+    if (!mentioned) {
+      problems.push(`\`${command}\` is registered in ${CONFIG_SOURCE} but documented nowhere`)
+    }
+  }
+  return problems
+}
+
+async function checkCoverage(root) {
+  let configSource
+  try {
+    configSource = await readFile(path.join(root, CONFIG_SOURCE), "utf8")
+  } catch (error) {
+    console.error(`FAIL ${CONFIG_SOURCE}\n  cannot be read: ${error.code ?? error.message}`)
+    return false
+  }
+
+  const pages = []
+  for (const page of DOCUMENTED_IN) {
+    try {
+      pages.push(await readFile(path.join(root, page), "utf8"))
+    } catch (error) {
+      console.error(`FAIL ${page}\n  cannot be read: ${error.code ?? error.message}`)
+      return false
+    }
+  }
+
+  const problems = checkCommandCoverage(configSource, pages)
+  if (problems.length === 0) {
+    console.log(`ok  every command in ${CONFIG_SOURCE} is documented`)
+    return true
+  }
+  console.error("FAIL command coverage")
+  for (const problem of problems) console.error(`  ${problem}`)
+  return false
 }
 
 async function main(targets) {
@@ -207,10 +293,15 @@ async function main(targets) {
     for (const problem of problems) console.error(`  ${problem}`)
   }
   if (failed) process.exitCode = 1
+  return !failed
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2)
   const here = path.dirname(fileURLToPath(import.meta.url))
-  await main(args.length ? args : [path.join(here, "..", DEFAULT_TARGET)])
+  const linksOk = await main(args.length ? args : [path.join(here, "..", DEFAULT_TARGET)])
+  // Only when run over the real pages: an explicit target is a one-off check of
+  // some other file and says nothing about whether the docs cover the code.
+  const coverageOk = args.length ? true : await checkCoverage(path.join(here, "..", ".."))
+  if (!linksOk || !coverageOk) process.exitCode = 1
 }

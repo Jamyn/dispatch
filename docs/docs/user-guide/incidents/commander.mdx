@@ -29,6 +29,9 @@ All Slack commands are listed below, or you may view _groups_ of commands relati
 - [`/dispatch-run-workflow`](#dispatch-run-workflow)
 - [`/dispatch-create-task`](#dispatch-create-task)
 - [`/dispatch-create-case`](#dispatch-create-case)
+- [`/dispatch-update-case`](#dispatch-update-case)
+- [`/dispatch-escalate-case`](#dispatch-escalate-case)
+- [`/dispatch-engage-user`](#dispatch-engage-user)
 - [`/dispatch-list-signals`](#dispatch-list-signals)
 - [`/dispatch-summary`](#dispatch-summary)
 
@@ -228,7 +231,25 @@ This command will create a case for the current incident.
 
 </div>
 
-{/* The three sections below have no screenshot yet; capturing one needs a live Slack workspace. See issue #135. */}
+{/* The sections below have no screenshot yet; capturing one needs a live Slack workspace. See issue #135. */}
+
+### /dispatch-update-case
+
+Run `/dispatch-update-case` from a case's channel to open a modal for its title, description, resolution and resolution reason, assignee, status, type, priority and visibility.
+
+A case cannot be escalated from here — the status select deliberately omits `Escalated`. Use [`/dispatch-escalate-case`](#dispatch-escalate-case) instead, which creates the incident the case becomes.
+
+### /dispatch-escalate-case
+
+Run `/dispatch-escalate-case` from a case's channel to turn it into an incident. The modal opens pre-filled from the case — its title, description and project — so you can accept the defaults or adjust them, then pick the incident's type, priority and severity.
+
+Dispatch tells you and does nothing if the case has already been escalated; a case escalates once.
+
+### /dispatch-engage-user
+
+Run `/dispatch-engage-user` from a case's channel to ask someone to confirm their identity through your multi-factor provider — the usual case being a report that some account did something its owner may not have done.
+
+Pick the person and edit the message they will see, or accept the default. Dispatch adds them to the case if they are not already on it, then sends the prompt and reports the outcome back in the channel. It says so in the channel instead if the person has no account in your Slack workspace.
 
 ### /dispatch-list-incidents
 
