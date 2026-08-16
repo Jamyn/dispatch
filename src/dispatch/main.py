@@ -27,6 +27,7 @@ from .config import (
 )
 from .database.core import engine
 from .database.logging import SessionTracker
+from .exceptions import InvalidConfigurationError
 from .extensions import configure_extensions
 from .logging import configure_logging
 from .metrics import provider as metric_provider
@@ -227,6 +228,22 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
             log.exception(e)
             response = JSONResponse(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content={"detail": e.errors()}
+            )
+        except InvalidConfigurationError as e:
+            # Ahead of the ValueError arm below, which this would otherwise
+            # reach: pydantic v1's PydanticValueError is a plain ValueError, so
+            # a rejected plugin save answered "Unknown" and named no field. Its
+            # message and `fields` are built by the setter with every submitted
+            # value already stripped, so both are safe to return (#151).
+            log.exception(e)
+            locations = e.fields or ["configuration"]
+            response = JSONResponse(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content={
+                    "detail": [
+                        {"msg": str(e), "loc": [location], "type": e.code} for location in locations
+                    ]
+                },
             )
         except ValueError as e:
             log.exception(e)
