@@ -125,8 +125,14 @@ async def slack_commands(organization: str, request: Request, body: bytes = Depe
 @router.post(
     "/slack/action",
 )
-async def slack_actions(request: Request, organization: str, body: bytes = Depends(get_body)):
-    """Handle all incoming Slack actions."""
+def slack_actions(request: Request, organization: str, body: bytes = Depends(get_body)):
+    """Handle all incoming Slack actions.
+
+    Deliberately not `async`, matching `slack_menus` (#143). `handler.handle` is
+    synchronous all the way down and Bolt polls for the listener's ack in a
+    sleep loop, so awaiting it here would block the event loop for the
+    duration of every action -- modal submissions and button clicks included.
+    """
     handler, _ = get_request_handler(request=request, body=body, organization=organization)
     return handler.handle(req=request, body=body)
 
