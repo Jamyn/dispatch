@@ -273,3 +273,22 @@ def get_organization_session(organization_slug: str) -> Session:
         if hasattr(session, "_dispatch_session_id"):
             SessionTracker.untrack_session(session._dispatch_session_id)
         session.close()
+
+
+def finalize_db_session(session: Session, *, commit: bool) -> None:
+    """Commits or rolls back and closes a session opened with `refetch_db_session`.
+
+    For callers that cannot bracket the session's use in a `with` block because
+    the code using it runs later, outside their own call stack -- e.g. a Slack
+    Bolt listener middleware, which hands a session to the listener body via
+    `context` and returns long before that body actually runs.
+    """
+    try:
+        if commit:
+            session.commit()
+        else:
+            session.rollback()
+    finally:
+        if hasattr(session, "_dispatch_session_id"):
+            SessionTracker.untrack_session(session._dispatch_session_id)
+        session.close()
