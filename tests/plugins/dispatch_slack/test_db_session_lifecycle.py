@@ -27,8 +27,24 @@ from dispatch.database.logging import SessionTracker
 from dispatch.plugins.dispatch_slack.app import build_app
 from dispatch.plugins.dispatch_slack.config import SlackConversationConfiguration
 from dispatch.plugins.dispatch_slack.fields import DefaultActionIds
+from dispatch.plugins.dispatch_slack.models import SubjectMetadata
 
 ACTION_ID = "test-db-session-lifecycle"
+
+
+def subject_middleware(context, next) -> None:
+    """Names the organization, the way a real context middleware would.
+
+    Every production listener puts one of the `*_context_middleware` before
+    `db_middleware` (#140), so `db_middleware`'s no-subject fallback --
+    `get_default_org_slug()` -- is not the path under test here. Setting the
+    subject explicitly also keeps these tests off that fallback's query, which
+    `OrganizationFactory` makes non-deterministic: it picks `default` at
+    random and commits, so by this point several organizations claim to be
+    the default and the fallback raises `MultipleResultsFound`.
+    """
+    context["subject"] = SubjectMetadata(organization_slug="default")
+    next()
 
 
 def _action_payload(action_id: str = ACTION_ID) -> dict:
@@ -147,7 +163,9 @@ def test_session_is_open_and_untouched_when_the_listener_runs(
     """
     events_at_call_time = []
 
-    @lifecycle_app.action(ACTION_ID, middleware=[slack_middleware.db_middleware])
+    @lifecycle_app.action(
+        ACTION_ID, middleware=[subject_middleware, slack_middleware.db_middleware]
+    )
     def _listener(ack, db_session) -> None:
         events_at_call_time.append(list(recorded_sessions[-1].events))
         ack()
@@ -161,7 +179,9 @@ def test_session_is_open_and_untouched_when_the_listener_runs(
 def test_successful_listener_execution_commits_then_closes(
     session, lifecycle_app, recorded_sessions
 ):
-    @lifecycle_app.action(ACTION_ID, middleware=[slack_middleware.db_middleware])
+    @lifecycle_app.action(
+        ACTION_ID, middleware=[subject_middleware, slack_middleware.db_middleware]
+    )
     def _listener(ack, db_session) -> None:
         ack()
 
@@ -175,7 +195,9 @@ def test_successful_listener_execution_commits_then_closes(
 def test_failed_listener_execution_rolls_back_then_closes(
     session, lifecycle_app, recorded_sessions
 ):
-    @lifecycle_app.action(ACTION_ID, middleware=[slack_middleware.db_middleware])
+    @lifecycle_app.action(
+        ACTION_ID, middleware=[subject_middleware, slack_middleware.db_middleware]
+    )
     def _listener(ack, db_session) -> None:
         raise RuntimeError("boom")
 
@@ -196,7 +218,9 @@ def test_middleware_raised_after_db_middleware_still_rolls_back_and_closes(
     def _explode(context, next):
         raise RuntimeError("middleware boom")
 
-    @lifecycle_app.action(ACTION_ID, middleware=[slack_middleware.db_middleware, _explode])
+    @lifecycle_app.action(
+        ACTION_ID, middleware=[subject_middleware, slack_middleware.db_middleware, _explode]
+    )
     def _listener(ack, db_session) -> None:  # pragma: no cover - never reached
         ack()
 
@@ -211,7 +235,9 @@ def test_session_is_tracked_during_the_listener_and_untracked_after(
 ):
     tracked_during_listener = []
 
-    @lifecycle_app.action(ACTION_ID, middleware=[slack_middleware.db_middleware])
+    @lifecycle_app.action(
+        ACTION_ID, middleware=[subject_middleware, slack_middleware.db_middleware]
+    )
     def _listener(ack, db_session) -> None:
         active_ids = {s["session_id"] for s in SessionTracker.get_active_sessions()}
         tracked_during_listener.append(db_session._dispatch_session_id in active_ids)
@@ -224,6 +250,60 @@ def test_session_is_tracked_during_the_listener_and_untracked_after(
     active_ids_after = {s["session_id"] for s in SessionTracker.get_active_sessions()}
     assert recorded_sessions[0]._dispatch_session_id not in active_ids_after, (
         "session was never untracked once the listener finished"
+    )
+
+
+def test_middleware_declining_after_db_middleware_still_closes_the_session(
+    session, lifecycle_app, recorded_sessions
+):
+    """A middleware that declines by *not* calling `next()` is the one shape
+    neither hook covers on its own.
+
+    Bolt abandons the listener entirely in that case -- no listener body, so no
+    `listener_completion_handler`, and no exception, so no error handler. The
+    declining middleware therefore has to close the session itself, which is
+    why `user_middleware` calls the finalizer before each of its
+    `return context.ack()` paths. Driven through the real `user_middleware`
+    bot-decline rather than a stand-in, since a test-only decliner would only
+    prove that a middleware which finalizes, finalizes.
+    """
+
+    @lifecycle_app.event(
+        "app_mention",
+        middleware=[
+            subject_middleware,
+            slack_middleware.db_middleware,
+            slack_middleware.user_middleware,
+        ],
+    )
+    def _listener(ack, db_session) -> None:  # pragma: no cover - declined before this
+        ack()
+
+    lifecycle_app.dispatch(
+        BoltRequest(
+            body={
+                "type": "event_callback",
+                "team_id": "T123",
+                "api_app_id": "A123",
+                "event_id": "Ev123",
+                "event_time": 1,
+                # `USLACKBOT` is the one `is_bot` short-circuit that needs no
+                # authorize_result, so the decline is the payload's doing.
+                "event": {
+                    "type": "app_mention",
+                    "user": "USLACKBOT",
+                    "channel": "C123",
+                    "ts": "1.0",
+                    "text": "hello",
+                },
+            },
+            mode="socket_mode",
+        )
+    )
+
+    assert len(recorded_sessions) == 1, "db_middleware did not open a session"
+    assert recorded_sessions[0].events == ["commit", "close"], (
+        "a declining middleware leaked the session db_middleware opened"
     )
 
 
