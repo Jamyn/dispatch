@@ -1534,8 +1534,11 @@ def handle_project_select_action(
 
     blocks = [
         Context(elements=[Text(type="mrkdwn", text="Accept the defaults or adjust as needed.")]),
-        title_input(),
-        description_input(),
+        # Carried through the re-render (#144). Both builders that open this
+        # modal prefill from the case, so rebuilding bare blanks those defaults
+        # as well as any edit made to them.
+        title_input(initial_value=typed_title(body["view"])),
+        description_input(initial_value=typed_description(body["view"])),
         project_select(
             db_session=db_session,
             initial_option=project_option(project),

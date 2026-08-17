@@ -4,7 +4,8 @@ Choosing a project in "Report Incident" or "Open a Case" re-renders the modal
 so the type/severity/priority/assignee selects can be scoped to that project.
 Rebuilt without an ``initial_value``, the title and description inputs came
 back blank and whatever had been typed was gone with no warning -- and "Open a
-Case" lost them a second time when the case type was then changed.
+Case" lost them a second time when the case type was then changed. "Escalate
+Case" re-renders the same way, over inputs prefilled from the case.
 
 These drive the real Bolt app with real block_actions payloads and assert on
 the view that came back, so a regression shows up as the modal the reporter
@@ -16,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 from slack_sdk.web import WebClient
 
-from dispatch.plugins.dispatch_slack.case.enums import CaseReportActions
+from dispatch.plugins.dispatch_slack.case.enums import CaseEscalateActions, CaseReportActions
 from dispatch.plugins.dispatch_slack.fields import DefaultActionIds, DefaultBlockIds
 from dispatch.plugins.dispatch_slack.incident.enums import IncidentReportActions
 
@@ -141,6 +142,33 @@ def test_open_a_case_keeps_typed_text_when_the_case_type_is_changed(
             "action_ts": "1.0",
         }
     ]
+
+    assert_text_survived(rerendered_view(dispatch_interaction, payload))
+
+
+def test_escalate_case_keeps_the_title_and_description_when_a_project_is_chosen(
+    session, case_with_related_records, dispatch_interaction, single_default_organization
+):
+    """Escalate Case opens prefilled from the case, so the re-render had text to lose.
+
+    #144 called this path safe on the grounds that it defaults from the case.
+    That is true of the two builders that open the modal, not of the re-render,
+    which rebuilt both inputs bare and blanked whatever was in them.
+    """
+    project = case_with_related_records.project
+    subject = {
+        "type": "case",
+        "id": str(case_with_related_records.id),
+        "organization_slug": "default",
+        "project_id": str(project.id),
+        "channel_id": "C123",
+    }
+
+    payload = with_typed_text(
+        selection_payload(CaseEscalateActions.project_select, subject, project),
+        TYPED_TITLE,
+        TYPED_DESCRIPTION,
+    )
 
     assert_text_survived(rerendered_view(dispatch_interaction, payload))
 
