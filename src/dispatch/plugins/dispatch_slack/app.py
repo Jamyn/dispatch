@@ -16,6 +16,7 @@ import json
 import threading
 
 from slack_bolt import App
+from slack_bolt.listener.listener_completion_handler import CustomListenerCompletionHandler
 
 from dispatch.plugin.models import PluginInstance
 
@@ -24,6 +25,7 @@ from .case.interactive import configure as case_configure
 from .config import SlackConversationConfiguration
 from .feedback.interactive import configure as feedback_configure
 from .incident.interactive import configure as incident_configure
+from .middleware import finalize_listener_db_session_on_success
 from .workflow import configure as workflow_configure
 
 # Imported for its registrations alone. Every module holding listeners has to
@@ -101,6 +103,16 @@ def build_app(configuration: SlackConversationConfiguration) -> App:
     feedback_configure(app, configuration)
     incident_configure(app, configuration)
     workflow_configure(app, configuration)
+    # Closes any `context["db_session"]` a listener middleware (e.g.
+    # `db_middleware`) opened, once Bolt reports the listener itself actually
+    # finished -- see `middleware.finalize_listener_db_session_on_success` for
+    # why this can't be a plain `with` block in the middleware. The failure
+    # counterpart lives in `bolt.app_error_handler`, since Bolt routes a raised
+    # listener *or* listener-middleware exception through the error handler,
+    # not this completion hook.
+    app.listener_runner.listener_completion_handler = CustomListenerCompletionHandler(
+        logger=app.logger, func=finalize_listener_db_session_on_success
+    )
     return app
 
 

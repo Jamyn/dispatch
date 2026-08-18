@@ -33,6 +33,13 @@ STALE_ZOOM_CONFIG = {
     "api_secret": SECRET,
 }
 
+VALID_ZOOM_CONFIG = {
+    "api_user_id": "ops@example.com",
+    "account_id": "acct-1",
+    "client_id": "cid-1",
+    "client_secret": SECRET,
+}
+
 
 def _zoom_validation_error() -> ValidationError:
     from dispatch.plugins.dispatch_zoom.config import ZoomConfiguration
@@ -91,13 +98,8 @@ def test_redacted_error_never_raises_on_an_odd_exception():
     assert redacted_error(NotCallable()) == "NotCallable"
 
 
-def test_setting_an_invalid_configuration_raises_without_the_values(session):
-    """The setter's exception reaches the API response body, so it must be clean.
-
-    ``InvalidConfigurationError`` is a ``ValueError``, which the application's
-    ExceptionMiddleware answers with a generic 422 -- unlike a bare
-    ``ValidationError``, whose handler returns ``e.errors()`` verbatim.
-    """
+def zoom_plugin_instance():
+    """An unpersisted instance of a real plugin, to drive the configuration property."""
     from dispatch.plugin.models import Plugin, PluginInstance
 
     plugin = Plugin(
@@ -107,7 +109,17 @@ def test_setting_an_invalid_configuration_raises_without_the_values(session):
         description="test",
         version="0.1.0",
     )
-    instance = PluginInstance(plugin=plugin)
+    return PluginInstance(plugin=plugin)
+
+
+def test_setting_an_invalid_configuration_raises_without_the_values(session):
+    """The setter's exception reaches the API response body, so it must be clean.
+
+    ``InvalidConfigurationError`` is a ``ValueError``, which the application's
+    ExceptionMiddleware answers with a generic 422 -- unlike a bare
+    ``ValidationError``, whose handler returns ``e.errors()`` verbatim.
+    """
+    instance = zoom_plugin_instance()
 
     with pytest.raises(InvalidConfigurationError) as excinfo:
         instance.configuration = STALE_ZOOM_CONFIG
@@ -116,6 +128,20 @@ def test_setting_an_invalid_configuration_raises_without_the_values(session):
     leaked = SECRET in message
     assert not leaked, "the rejected configuration was echoed back"
     assert "client_secret" in message, "the operator still needs the failing fields"
+
+
+def test_a_valid_configuration_is_stored_and_reads_back(session):
+    """The rejection path must not have cost the accepting one."""
+    instance = zoom_plugin_instance()
+
+    instance.configuration = VALID_ZOOM_CONFIG
+
+    stored = instance.configuration
+    assert stored.account_id == "acct-1"
+    assert stored.default_duration_minutes == 1440
+
+    secret_survived = stored.client_secret.get_secret_value() == SECRET
+    assert secret_survived, "the stored configuration did not round-trip the secret"
 
 
 # --- the response the operator actually gets (#151) --------------------------
@@ -176,6 +202,28 @@ def test_a_rejected_configuration_response_carries_no_submitted_value():
 
     assert not leaked, "the rejected configuration was echoed back to the client"
     assert "client_secret" in body, "the operator still needs the failing fields"
+
+
+def test_a_malformed_field_is_named_to_the_client_and_not_quoted_back(session):
+    """A malformed field leaks by a different route than a missing one.
+
+    A `missing` error embeds the whole submitted dict; a type error embeds only
+    the offending field's value -- which here is the credential itself. Both
+    must reach the operator as a field name and a reason, and nothing more.
+    """
+    instance = zoom_plugin_instance()
+
+    with pytest.raises(InvalidConfigurationError) as excinfo:
+        instance.configuration = {**VALID_ZOOM_CONFIG, "client_secret": [SECRET]}
+
+    detail = error_response(excinfo.value)["detail"]
+
+    assert [d["loc"] for d in detail] == [["client_secret"]]
+    assert all(d["type"] == "invalid.configuration" for d in detail), detail
+    assert all("is not valid" in d["msg"] for d in detail), detail
+
+    leaked = SECRET in str(detail)
+    assert not leaked, "the malformed value was echoed back to the client"
 
 
 def test_an_error_naming_no_field_still_says_which_thing_was_rejected():
