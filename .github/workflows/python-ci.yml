@@ -130,15 +130,18 @@ jobs:
 
       # Codecov rejects tokenless uploads here ("Token required - not valid
       # tokenless upload"), so the token is not optional despite the repository
-      # being public. It is empty on fork PRs, which cannot read secrets --
-      # those uploads are expected to fail and must not fail the job with them.
+      # being public. Failing the job is gated on having had one: a fork PR
+      # cannot read the secret, and blocking outside contributors on an upload
+      # they were never able to make is not the point of this gate. With a
+      # token, a rejected upload is a real failure -- it reported success while
+      # uploading nothing until this was turned on.
       - name: Upload coverage to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
+          fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
 
       # Test Analytics, not coverage: this uploads the JUnit report so Codecov
       # can track flakiness and per-test duration. Worth having because the
@@ -150,3 +153,4 @@ jobs:
         with:
           files: ./junit.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
