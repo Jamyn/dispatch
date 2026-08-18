@@ -386,6 +386,20 @@ def command_context_middleware(
     next()
 
 
+def optional_command_context_middleware(context: BoltContext, next: Callable) -> None:
+    """Resolves the conversation's subject for commands that run anywhere.
+
+    Unlike `command_context_middleware` a conversation that resolves to nothing
+    is not an error, so the default subject `subject_middleware` installed
+    stands. Where it does resolve it also replaces the default organization's
+    session with the conversation's own, so the command reads the tenant it was
+    run in rather than the default one.
+    """
+    if subject := resolve_context_from_conversation(channel_id=context.channel_id):
+        context.update(subject._asdict())
+    next()
+
+
 def add_user_middleware(payload: dict, context: BoltContext, next: Callable):
     """Attempts to determine the user to add to the incident."""
     value = payload.get("value")
