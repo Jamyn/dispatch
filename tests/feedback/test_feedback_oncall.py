@@ -69,11 +69,13 @@ def test_get(session, service_feedback):
     assert t_feedback.id == service_feedback.id
 
 
-def test_get_all(session):
+def test_get_all(session, service_feedback):
+    """Takes the fixture rather than relying on rows an earlier test left behind
+    -- which is what it did before the suite isolated each test."""
     from dispatch.feedback.service.service import get_all
 
     t_feedbacks = get_all(db_session=session).all()
-    assert t_feedbacks
+    assert service_feedback.id in {f.id for f in t_feedbacks}
 
 
 def test_update(session, service_feedback, individual_contact):

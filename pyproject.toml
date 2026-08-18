@@ -61,7 +61,7 @@ dependencies = [
     "msal",
     "numpy",
     "oauth2client",
-    "openai==2.53.0",
+    "openai==3.1.0",
     "pandas",
     "pdpyras",
     "protobuf==7.35.1",
@@ -78,7 +78,7 @@ dependencies = [
     "requests",
     "schedule",
     "sentry-asgi",
-    "sentry-sdk==2.66.1",
+    "sentry-sdk==2.68.0",
     "sh",
     "slack-bolt",
     "slack_sdk",
@@ -90,7 +90,7 @@ dependencies = [
     "spacy==3.8.13",
     "sqlalchemy-filters",
     "sqlalchemy-utils",
-    "sqlalchemy==2.0.51",
+    "sqlalchemy==2.0.52",
     "starlette==1.6.0",
     "statsmodels",
     "tabulate",
@@ -113,7 +113,9 @@ dev = [
     "ipython",
     "pre-commit",
     "pytest==9.1.1",
+    "pytest-cov",
     "pytest-mock",
+    "pytest-xdist",
     "ruff",
     # Runs only in tests/api/test_schema.py; keeping it out of the runtime
     # dependency set keeps pytest and the rest of its tree out of the
@@ -220,7 +222,8 @@ norecursedirs = ["bin", "dist", "docs", "htmlcov", "script", "hooks", "node_modu
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["src", "tests"]
+source = ["src/dispatch"]
+relative_files = true
 omit = [
     "*/__init__.py",
     "*/views.py",

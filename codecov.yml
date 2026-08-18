@@ -1,0 +1,29 @@
+# Codecov is advisory here: none of these statuses are in the branch ruleset's
+# required checks, so a coverage drop annotates the PR without blocking it.
+# Promoting one to required is a ruleset change, not a change to this file.
+
+coverage:
+  status:
+    # `auto` compares against the PR base rather than an absolute number, so a
+    # historically under-covered file never fails a PR that does not touch it.
+    # The threshold is what makes this a regression gate instead of noise.
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    # Coverage of the lines this PR actually changed. Held to a real number
+    # because it is the only figure the author can act on directly.
+    patch:
+      default:
+        target: 80%
+        threshold: 0%
+
+comment:
+  layout: "condensed_header, diff, files"
+  # Nothing to say on a PR that changes no covered line.
+  require_changes: true
+
+# The suite runs under pytest-xdist and pytest-cov combines the workers into a
+# single report before upload, so exactly one file arrives per commit.
+codecov:
+  require_ci_to_pass: true
