@@ -12,7 +12,7 @@ name: Image smoke
 #
 # It also runs the app on the runtime it actually ships on. python-ci uses
 # ubuntu-latest + actions/setup-python, which is a different distribution,
-# glibc, OpenSSL and CA bundle than python:3.14.0-slim-trixie.
+# glibc, OpenSSL and CA bundle than the slim-trixie base docker/Dockerfile pins.
 #
 # Not a required status check: it is the slowest gate here, and per the repo's
 # rule a check must be observed green on main before being required.
@@ -115,6 +115,35 @@ jobs:
           )
           assert "Dispatch canary" in html and "<table" in html, html[:400]
           print("mjml OK")
+          PY
+
+      # install_plugins() catches every exception from ep.load() into a log
+      # line, so a plugin whose dependency is missing from requirements-lock.txt
+      # leaves the app booting and serving normally, just without that
+      # capability. Every other assertion in this job passes in that state --
+      # openai 3's move to httpx2 shipped exactly this way. Loading the entry
+      # points directly is what turns it into a failure.
+      - name: Assert every plugin entry point loads in the image
+        run: |
+          docker run --rm -i --entrypoint python \
+            -e DISPATCH_ENCRYPTION_KEY -e DISPATCH_JWT_SECRET -e DISPATCH_UI_URL \
+            -e DATABASE_HOSTNAME -e DATABASE_NAME -e DATABASE_CREDENTIALS -e STATIC_DIR \
+            "$IMAGE" - <<'PY'
+          from importlib.metadata import entry_points
+
+          eps = sorted(entry_points().select(group="dispatch.plugins"), key=lambda e: e.name)
+          # No entry points means the wheel's metadata did not survive
+          # packaging; the loop below would otherwise assert nothing.
+          assert eps, "no dispatch.plugins entry points in the installed metadata"
+
+          failed = []
+          for ep in eps:
+              try:
+                  ep.load()
+              except Exception as e:
+                  failed.append(f"  {ep.name}: {type(e).__name__}: {e}")
+          assert not failed, "plugins failed to load:\n" + "\n".join(failed)
+          print(f"all {len(eps)} plugin entry points loaded")
           PY
 
       # `dispatch database dump`/`restore` shell out to pg_dump/psql. pg_dump

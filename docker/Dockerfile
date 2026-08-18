@@ -1,4 +1,4 @@
-FROM python:3.14.0-slim-trixie as sdist
+FROM python:3.14.7-slim-trixie as sdist
 
 LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch PyPI Wheel"
@@ -77,7 +77,7 @@ RUN YARN_CACHE_FOLDER="$(mktemp -d)" \
   && mv /usr/src/dispatch/dist /dist
 
 # This is the image to be run
-FROM python:3.14.0-slim-trixie
+FROM python:3.14.7-slim-trixie
 
 LABEL maintainer="oss@dispatch.io"
 LABEL org.opencontainers.image.title="Dispatch"
