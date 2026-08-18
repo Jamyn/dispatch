@@ -75,16 +75,27 @@ jobs:
         run: |
           set -eu
           cp requirements-lock.txt "$RUNNER_TEMP/committed.txt"
+          # Read out of docker/Dockerfile rather than repeated here. Dependabot
+          # bumps the FROM lines and nothing else, so a second copy of the tag
+          # goes stale silently and regenerates the lock on a different base
+          # than the image installs it into. sort -u also holds the invariant
+          # that both build stages use the same base.
+          base=$(sed -n 's/^FROM \(python:[^ ]*\).*/\1/p' docker/Dockerfile | sort -u)
+          if [ -z "$base" ] || [ "$(echo "$base" | wc -l)" -ne 1 ]; then
+            echo "::error file=docker/Dockerfile::expected one python base image across all FROM lines, got: ${base:-none}"
+            exit 1
+          fi
+          echo "regenerating the lock inside $base"
           # Compiled inside the runtime base image, not on the runner. dkimpy
           # ships sdist-only and picks Py3DNS or dnspython by probing whether a
           # DNS module imports while its metadata is built, so the resolved set
           # differs between a runner and the image unless both resolve here.
           # uv is pinned for the same reason, and reads the existing -o file as
           # pins, so a new release on PyPI does not make this drift.
-          docker run --rm -v "$PWD:/w" -w /w python:3.14.0-slim-trixie bash -c \
+          docker run --rm -v "$PWD:/w" -w /w "$base" bash -c \
             "pip install -q uv==0.5.9 && uv pip compile pyproject.toml --python-version 3.14 --generate-hashes --constraint constraints.txt -o requirements-lock.txt > /dev/null"
           if ! diff -u "$RUNNER_TEMP/committed.txt" requirements-lock.txt; then
-            echo "::error file=requirements-lock.txt::requirements-lock.txt does not satisfy pyproject.toml. Regenerate it with the command in its header comment, run inside python:3.14.0-slim-trixie, and commit the result."
+            echo "::error file=requirements-lock.txt::requirements-lock.txt does not satisfy pyproject.toml. Regenerate it with the command in its header comment, run inside $base, and commit the result."
             exit 1
           fi
           echo "requirements-lock.txt: in sync"

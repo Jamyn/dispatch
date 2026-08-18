@@ -84,8 +84,8 @@ fix: correct signature verification for slack event payloads
     npm ci --dry-run --ignore-scripts --no-audit --no-fund   # must pass clean
   ```
   For `requirements-lock.txt`, regenerate with the command in its own header
-  comment — the Python lock is already compiled inside
-  `python:3.14.0-slim-trixie` for exactly this reason.
+  comment — the Python lock is already compiled inside the base image
+  `docker/Dockerfile` pins, for exactly this reason.
 - No approvals are required to merge, but all required checks must pass and
   all commits must be signed.
 
