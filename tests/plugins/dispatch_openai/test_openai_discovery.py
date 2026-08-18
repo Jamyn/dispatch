@@ -1,16 +1,17 @@
 """The OpenAI plugin as Dispatch actually finds it.
 
-Mirrors ``tests/plugins/dispatch_anthropic/test_anthropic_discovery.py``:
-production loads plugins from package metadata via
-``dispatch.common.utils.cli.install_plugins``, which swallows every exception
-into a log line, so a plugin that cannot import is invisible rather than fatal.
+Follows the pattern of ``dispatch_anthropic/test_anthropic_discovery.py``, kept
+to the cases that bear on loading. Production finds plugins through package
+metadata, in ``dispatch.common.utils.cli.install_plugins``, which swallows every
+exception into a log line -- so a plugin that cannot import is invisible rather
+than fatal.
 
-That swallowing is what makes a missing *transitive* dependency dangerous here.
-openai 3.x imports ``httpx2``, which it no longer pulls in implicitly on some
-install paths; ``docker/Dockerfile`` installs ``requirements-lock.txt`` with
-``--no-deps``, so anything absent from the lock is simply absent. The image
-still builds, still boots and still serves every route -- the only symptom is
-an OpenAI plugin that never appears. ``ep.load()`` is the call that notices.
+That swallowing is what makes a missing *transitive* dependency dangerous.
+openai 3 requires httpx2, and ``docker/Dockerfile`` installs
+``requirements-lock.txt`` with ``--no-deps``, so a package the lock omits is
+simply absent. The image still builds, still boots and still serves every route;
+the only symptom is an OpenAI plugin that never appears. ``ep.load()`` is the
+call that notices.
 """
 
 from importlib.metadata import entry_points
