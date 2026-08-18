@@ -65,7 +65,7 @@
                   color: '#1a1a1a !important',
                 }"
               >
-                <v-icon start size="18" color="#ffc107">mdi-sparkles</v-icon>
+                <v-icon start size="18" color="#ffc107">mdi-shimmer</v-icon>
                 <span class="generate-btn-text">Generate AI tag suggestions</span>
               </v-btn>
             </div>
