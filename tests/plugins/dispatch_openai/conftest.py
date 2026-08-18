@@ -6,7 +6,7 @@ file two module identities -- pytest imports it once under its own name and the
 importer gets a second copy.
 """
 
-import httpx
+import httpx2
 import pytest
 from openai import OpenAI
 
@@ -22,7 +22,7 @@ def openai_api(monkeypatch):
         # max_retries=0 only so a failure test issues one request rather than
         # three with backoff; it does not change what is sent.
         return OpenAI(
-            http_client=httpx.Client(transport=httpx.MockTransport(api)),
+            http_client=httpx2.Client(transport=httpx2.MockTransport(api)),
             max_retries=0,
             **kwargs,
         )

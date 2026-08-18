@@ -1,11 +1,16 @@
 """An in-memory OpenAI API, for driving the real plugin against (issue #75).
 
-The fake is installed at the httpx transport, below the openai SDK, so the
+The fake is installed at the httpx2 transport, below the openai SDK, so the
 plugin's own client construction and the SDK's own request building, structured
 output schema generation and response parsing all run for real against it.
 Replacing ``client.chat.completions`` with a mock instead would assert only that
 the plugin called something -- and issue #75 is precisely a case where every
 mocked assertion passed while no real request could ever be built.
+
+httpx2, not httpx: openai 3.x builds its requests on httpx2 and only accepts an
+httpx client through a legacy escape hatch the SDK documents as temporary. A
+fake mounted on that hatch would exercise a stack production no longer uses.
+The anthropic fake stays on httpx, which is what that SDK still ships against.
 
 Only the plugin's ``OpenAI`` name is patched, and only to hand the real client a
 transport. Everything the plugin passes to that constructor -- the API key above
@@ -15,7 +20,7 @@ assert on.
 
 import json
 
-import httpx
+import httpx2
 from openai import OpenAI  # noqa: F401  (re-exported for the fixtures)
 
 # Obviously fake, and never a real-looking credential.
@@ -60,26 +65,26 @@ class FakeOpenAIAPI:
 
     def respond_with_text(self, content: str):
         """An ordinary assistant reply carrying ``content``."""
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             200, json=self._completion(request, content=content)
         )
 
     def respond_with_object(self, obj):
         """A structured reply. ``obj`` is serialized as the message content, which
         is how OpenAI returns json_schema output and what the SDK parses back."""
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             200, json=self._completion(request, content=json.dumps(obj))
         )
 
     def respond_with_refusal(self, refusal: str):
         """The model declined. OpenAI sends null content plus a refusal string."""
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             200, json=self._completion(request, content=None, refusal=refusal)
         )
 
     def respond_with_malformed_content(self, content: str):
         """Content that is not the JSON the requested schema promised."""
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             200, json=self._completion(request, content=content)
         )
 
@@ -87,7 +92,7 @@ class FakeOpenAIAPI:
         """A reply cut off at the token limit: partial content, finish_reason
         ``length``. ``chat.completions.create`` reports this and returns the
         fragment; only ``parse`` raises for it."""
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             200, json=self._completion(request, content=content, finish_reason="length")
         )
 
@@ -98,7 +103,7 @@ class FakeOpenAIAPI:
         quotes the submitted API key back inside it -- see
         ``respond_with_key_echo``, which is the shape that matters.
         """
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             status,
             json={"error": {"message": message, "type": "invalid_request_error", "code": code}},
         )
@@ -106,7 +111,7 @@ class FakeOpenAIAPI:
     def respond_with_key_echo(self):
         """OpenAI's real 401: the submitted API key, quoted back in the body.
 
-        Verified against openai 2.53.0 -- ``APIStatusError`` renders the body
+        Verified against openai 3.1.0 -- ``APIStatusError`` renders the body
         verbatim in ``str(e)`` (``_base_client.py``: ``f"Error code: {status} -
         {body}"``), so anything that interpolates the exception publishes the
         key.
@@ -145,7 +150,7 @@ class FakeOpenAIAPI:
             "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
         }
 
-    def __call__(self, request: httpx.Request) -> httpx.Response:
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.requests.append(
             {
                 "url": str(request.url),
