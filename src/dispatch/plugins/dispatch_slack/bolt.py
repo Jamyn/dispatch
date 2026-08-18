@@ -26,6 +26,7 @@ from .messaging import (
 )
 from .middleware import (
     configuration_middleware,
+    finalize_listener_db_session_on_error,
     message_context_middleware,
     user_middleware,
     select_context_middleware,
@@ -127,6 +128,12 @@ def app_error_handler(
     logger: logging.Logger,
     respond: Respond,
 ) -> BoltResponse:
+    # Bolt routes both a raised listener body and a raised listener-middleware
+    # (e.g. `restricted_command_middleware`) through this same handler, so this
+    # is the one place that reliably sees every failure shape db_middleware's
+    # session needs cleaning up after. A no-op when there is no open session.
+    finalize_listener_db_session_on_error(context)
+
     if body:
         logger.info(f"Request body: {body}")
 

@@ -15,7 +15,6 @@ happened to name the same organization.
 """
 
 import json
-from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,18 +36,18 @@ def session_slugs(session):
 
     The real session is still handed back, bound to the suite's schema, so the
     listener runs to completion and a failure is the slug rather than a crash
-    somewhere downstream.
+    somewhere downstream. `db_middleware` opens its session via
+    `refetch_db_session` rather than the `get_organization_session` context
+    manager (see #139), so that is the name recorded here.
     """
     slugs: list[str] = []
-    real = slack_middleware.get_organization_session
+    real = slack_middleware.refetch_db_session
 
-    @contextmanager
     def record(slug: str):
         slugs.append(slug)
-        with real("default") as db_session:
-            yield db_session
+        return real("default")
 
-    with patch.object(slack_middleware, "get_organization_session", record):
+    with patch.object(slack_middleware, "refetch_db_session", record):
         yield slugs
 
 
