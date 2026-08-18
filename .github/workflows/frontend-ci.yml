@@ -45,16 +45,22 @@ jobs:
       # pre-existing and not asserted here -- doing so would fail on main.
       - run: npm run build
 
-      # working-directory, because lcov records paths relative to the frontend
-      # package (SF:src/App.vue) and the repository root has its own src/. The
-      # CLI resolves them against the git tree from there. Fork PRs cannot read
-      # the secret, so failing on a rejected upload is gated on having a token.
+      # lcov records SF: paths relative to this package (SF:src/App.vue) and the
+      # repository root has its own src/, so Codecov files them at paths that do
+      # not exist and no diff maps to them. The action's working-directory does
+      # not rewrite them -- verified against a real upload -- and a codecov.yml
+      # `fixes` rule cannot help either, because src/ is the prefix the backend
+      # report uses too. Rewriting the report is the only unambiguous option.
+      - name: Point the coverage report at repository paths
+        run: sed -i 's|^SF:src/|SF:src/dispatch/static/dispatch/src/|' coverage/lcov.info
+
+      # Fork PRs cannot read the secret, so failing on a rejected upload is
+      # gated on having had a token to upload with.
       - name: Upload frontend coverage to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
-          files: ./coverage/lcov.info
+          files: ./src/dispatch/static/dispatch/coverage/lcov.info
           flags: frontend
-          working-directory: src/dispatch/static/dispatch
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: ${{ secrets.CODECOV_TOKEN != '' }}
