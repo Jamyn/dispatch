@@ -1,6 +1,6 @@
 name: Docs build
 
-# PR gate that actually builds the Docusaurus site. lockfile-sync only proves
+# PR gate that actually builds the Docusaurus site. npm-lock-sync only proves
 # the docs lockfile is self-consistent; a dependency bump can pass it and
 # still break the build (Dependabot #22 does exactly that). Path-filtered,
 # which is safe only while this is not a required check.

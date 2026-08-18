@@ -116,6 +116,7 @@ from dispatch.plugins.dispatch_slack.middleware import (
     is_bot,
     message_context_middleware,
     modal_submit_middleware,
+    optional_command_context_middleware,
     reaction_context_middleware,
     restricted_command_middleware,
     subject_middleware,
@@ -177,9 +178,14 @@ def configure(app: App, config) -> None:
     app.command(config.slack_command_report_incident, middleware=middleware)(
         handle_report_incident_command
     )
-    app.command(config.slack_command_list_incidents, middleware=middleware)(
-        handle_list_incidents_command
-    )
+    # Resolves a subject when the command is run in an incident or case channel,
+    # so the listing can be scoped to that conversation's project and read that
+    # conversation's organization; still runs outside one, where it lists the
+    # default organization.
+    app.command(
+        config.slack_command_list_incidents,
+        middleware=middleware + [optional_command_context_middleware],
+    )(handle_list_incidents_command)
 
     # non-sensitive-commands
     middleware = [
@@ -361,17 +367,23 @@ def handle_list_incidents_command(
         )
         projects.append(incident.project)
     else:
-        # command was run in a non-incident conversation
-        args = payload["command"].split(" ")
+        # command was run in a non-incident conversation. Slack puts whatever
+        # was typed after the command in `text`; `command` is the command name
+        # itself, and only ever the one this listener is registered for. Not
+        # split on whitespace: a project name may contain spaces, and the
+        # organization is fixed by the request's own route, never by an
+        # argument.
+        project_name = payload.get("text", "").strip()
 
-        if len(args) == 2:
-            project = project_service.get_by_name(db_session=db_session, name=args[1])
+        if project_name:
+            project = project_service.get_by_name(db_session=db_session, name=project_name)
 
             if project:
                 projects.append(project)
             else:
                 raise CommandError(
-                    f"Project name '{args[1]}' in organization '{args[0]}' not found. Check your spelling.",
+                    f"Project name '{project_name}' in organization "
+                    f"'{context['subject'].organization_slug}' not found. Check your spelling.",
                 )
         else:
             projects = project_service.get_all(db_session=db_session)

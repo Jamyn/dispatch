@@ -32,8 +32,14 @@ DUMP = Path(
         "DISPATCH_SAMPLE_DUMP", Path(__file__).parents[2] / "data" / "dispatch-sample-data.dump"
     )
 )
-SAMPLE_DB = "dispatch-sample-data-test"
-RESTORED_DB = "dispatch-sample-data-restored-test"
+# Suffixed per xdist worker for the same reason as the main test database in
+# tests/conftest.py: these are created and dropped, so two workers sharing one
+# name race to drop a database the other is still restoring into.
+_WORKER = os.environ.get("PYTEST_XDIST_WORKER", "")
+_SUFFIX = f"-{_WORKER}" if _WORKER else ""
+
+SAMPLE_DB = f"dispatch-sample-data-test{_SUFFIX}"
+RESTORED_DB = f"dispatch-sample-data-restored-test{_SUFFIX}"
 TENANT_SCHEMA = "dispatch_organization_default"
 CORE_SCHEMA = "dispatch_core"
 
