@@ -4,6 +4,7 @@ import pytest
 
 from easydict import EasyDict
 from slack_sdk.web.client import WebClient
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import drop_database, database_exists
 from starlette.config import environ
 from fastapi.testclient import TestClient
@@ -166,15 +167,64 @@ def db():
 
 
 @pytest.fixture(scope="function", autouse=True)
-def session(db):
+def session(db, monkeypatch):
+    """Run each test inside a transaction that is rolled back afterwards.
+
+    The app does not use the test Session: db_session_middleware, get_session
+    and refetch_db_session each build their own from the module-global engine.
+    That is why the factories commit -- it was the only way the code under test
+    could see what a fixture had built, and it is why rows accumulated for the
+    length of a run. A Connection also has .execution_options() and works as a
+    bind, so swapping that global for one held-open connection redirects every
+    one of them into this transaction instead.
     """
-    Creates a new database session with (with working transaction)
-    for test duration.
-    """
+    import dispatch.database.core as core
+    import dispatch.main as dispatch_main
+
+    connection = core.engine.connect()
+    outer = connection.begin()
+
+    # create_savepoint everywhere below: bound to a Connection that is already
+    # in a transaction, a session's commit or rollback would otherwise land on
+    # the outer one. The flows under test roll back on purpose -- conference
+    # create does -- and that would discard the test's own fixtures with it.
+    def savepoint_sessionmaker(*args, **kwargs):
+        kwargs.setdefault("join_transaction_mode", "create_savepoint")
+        return sessionmaker(*args, **kwargs)
+
+    monkeypatch.setattr(core, "engine", connection, raising=True)
+    monkeypatch.setattr(core, "sessionmaker", savepoint_sessionmaker, raising=True)
+    monkeypatch.setattr(core, "SessionLocal", savepoint_sessionmaker(bind=connection), raising=True)
+    monkeypatch.setattr(dispatch_main, "engine", connection, raising=True)
+    monkeypatch.setattr(dispatch_main, "sessionmaker", savepoint_sessionmaker, raising=True)
+
+    scoped = connection.execution_options(
+        schema_translate_map={
+            None: "dispatch_organization_default",
+            "dispatch_core": "dispatch_core",
+        }
+    )
+    Session.configure(bind=scoped, join_transaction_mode="create_savepoint")
     session = Session()
     session.begin_nested()
-    yield session
-    session.rollback()
+
+    try:
+        yield session
+    finally:
+        session.rollback()
+        Session.remove()
+        outer.rollback()
+        connection.close()
+
+
+@pytest.fixture
+def real_engine():
+    """The Engine itself, not the Connection the isolation fixture swaps in.
+
+    Only for assertions about what is *durably committed* -- a query on the
+    test's own connection cannot tell a commit from an open transaction.
+    """
+    return engine
 
 
 @pytest.fixture(scope="function")

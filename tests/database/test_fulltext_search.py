@@ -43,7 +43,7 @@ HAVING count(t.oid) = 0
 """
 
 
-def test_init_database_commits_the_core_search_triggers(session):
+def test_init_database_commits_the_core_search_triggers(session, real_engine):
     """The core schema half of the same connect()/begin() defect.
 
     init_schema was fixed to commit its triggers; init_database was not, so a
@@ -51,9 +51,9 @@ def test_init_database_commits_the_core_search_triggers(session):
     The tenant tests above cannot see it -- their triggers come from init_schema
     -- and the sample-data suite restores a dump rather than running init.
     """
-    from dispatch.database.core import engine
-
-    with engine.connect() as connection:
+    # real_engine, not database.core.engine: the suite runs each test inside an
+    # uncommitted transaction, and this asserts the triggers survived a commit.
+    with real_engine.connect() as connection:
         missing = [row[0] for row in connection.exec_driver_sql(_UNTRIGGERED_CORE_TABLES)]
 
     assert not missing, f"init_database left these core triggers uncommitted: {missing}"
