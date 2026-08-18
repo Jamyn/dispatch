@@ -32,7 +32,12 @@ from dispatch import config
 from dispatch.database.core import Base
 from dispatch.database.manage import get_core_tables
 
-DB_NAME = "dispatch-test-tenant-migration-reflection"
+# Worker-suffixed for the same reason as tests/conftest.py: this database is
+# created and dropped by name, so it cannot be shared. --dist loadfile keeps
+# this module on one worker today, but the name should not depend on that.
+_WORKER = os.environ.get("PYTEST_XDIST_WORKER", "")
+
+DB_NAME = f"dispatch-test-tenant-migration-reflection{f'-{_WORKER}' if _WORKER else ''}"
 SCHEMA_NAME = "dispatch_organization_default"
 
 

@@ -253,9 +253,11 @@ Pick the person and edit the message they will see, or accept the default. Dispa
 
 ### /dispatch-list-incidents
 
-Use `/dispatch-list-incidents` to open a modal listing every incident across every project that is currently active or stable, plus any incident closed in the last 24 hours. Each entry links to the incident in Dispatch and shows its commander, project, status, type, severity, and priority.
+Use `/dispatch-list-incidents` to open a modal listing every incident that is currently active or stable, plus any incident closed in the last 24 hours. Each entry links to the incident in Dispatch and shows its commander, project, status, type, severity, and priority.
 
-The command takes no arguments and can be run outside an incident channel as well as inside one. Restricted incidents are never listed, and the modal shows at most 49 incidents; use the Dispatch web interface if your deployment has more.
+Run inside an incident channel, it lists that incident's project. Run anywhere else, it lists every project, or just one if you name it — `/dispatch-list-incidents Corporate Security` — where the name is the project's, exactly as Dispatch spells it. Only projects in the organization you are running the command from can be listed; there is no argument for naming another one.
+
+Restricted incidents are never listed, and the modal shows at most 49 incidents; use the Dispatch web interface if your deployment has more.
 
 ### /dispatch-list-signals
 
