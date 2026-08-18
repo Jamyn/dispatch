@@ -89,5 +89,15 @@ updates:
       include: "scope"
     labels: ["maintenance", "documentation"]
     groups:
+      # react and react-dom pin each other exactly -- react-dom peers react at
+      # its own version -- so a PR bumping either one alone cannot resolve, and
+      # both #186 and #187 failed `npm ci` for that reason. No update-types
+      # here, so majors group too; listed before docs-minor-and-patch because a
+      # dependency joins the first group it matches, and that one would
+      # otherwise capture their minor updates and split the pair again.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
       docs-minor-and-patch:
         update-types: ["minor", "patch"]
