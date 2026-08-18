@@ -127,12 +127,14 @@ jobs:
           pytest -q -n auto --dist loadfile --cov --cov-report=xml
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true
 
-      # Tokenless: this repository is public, and reading no secret is what
-      # lets the upload work unchanged on pull requests from forks. An outage
-      # upstream is not a reason to fail a PR, hence fail_ci_if_error: false.
+      # Codecov rejects tokenless uploads here ("Token required - not valid
+      # tokenless upload"), so the token is not optional despite the repository
+      # being public. It is empty on fork PRs, which cannot read secrets --
+      # those uploads are expected to fail and must not fail the job with them.
       - name: Upload coverage to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
