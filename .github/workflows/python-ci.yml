@@ -124,7 +124,8 @@ jobs:
         # pytest-cov, not `coverage run`: coverage does not follow xdist's worker
         # subprocesses and reports only the controller (22% here, measured).
         run: |
-          pytest -q -n auto --dist loadfile --cov --cov-report=xml
+          pytest -q -n auto --dist loadfile --cov --cov-report=xml \
+            --junitxml=junit.xml -o junit_family=legacy
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true
 
       # Codecov rejects tokenless uploads here ("Token required - not valid
@@ -138,3 +139,14 @@ jobs:
           files: ./coverage.xml
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
+
+      # Test Analytics, not coverage: this uploads the JUnit report so Codecov
+      # can track flakiness and per-test duration. Worth having because the
+      # suite is order-sensitive and now runs in parallel, which is where
+      # flakiness would show up first. Same token, no new secret.
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3 # v1.2.1
+        with:
+          files: ./junit.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
