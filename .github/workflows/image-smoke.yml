@@ -12,7 +12,7 @@ name: Image smoke
 #
 # It also runs the app on the runtime it actually ships on. python-ci uses
 # ubuntu-latest + actions/setup-python, which is a different distribution,
-# glibc, OpenSSL and CA bundle than python:3.14.0-slim-trixie.
+# glibc, OpenSSL and CA bundle than the slim-trixie base docker/Dockerfile pins.
 #
 # Not a required status check: it is the slowest gate here, and per the repo's
 # rule a check must be observed green on main before being required.
