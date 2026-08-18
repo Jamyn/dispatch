@@ -34,6 +34,25 @@ updates:
       prefix: "build"
       include: "scope"
     labels: ["maintenance"]
+    ignore:
+      # thinc is a matched pin governed entirely by spacy's range (spacy 3.8.x
+      # requires thinc >=8.3.12,<8.4.0), so a standalone bump is unsatisfiable
+      # by construction. It moves only when spacy moves.
+      - dependency-name: "thinc"
+      # fastapi is held on 0.136.x. From 0.141 an included router stays lazy as
+      # _IncludedRouter with no `.path`, and get_path_params_from_request in
+      # src/dispatch/main.py reads `.path` off every route on every request.
+      # Unpinning needs db_session_middleware rewritten first.
+      - dependency-name: "fastapi"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
+      # spacy shipped cp314 wheels through 3.8.13 then dropped them in 3.8.14
+      # and 3.8.15, and the runtime image has no compiler for the sdist. This
+      # is not a permanent hold: delete these versions once a release restores
+      # the cp314 build.
+      - dependency-name: "spacy"
+        versions: ["3.8.14", "3.8.15"]
     groups:
       python-minor-and-patch:
         update-types: ["minor", "patch"]
