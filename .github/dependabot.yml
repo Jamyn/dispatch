@@ -39,6 +39,10 @@ updates:
       # requires thinc >=8.3.12,<8.4.0), so a standalone bump is unsatisfiable
       # by construction. It moves only when spacy moves.
       - dependency-name: "thinc"
+      # pydantic pins pydantic-core exactly -- pydantic 2.13.4 declares
+      # `Requires-Dist: pydantic-core==2.46.4` -- so bumping it alone yields a
+      # lock uv cannot reproduce. It moves only when pydantic moves.
+      - dependency-name: "pydantic-core"
       # fastapi is held on 0.136.x. From 0.141 an included router stays lazy as
       # _IncludedRouter with no `.path`, and get_path_params_from_request in
       # src/dispatch/main.py reads `.path` off every route on every request.
