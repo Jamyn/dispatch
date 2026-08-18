@@ -8,7 +8,12 @@ from sqlalchemy.orm.session import Session
 from dispatch.auth import service as user_service
 from dispatch.auth.models import DispatchUser, UserRegister
 from dispatch.conversation import service as conversation_service
-from dispatch.database.core import get_session, get_organization_session, refetch_db_session
+from dispatch.database.core import (
+    finalize_db_session,
+    get_organization_session,
+    get_session,
+    refetch_db_session,
+)
 from dispatch.decorators import timer
 from dispatch.enums import SubjectNames
 from dispatch.organization import service as organization_service
@@ -232,6 +237,12 @@ def user_middleware(
 ) -> None:
     """Attempts to determine the user making the request."""
     if is_bot(request):
+        # Declining here without calling `next()` stops this listener's
+        # middleware chain -- neither the listener body nor Bolt's
+        # `listener_completion_handler` will run for this request, so a
+        # session `db_middleware` already opened earlier in the chain would
+        # otherwise never be closed.
+        finalize_listener_db_session_on_success(context)
         return context.ack()
 
     user_id = None
@@ -286,6 +297,8 @@ def user_middleware(
         user_info = client.users_info(user=user_id).get("user", {})
 
         if user_info.get("is_bot", False):
+            # Same reasoning as the earlier `is_bot(request)` decline above.
+            finalize_listener_db_session_on_success(context)
             return context.ack()
 
         email = user_info.get("profile", {}).get("email")
@@ -373,6 +386,20 @@ def command_context_middleware(
     next()
 
 
+def optional_command_context_middleware(context: BoltContext, next: Callable) -> None:
+    """Resolves the conversation's subject for commands that run anywhere.
+
+    Unlike `command_context_middleware` a conversation that resolves to nothing
+    is not an error, so the default subject `subject_middleware` installed
+    stands. Where it does resolve it also replaces the default organization's
+    session with the conversation's own, so the command reads the tenant it was
+    run in rather than the default one.
+    """
+    if subject := resolve_context_from_conversation(channel_id=context.channel_id):
+        context.update(subject._asdict())
+    next()
+
+
 def add_user_middleware(payload: dict, context: BoltContext, next: Callable):
     """Attempts to determine the user to add to the incident."""
     value = payload.get("value")
@@ -382,15 +409,61 @@ def add_user_middleware(payload: dict, context: BoltContext, next: Callable):
 
 
 def db_middleware(context: BoltContext, next: Callable):
+    """Opens the session a listener will use, without owning its close.
+
+    A `with get_organization_session(...)` block here looks right but isn't:
+    Bolt runs a listener's middleware to completion before the listener body
+    ever executes -- the `next()` below only sets a flag, it does not invoke
+    the listener -- so a context manager wrapping it would commit and close
+    the session before any listener touched it. Ownership of commit/rollback
+    and close belongs to whoever actually knows when the listener finished:
+    the `listener_completion_handler` and app-wide error handler that
+    `build_app` installs on every Bolt app (see
+    `finalize_listener_db_session_on_success`/`_on_error` below).
+    """
     if not context.get("subject"):
         slug = get_default_org_slug()
         context.update({"subject": SubjectMetadata(organization_slug=slug)})
     else:
         slug = context["subject"].organization_slug
 
-    with get_organization_session(slug) as db_session:
-        context["db_session"] = db_session
-        next()
+    context["db_session"] = refetch_db_session(slug)
+    next()
+
+
+def finalize_listener_db_session_on_success(context: BoltContext) -> None:
+    """Commits and closes the session `db_middleware` opened for this request.
+
+    Registered as the Bolt app's `listener_completion_handler`, which Bolt
+    guarantees runs once the listener's ack function has actually returned --
+    the hook the framework itself uses for this exact problem (see
+    `slack_bolt.adapter.django.handler.DjangoListenerCompletionHandler`,
+    which releases Django's thread-local DB connections at the same point).
+    Runs for every listener regardless of whether it used `db_middleware`; a
+    no-op when `context` holds no session.
+    """
+    db_session = context.get("db_session")
+    if db_session is None:
+        return
+    finalize_db_session(db_session, commit=True)
+    context["db_session"] = None
+
+
+def finalize_listener_db_session_on_error(context: BoltContext) -> None:
+    """Rolls back and closes the session in context after a raised exception.
+
+    Called from `bolt.py`'s app-wide error handler, which Bolt invokes both
+    for an exception raised by the listener body and one raised by listener
+    middleware that ran after `db_middleware` (e.g. `restricted_command_middleware`
+    or `user_middleware` raising) -- the latter never reaches
+    `listener_completion_handler`, since Bolt only runs that hook once the
+    listener body itself has been reached.
+    """
+    db_session = context.get("db_session")
+    if db_session is None:
+        return
+    finalize_db_session(db_session, commit=False)
+    context["db_session"] = None
 
 
 def subject_middleware(context: BoltContext, next: Callable):

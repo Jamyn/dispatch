@@ -137,11 +137,16 @@ def test_get_all_enabled_limits_in_the_database(session):
     finally:
         event.remove(engine, "after_cursor_execute", record)
 
+    # Transaction control is the suite's per-test isolation, not work this
+    # query did; the claim is that one statement answers the type-ahead.
+    control = ("SAVEPOINT", "RELEASE", "ROLLBACK", "COMMIT", "BEGIN")
+    queries = [s for s in statements if not s.strip().upper().startswith(control)]
+
     assert len(results) <= 2
-    assert len(statements) == 1, statements
-    assert "LIMIT" in statements[0].upper()
-    assert "ORDER BY" in statements[0].upper()
-    assert "ILIKE" in statements[0].upper()
+    assert len(queries) == 1, statements
+    assert "LIMIT" in queries[0].upper()
+    assert "ORDER BY" in queries[0].upper()
+    assert "ILIKE" in queries[0].upper()
 
 
 def test_the_label_index_matches_the_ordering_it_exists_for(session):

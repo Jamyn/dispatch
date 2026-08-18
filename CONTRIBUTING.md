@@ -28,6 +28,12 @@ cd src/dispatch/static/dispatch && npm ci   # frontend deps
 validation workflow (running the API, frontend dev server, and end-to-end
 tests against a sample-data-seeded database).
 
+The suite runs serially by default, which is what you want when reading a
+failure. CI runs it as `pytest -n auto --dist loadfile`, and so can you when
+you only need a green light — it is several times faster, because each worker
+gets its own database and so accumulates a fraction of the committed rows that
+make a long serial run progressively slower.
+
 If you install the `pre-push` hook from `.pre-commit-config.yaml`
 (`pre-commit install --hook-type pre-push`), it runs the full `pytest -v
 tests/` suite on every push. That needs a running Postgres and the same env
@@ -68,7 +74,7 @@ fix: correct signature verification for slack event payloads
   `maintenance`, `security`, `ci`, or `breaking-change` — this is required
   by `enforce-labels` and also drives the categorized release notes. Topic
   labels (`postgres`, `docker`, etc.) are optional.
-- `lockfile-sync` and `python-lock-sync` are required checks. **A bare-host
+- `npm-lock-sync` and `python-lock-sync` are required checks. **A bare-host
   `npm ci --dry-run` is not sufficient evidence the frontend lockfile is in
   sync** — npm's peer-dependency resolution is sensitive to local npm cache
   state, and a warm cache can silently mask packages (e.g.
@@ -84,8 +90,8 @@ fix: correct signature verification for slack event payloads
     npm ci --dry-run --ignore-scripts --no-audit --no-fund   # must pass clean
   ```
   For `requirements-lock.txt`, regenerate with the command in its own header
-  comment — the Python lock is already compiled inside
-  `python:3.14.0-slim-trixie` for exactly this reason.
+  comment — the Python lock is already compiled inside the base image
+  `docker/Dockerfile` pins, for exactly this reason.
 - No approvals are required to merge, but all required checks must pass and
   all commits must be signed.
 
