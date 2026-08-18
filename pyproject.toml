@@ -95,7 +95,7 @@ dependencies = [
     "statsmodels",
     "tabulate",
     "tenacity",
-    "thinc==8.3.12",
+    "thinc==9.1.1",
     "tiktoken",
     "typing-extensions==4.16.0",
     "uvicorn",
