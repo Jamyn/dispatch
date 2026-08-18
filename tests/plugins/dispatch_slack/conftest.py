@@ -17,7 +17,6 @@ from slack_bolt.request import BoltRequest
 from slack_sdk.web import SlackResponse, WebClient
 from sqlalchemy import insert
 
-import dispatch.database.core as database_core
 from dispatch.organization.models import Organization
 from dispatch.plugins.dispatch_slack.models import SubjectMetadata
 from dispatch.project.models import Project
@@ -88,21 +87,6 @@ def dispatch_interaction():
         status_code=200,
     )
 
-    # Bolt's listener middleware unwind before the listener body rather than
-    # wrapping it, so db_middleware's `with get_organization_session(...)` has
-    # already closed its session by the time a listener uses it. The listener's
-    # first query silently opens a fresh transaction that nothing then closes.
-    # A live process gets those backends back when the request is collected;
-    # this suite holds its requests, so they would sit open and the session
-    # teardown could not drop the database.
-    opened: list = []
-    real_refetch = database_core.refetch_db_session
-
-    def track(organization_slug: str):
-        session = real_refetch(organization_slug)
-        opened.append(session)
-        return session
-
     # Action listeners are normally run on a worker thread, so dispatch would
     # return before the handler had done anything to assert on. The listener
     # itself is unaffected by which thread runs it.
@@ -111,15 +95,10 @@ def dispatch_interaction():
     runner.process_before_response = True
 
     try:
-        with (
-            patch.object(database_core, "refetch_db_session", track),
-            patch.object(WebClient, "auth_test", return_value=auth_test),
-        ):
+        with patch.object(WebClient, "auth_test", return_value=auth_test):
             yield lambda body: app.dispatch(BoltRequest(body=body, mode="socket_mode"))
     finally:
         runner.process_before_response = was_synchronous
-        for session in opened:
-            session.close()
 
 
 @pytest.fixture
