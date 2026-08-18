@@ -17,9 +17,56 @@ coverage:
       default:
         target: 80%
         threshold: 0%
+      # The frontend has ten spec files against 428 components. Holding new
+      # frontend lines to the backend's 80% would fail nearly every UI PR, so
+      # it tracks its own base until there is a suite worth holding to a number.
+      frontend:
+        flags: [frontend]
+        target: auto
+        threshold: 0%
+
+# Path-based, so these cost no extra upload and no CI change -- they slice the
+# report python-test already produces. Paths carry the src/dispatch prefix
+# because coverage.xml names files relative to <source>src/dispatch</source>
+# and Codecov joins the two; without it every component matches nothing.
+#
+# No component statuses on purpose. Making three more checks fail before anyone
+# has agreed these numbers should move is how coverage gates get ignored.
+component_management:
+  individual_components:
+    # The orchestration layer -- incident and case lifecycle. Its own component
+    # because */models.py is 95.5% (declarative classes, covered by being
+    # imported) and drags the project figure well above what the logic scores.
+    - component_id: flows
+      name: flows
+      paths: ["src/dispatch/**/flows.py"]
+
+    # Provider integrations. Six of roughly seventeen provider packages have a
+    # test suite, so this moves for reasons the project figure hides.
+    - component_id: plugins
+      name: plugins
+      paths: ["src/dispatch/plugins/**"]
+
+    # Chosen for consequence rather than size: there is no tests/auth directory.
+    - component_id: auth
+      name: auth
+      paths: ["src/dispatch/auth/**"]
+
+# Two uploads now, from two jobs, so the split is real rather than decorative.
+# Judged separately: the frontend is 10% of a codebase larger than the backend,
+# and a blended figure would let either side hide behind the other.
+# No `paths:` on either -- a flag covers whatever its upload contained, and the
+# two reports are disjoint. Scoping backend to src/dispatch/ would also match
+# src/dispatch/static/dispatch/src/, i.e. the frontend. carryforward is off
+# because both jobs run on every PR, so a report is never missing.
+flags:
+  backend:
+    carryforward: false
+  frontend:
+    carryforward: false
 
 comment:
-  layout: "condensed_header, diff, files"
+  layout: "condensed_header, diff, flags, components, files"
   # Nothing to say on a PR that changes no covered line.
   require_changes: true
 
