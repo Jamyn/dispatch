@@ -50,8 +50,11 @@ jobs:
           POSTGRES_PASSWORD: not-a-real-password-tests-only
         ports:
           - 5432:5432
+        # -h forces TCP: a bare pg_isready answers over the unix socket the
+        # entrypoint's bootstrap server listens on during initdb, so it reports
+        # healthy before the real server accepts connections.
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -84,7 +87,8 @@ jobs:
         # Constrained to the lock so they cannot move locked versions.
         run: |
           uv pip install --system --constraint requirements-lock.txt \
-            pytest==9.1.1 pytest-mock factory-boy faker easydict devtools schemathesis coverage
+            pytest==9.1.1 pytest-mock pytest-xdist pytest-cov factory-boy faker \
+            easydict devtools schemathesis coverage
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -115,6 +119,34 @@ jobs:
           DISPATCH_ZOOM_TEST_CLIENT_ID: ${{ secrets.DISPATCH_ZOOM_TEST_CLIENT_ID }}
           DISPATCH_ZOOM_TEST_CLIENT_SECRET: ${{ secrets.DISPATCH_ZOOM_TEST_CLIENT_SECRET }}
           DISPATCH_ZOOM_TEST_API_USER_ID: ${{ secrets.DISPATCH_ZOOM_TEST_API_USER_ID }}
+        # --dist loadfile, not the default: module-scoped fixtures here restore
+        # whole databases, which per-test distribution would rebuild per worker.
+        # pytest-cov, not `coverage run`: coverage does not follow xdist's worker
+        # subprocesses and reports only the controller (22% here, measured).
         run: |
-          coverage run -m pytest -q
+          pytest -q -n auto --dist loadfile --cov --cov-report=xml \
+            --junitxml=junit.xml -o junit_family=legacy
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY" || true
+
+      # Codecov rejects tokenless uploads here ("Token required - not valid
+      # tokenless upload"), so the token is not optional despite the repository
+      # being public. It is empty on fork PRs, which cannot read secrets --
+      # those uploads are expected to fail and must not fail the job with them.
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+      # Test Analytics, not coverage: this uploads the JUnit report so Codecov
+      # can track flakiness and per-test duration. Worth having because the
+      # suite is order-sensitive and now runs in parallel, which is where
+      # flakiness would show up first. Same token, no new secret.
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3 # v1.2.1
+        with:
+          files: ./junit.xml
+          token: ${{ secrets.CODECOV_TOKEN }}

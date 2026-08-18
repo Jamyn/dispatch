@@ -12,8 +12,13 @@ from fastapi.testclient import TestClient
 # its database before and after the run, and docker/.env sets
 # DATABASE_NAME=dispatch -- so honouring the environment here would delete the
 # developer's dev database the moment they exported docker/.env and ran pytest.
+# Suffixed per xdist worker so parallel workers never share a database. The
+# suite drops its database at session end, and a second worker connected to it
+# would both block the DROP and lose its own schema to the winner.
+_WORKER = os.environ.get("PYTEST_XDIST_WORKER", "")
+
 _TEST_OVERRIDES = {
-    "DATABASE_NAME": "dispatch-test",
+    "DATABASE_NAME": f"dispatch-test-{_WORKER}" if _WORKER else "dispatch-test",
 }
 
 # Defaults, not overrides: the dev database password is generated, so a

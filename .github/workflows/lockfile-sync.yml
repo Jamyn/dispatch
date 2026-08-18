@@ -33,7 +33,7 @@ jobs:
   # Single job, not a matrix: required status checks are matched by name, and a
   # matrix produces one differently-named check per leg. One job means one
   # stable name to require.
-  lockfile-sync:
+  npm-lock-sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
