@@ -16,7 +16,7 @@ from dispatch.signal.exceptions import (
     SignalNotDefinedException,
     SignalNotIdentifiedException,
 )
-from dispatch.signal.models import SignalInstance, SignalInstanceCreate
+from dispatch.signal.models import SignalInstance, SignalInstanceCreate, SignalRead
 
 from tests.factories import SignalFactory
 
@@ -144,3 +144,69 @@ def test_a_non_uuid_raw_id_is_rejected_without_persisting(session, project, bad_
     assert exc_info.value.status_code == 400
     session.rollback()
     assert session.query(SignalInstance).count() == before
+
+
+def test_a_supplied_signal_definition_is_used_as_is(session, project):
+    """Given a caller-supplied signal, when ingesting, then no lookup is attempted.
+
+    The SQS plugin resolves the definition itself and passes it in. Reading
+    the lookup result unconditionally raised UnboundLocalError on this path,
+    which that caller swallows as a dropped alert.
+    """
+    supplied = SignalFactory(project=project, external_id="supplied", default=False)
+    SignalFactory(project=project, external_id="a-default", default=True)
+    session.commit()
+
+    signal_instance = signal_service.create_signal_instance(
+        db_session=session,
+        signal_instance_in=instance_in(
+            project=project,
+            signal=SignalRead(**supplied.dict(), project=ProjectRead(**project.dict())),
+        ),
+    )
+
+    assert signal_instance.signal.id == supplied.id
+
+
+def test_a_supplied_signal_definition_wins_over_the_external_id(session, project):
+    """Given both a signal and an external id, when ingesting, then the signal wins."""
+    supplied = SignalFactory(project=project, external_id="supplied", default=False)
+    SignalFactory(project=project, external_id="by-external-id", default=False)
+    session.commit()
+
+    signal_instance = signal_service.create_signal_instance(
+        db_session=session,
+        signal_instance_in=instance_in(
+            project=project,
+            external_id="by-external-id",
+            signal=SignalRead(**supplied.dict(), project=ProjectRead(**project.dict())),
+        ),
+    )
+
+    assert signal_instance.signal.id == supplied.id
+
+
+def test_updating_an_instance_without_a_raw_id_is_rejected(session, signal_instance):
+    """Given a payload with no raw id, when updating, then it must refuse.
+
+    The id is the only thing identifying which instance to update; reading it
+    unconditionally raised UnboundLocalError instead.
+    """
+    with pytest.raises(SignalNotIdentifiedException):
+        signal_service.update_instance(
+            db_session=session,
+            signal_instance_in=SignalInstanceCreate(raw={"name": "no-id-here"}),
+        )
+
+
+def test_updating_an_instance_replaces_its_raw_payload(session, signal_instance):
+    """Given a raw id, when updating, then that instance's payload is replaced."""
+    updated = signal_service.update_instance(
+        db_session=session,
+        signal_instance_in=SignalInstanceCreate(
+            raw={"id": str(signal_instance.id), "name": "revised"}
+        ),
+    )
+
+    assert updated.id == signal_instance.id
+    assert updated.raw["name"] == "revised"

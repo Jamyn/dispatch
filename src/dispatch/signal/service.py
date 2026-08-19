@@ -164,9 +164,12 @@ def create_signal_instance(*, db_session: Session, signal_instance_in: SignalIns
         db_session=db_session, project_in=signal_instance_in.project
     )
 
-    if not signal_instance_in.signal:
-        external_id = signal_instance_in.external_id
+    # Both are read unconditionally below, so neither may be bound inside the
+    # branch: the SQS plugin supplies signal directly and skips it entirely.
+    external_id = signal_instance_in.external_id
+    signal_definition = signal_instance_in.signal
 
+    if not signal_definition:
         # this assumes the external_ids are uuids
         if not external_id:
             msg = "A detection external id must be provided in order to get the signal definition."
@@ -307,15 +310,21 @@ def get_default(*, db_session: Session, project_id: int) -> Signal | None:
 
 def get_by_primary_or_external_id(*, db_session: Session, signal_id: str | int) -> Signal | None:
     """Gets a signal by id or external_id."""
+    signal_id = str(signal_id)
+
     if is_valid_uuid(signal_id):
-        signal = db_session.query(Signal).filter(Signal.external_id == signal_id).one_or_none()
-    else:
-        signal = (
+        return db_session.query(Signal).filter(Signal.external_id == signal_id).one_or_none()
+
+    # Signal.id is an integer column, so Postgres raises on a non-numeric id
+    # rather than returning no rows. Routes take signal_id from the path.
+    if signal_id.isdigit():
+        return (
             db_session.query(Signal)
-            .filter(or_(Signal.id == signal_id, Signal.external_id == signal_id))
+            .filter(or_(Signal.id == int(signal_id), Signal.external_id == signal_id))
             .one_or_none()
         )
-    return signal
+
+    return db_session.query(Signal).filter(Signal.external_id == signal_id).one_or_none()
 
 
 def get_by_variant_or_external_id(
@@ -726,9 +735,10 @@ def update_instance(
     *, db_session: Session, signal_instance_in: SignalInstanceCreate
 ) -> SignalInstance:
     """Updates an existing signal instance."""
-    if signal_instance_in.raw:
-        if signal_instance_in.raw.get("id"):
-            signal_instance_id = signal_instance_in.raw["id"]
+    signal_instance_id = (signal_instance_in.raw or {}).get("id")
+    if not signal_instance_id:
+        msg = "A raw signal id must be provided in order to update a signal instance."
+        raise SignalNotIdentifiedException(msg)
 
     signal_instance = get_signal_instance(
         db_session=db_session, signal_instance_id=signal_instance_id
