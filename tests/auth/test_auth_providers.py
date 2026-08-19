@@ -20,6 +20,7 @@ from dispatch.plugins.dispatch_core.plugin import (
     AwsAlbAuthProviderPlugin,
     BasicAuthProviderPlugin,
     HeaderAuthProviderPlugin,
+    PKCEAuthProviderPlugin,
 )
 
 
@@ -189,4 +190,133 @@ def test_alb_provider_rejects_a_request_without_the_oidc_header():
     """No x-amzn-oidc-data means the request did not come through the ALB."""
     with pytest.raises(HTTPException) as exc:
         AwsAlbAuthProviderPlugin().get_current_user(request_with_headers())
+    assert exc.value.status_code == 401
+
+
+# --- PKCEAuthProviderPlugin ----------------------------------------------
+
+
+@pytest.fixture
+def rsa_keypair():
+    """An RSA keypair plus the JWKS entry an identity provider would publish."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from jose import jwk
+
+    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode()
+    public_pem = (
+        private.public_key()
+        .public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+        .decode()
+    )
+    jwks_entry = {**jwk.construct(public_pem, "RS256").to_dict(), "kid": "test-key"}
+    # to_dict returns bytes for the modulus and exponent; the real endpoint
+    # serves JSON, so hand the plugin the same str shape it would see there.
+    jwks_entry = {k: v.decode() if isinstance(v, bytes) else v for k, v in jwks_entry.items()}
+    return private_pem, public_pem, jwks_entry
+
+
+@pytest.fixture
+def published_jwks(monkeypatch, rsa_keypair):
+    """Serve the keypair's public half where the plugin fetches its JWKS."""
+    import dispatch.plugins.dispatch_core.plugin as core_plugin
+
+    _, _, jwks_entry = rsa_keypair
+
+    class FakeResponse:
+        @staticmethod
+        def json():
+            return {"keys": [jwks_entry]}
+
+    monkeypatch.setattr(core_plugin.requests, "get", lambda *a, **kw: FakeResponse())
+    return jwks_entry
+
+
+def pkce_request(token: str) -> Request:
+    return request_with_headers(Authorization=f"Bearer {token}")
+
+
+def test_pkce_accepts_a_token_signed_by_the_published_key(rsa_keypair, published_jwks):
+    """The success path: an RS256 token whose kid matches the JWKS."""
+    private_pem, _, _ = rsa_keypair
+    token = jwt.encode(
+        {"email": "ada@example.com"}, private_pem, algorithm="RS256", headers={"kid": "test-key"}
+    )
+
+    assert PKCEAuthProviderPlugin().get_current_user(pkce_request(token)) == "ada@example.com"
+
+
+def test_pkce_rejects_a_token_signed_with_the_public_key_as_an_hmac_secret(
+    rsa_keypair, published_jwks
+):
+    """The algorithm-confusion shape: HS256 signed with the public key.
+
+    Unpinned, python-jose does block this -- but via a JWK key-type check that
+    raises JWKError, which the handler's `except JWTError` does not catch, so
+    it escapes as a 500. Pinning turns it into a clean 401 and stops the
+    rejection depending on library internals. The token is assembled by hand
+    because python-jose refuses to mint one; an attacker is not so limited.
+    """
+    import hashlib
+    import hmac
+
+    _, public_pem, _ = rsa_keypair
+
+    def b64(raw: bytes) -> str:
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+    header = b64(json.dumps({"alg": "HS256", "typ": "JWT", "kid": "test-key"}).encode())
+    payload = b64(json.dumps({"email": "attacker@example.com"}).encode())
+    signing_input = f"{header}.{payload}".encode()
+    signature = b64(hmac.new(public_pem.encode(), signing_input, hashlib.sha256).digest())
+    forged = f"{header}.{payload}.{signature}"
+
+    with pytest.raises(HTTPException) as exc:
+        PKCEAuthProviderPlugin().get_current_user(pkce_request(forged))
+    assert exc.value.status_code == 401
+
+
+def test_pkce_rejects_a_token_signed_by_a_key_the_provider_does_not_publish(
+    published_jwks,
+):
+    """A different private key, announced under the published kid."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    attacker_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    attacker_pem = attacker_key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode()
+    forged = jwt.encode(
+        {"email": "attacker@example.com"},
+        attacker_pem,
+        algorithm="RS256",
+        headers={"kid": "test-key"},
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        PKCEAuthProviderPlugin().get_current_user(pkce_request(forged))
+    assert exc.value.status_code == 401
+
+
+def test_pkce_rejects_a_token_whose_kid_matches_no_published_key(rsa_keypair, published_jwks):
+    """An unmatched kid must 401, not dereference an unbound key.
+
+    Key rotation makes this reachable in normal operation: a token minted
+    against a key the endpoint has since dropped arrives with a stale kid.
+    """
+    private_pem, _, _ = rsa_keypair
+    token = jwt.encode(
+        {"email": "ada@example.com"}, private_pem, algorithm="RS256", headers={"kid": "rotated-out"}
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        PKCEAuthProviderPlugin().get_current_user(pkce_request(token))
     assert exc.value.status_code == 401
