@@ -4,6 +4,8 @@ import logging
 import json
 import pytz
 
+from pydantic import ValidationError
+
 from dispatch.auth import service as auth_service
 from dispatch.case import service as case_service
 from dispatch.incident import service as incident_service
@@ -241,12 +243,35 @@ def log_signal_event(
     return event
 
 
+def get_by_uuid_or_raise(*, db_session, uuid: str) -> Event:
+    """Returns the event with the given uuid, or raises if there is none.
+
+    The callers run as background tasks, so the response has already gone out by
+    the time this fails. Reading attributes off the missing event left an
+    AttributeError in the log with nothing in it to say which event was meant.
+    """
+    event = get_by_uuid(db_session=db_session, uuid=uuid)
+    if not event:
+        raise ValidationError.from_exception_data(
+            "EventUpdate",
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("uuid",),
+                    "input": uuid,
+                    "ctx": {"error": ValueError("Event not found.")},
+                }
+            ],
+        )
+    return event
+
+
 def update_incident_event(
     db_session,
     event_in: EventUpdate,
 ) -> Event:
     """Updates an event in the incident timeline."""
-    event = get_by_uuid(db_session=db_session, uuid=event_in.uuid)
+    event = get_by_uuid_or_raise(db_session=db_session, uuid=event_in.uuid)
     event = update(db_session=db_session, event=event, event_in=event_in)
 
     return event
@@ -257,7 +282,7 @@ def delete_incident_event(
     uuid: str,
 ):
     """Deletes an event."""
-    event = get_by_uuid(db_session=db_session, uuid=uuid)
+    event = get_by_uuid_or_raise(db_session=db_session, uuid=uuid)
 
     delete(db_session=db_session, event_id=event.id)
 
@@ -267,7 +292,7 @@ def update_case_event(
     event_in: EventUpdate,
 ) -> Event:
     """Updates an event in the case timeline."""
-    event = get_by_uuid(db_session=db_session, uuid=event_in.uuid)
+    event = get_by_uuid_or_raise(db_session=db_session, uuid=event_in.uuid)
     event = update(db_session=db_session, event=event, event_in=event_in)
 
     return event
@@ -278,7 +303,7 @@ def delete_case_event(
     uuid: str,
 ):
     """Deletes a case event."""
-    event = get_by_uuid(db_session=db_session, uuid=uuid)
+    event = get_by_uuid_or_raise(db_session=db_session, uuid=uuid)
 
     delete(db_session=db_session, event_id=event.id)
 
