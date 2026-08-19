@@ -140,3 +140,55 @@ def test_registering_an_owner_grants_the_role_at_the_same_time(session, runner, 
     user = user_service.get_by_email(db_session=session, email=email)
     assert user is not None, f"register reported success but created nothing: {result.output}"
     assert role_of(session, user, organization) == UserRoles.owner
+
+
+def test_granting_a_role_to_an_unknown_address_fails_loudly(session, runner, organization):
+    """Given an email nobody has, when granting a role, then the command fails.
+
+    Exiting zero here is what lets an install script report success after a
+    typo, leaving nobody able to administer the deployment.
+    """
+    result = runner.invoke(
+        dispatch_cli,
+        [
+            "user",
+            "update",
+            "--organization",
+            organization.name,
+            "--role",
+            "owner",
+            "nobody-under-test@example.com",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "No user found" in result.output
+
+
+def test_granting_a_role_in_an_unknown_organization_fails_readably(
+    session, runner, member, organization
+):
+    """Given an organization that does not exist, when granting a role, then it is refused.
+
+    `--organization` is matched by name. An unresolved name used to read `.id`
+    off None, so the operator got an AttributeError traceback.
+    """
+    result = runner.invoke(
+        dispatch_cli,
+        [
+            "user",
+            "update",
+            "--organization",
+            "no_such_organization",
+            "--role",
+            "owner",
+            member.email,
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert result.exception is None or isinstance(result.exception, SystemExit), (
+        f"operator saw a traceback: {result.exception!r}"
+    )
+    assert "Organization not found." in result.output
+    assert role_of(session, member, organization) == UserRoles.member

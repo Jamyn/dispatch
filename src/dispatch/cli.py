@@ -220,19 +220,26 @@ def update_user(email: str, role: str, organization: str):
     from dispatch.auth import service as user_service
     from dispatch.auth.models import UserOrganization, UserUpdate
     from dispatch.database.core import SessionLocal
+    from pydantic import ValidationError
 
     db_session = SessionLocal()
     user = user_service.get_by_email(email=email, db_session=db_session)
     if not user:
+        # Exit non-zero: an install script granting a role to a mistyped
+        # address would otherwise report success having granted nothing.
         click.secho(f"No user found. Email: {email}", fg="red")
-        return
+        raise click.exceptions.Exit(1)
 
     organization = UserOrganization(role=role, organization={"name": organization})
-    user_service.update(
-        user=user,
-        user_in=UserUpdate(id=user.id, organizations=[organization]),
-        db_session=db_session,
-    )
+    try:
+        user_service.update(
+            user=user,
+            user_in=UserUpdate(id=user.id, organizations=[organization]),
+            db_session=db_session,
+        )
+    except ValidationError as e:
+        click.secho(f"Could not update user: {e.errors()[0]['msg']}", fg="red")
+        raise click.exceptions.Exit(1) from None
     click.secho("User successfully updated.", fg="green")
 
 
