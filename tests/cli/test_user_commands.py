@@ -112,23 +112,11 @@ def test_an_undefined_role_is_refused(session, runner, member, organization):
     assert role_of(session, member, organization) == UserRoles.member
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "`--role` is discarded on register: the CLI passes it inside "
-        "UserRegister.organizations, but auth.service.create reads a top-level "
-        "`role` attribute that UserRegister does not define, so the guard "
-        "`hasattr(user_in, 'role')` is always False and every registered user "
-        "gets UserRoles.member. Reported, not fixed here -- create() is also "
-        "the web registration path."
-    ),
-)
 def test_registering_an_owner_grants_the_role_at_the_same_time(session, runner, organization):
     """Given a new account, when registering it as owner, then it holds that role.
 
     The other half of first-user setup: `register` takes the same `--role`, so
-    it carries the same exposure to a `Choice` change as `update`. It currently
-    reports success and grants `member` instead.
+    it carries the same exposure to a `Choice` change as `update`.
     """
     from dispatch.auth import service as user_service
 

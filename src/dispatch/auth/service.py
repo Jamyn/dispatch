@@ -176,10 +176,14 @@ def create(*, db_session, organization: str, user_in: (UserRegister | UserCreate
         organization_in=OrganizationRead(name=organization, slug=organization),
     )
 
-    # add user to the current organization
-    role = UserRoles.member
-    if hasattr(user_in, "role"):
-        role = user_in.role
+    # add user to the current organization. The two input models carry the role
+    # differently -- UserCreate at the top level, UserRegister only inside
+    # `organizations` -- and reading just the first registered every user
+    # arriving as a UserRegister as a member, whatever role was asked for.
+    role = getattr(user_in, "role", None)
+    if role is None:
+        role = next((o.role for o in user_in.organizations or [] if o.role), None)
+    role = role or UserRoles.member
 
     user.organizations.append(DispatchUserOrganization(organization=org, role=role))
 
