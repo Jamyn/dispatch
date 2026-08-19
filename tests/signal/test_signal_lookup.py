@@ -6,6 +6,8 @@ branch this function takes is chosen by the caller, not by the schema.
 
 import uuid
 
+import pytest
+
 from dispatch.signal.service import get_by_primary_or_external_id, is_valid_uuid
 
 from tests.factories import SignalFactory
@@ -59,3 +61,41 @@ def test_is_valid_uuid_rejects_what_is_not_one():
     assert not is_valid_uuid("detection-a")
     assert not is_valid_uuid("1234")
     assert not is_valid_uuid(None)
+
+
+def test_a_non_numeric_external_id_resolves(session, project):
+    """Given a non-numeric external id, when looking up, then that signal is returned.
+
+    Signal.id is an integer column, so comparing it against a value like
+    "detection-a" made Postgres raise instead of returning no rows -- a 500
+    on four public routes, and no way to reach a signal named that way.
+    """
+    signal = SignalFactory(project=project, external_id="detection-a")
+    session.commit()
+
+    found = get_by_primary_or_external_id(db_session=session, signal_id="detection-a")
+    assert found.id == signal.id
+
+
+@pytest.mark.parametrize(
+    "unknown_id",
+    ["never-registered", "'; DROP TABLE signal; --", "-1", "9" * 40],
+    ids=["freeform", "sql-shaped", "negative", "overflows-int"],
+)
+def test_an_unresolvable_id_returns_none_rather_than_raising(session, project, unknown_id):
+    """Given an id matching nothing, when looking up, then None comes back.
+
+    The routes turn None into a 422; anything raised here surfaces as a 500.
+    """
+    SignalFactory(project=project, external_id="detection-a")
+    session.commit()
+
+    assert get_by_primary_or_external_id(db_session=session, signal_id=unknown_id) is None
+
+
+def test_an_integer_primary_key_resolves(session, project):
+    """Given an int rather than a str, when looking up, then it still resolves."""
+    signal = SignalFactory(project=project, external_id="detection-a")
+    session.commit()
+
+    assert get_by_primary_or_external_id(db_session=session, signal_id=signal.id).id == signal.id
