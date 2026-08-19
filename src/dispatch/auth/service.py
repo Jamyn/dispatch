@@ -37,6 +37,8 @@ from .models import (
     UserCreate,
     UserSettingsCreate,
     UserSettingsUpdate,
+    generate_password,
+    hash_password,
 )
 
 
@@ -139,10 +141,16 @@ def create_or_update_organization_role(
     )
 
     if not organization_role:
-        return DispatchUserOrganization(
-            organization_id=organization.id,
+        # organization_id, not organization.id: the latter is bound only on the
+        # lookup-by-name branch above. The row needs adding here too -- callers
+        # discard the return value.
+        organization_role = DispatchUserOrganization(
+            dispatch_user_id=user.id,
+            organization_id=organization_id,
             role=role_in.role,
         )
+        db_session.add(organization_role)
+        return organization_role
 
     organization_role.role = role_in.role
     return organization_role
@@ -150,8 +158,12 @@ def create_or_update_organization_role(
 
 def create(*, db_session, organization: str, user_in: (UserRegister | UserCreate)) -> DispatchUser:
     """Creates a new dispatch user."""
-    # pydantic forces a string password, but we really want bytes
-    password = bytes(user_in.password, "utf-8")
+    # UserRegister leaves password empty when omitted (pydantic skips a
+    # mode="before" validator on a field default), so generate it here rather
+    # than on the model -- get_current_user builds one per request.
+    password = (
+        bytes(user_in.password, "utf-8") if user_in.password else hash_password(generate_password())
+    )
 
     # create the user
     user = DispatchUser(
@@ -226,12 +238,8 @@ def update(*, db_session, user: DispatchUser, user_in: UserUpdate) -> DispatchUs
             setattr(user, field, update_data[field])
 
     if user_in.organizations:
-        roles = []
-
         for role in user_in.organizations:
-            roles.append(
-                create_or_update_organization_role(db_session=db_session, user=user, role_in=role)
-            )
+            create_or_update_organization_role(db_session=db_session, user=user, role_in=role)
 
     if user_in.projects:
         # we reset the default value for all user projects

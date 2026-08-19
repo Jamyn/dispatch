@@ -77,21 +77,22 @@ def test_setting_an_empty_password_is_refused():
         user.set_password("")
 
 
-def test_an_auto_provisioned_account_cannot_be_logged_into():
-    """auth.service auto-provisions users as UserRegister(email=...) alone.
+def test_an_omitted_password_stays_empty_on_the_model():
+    """UserRegister deliberately does not hash its own default.
 
-    Pydantic v2 does not run a mode="before" validator against a field's
-    default, so the password validator does NOT fire on that call and the
-    account is stored with an empty credential rather than the random hashed
-    one the validator intends. What must hold either way is that no password
-    authenticates such an account -- verify_password guards both operands.
+    get_current_user builds one of these on every authenticated request, so
+    validating the default would put a bcrypt hash on the hot path. The
+    credential is generated in auth.service.create instead -- see
+    test_user_provisioning.py. Nothing must authenticate against the empty
+    value in the meantime.
     """
     auto_provisioned = UserRegister(email="ada@example.com")
+
+    assert auto_provisioned.password == ""
 
     user = DispatchUser(email="ada@example.com", password=bytes(auto_provisioned.password, "utf-8"))
 
     assert not user.verify_password("")
-    assert not user.verify_password(auto_provisioned.password)
     assert not user.verify_password("guess")
 
 

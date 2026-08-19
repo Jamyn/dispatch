@@ -29,6 +29,7 @@ from dispatch.config import (
     DISPATCH_AUTHENTICATION_PROVIDER_AWS_ALB_PUBLIC_KEY_CACHE_SECONDS,
     DISPATCH_AUTHENTICATION_PROVIDER_HEADER_NAME,
     DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS,
+    DISPATCH_JWT_ALG,
     DISPATCH_JWT_AUDIENCE,
     DISPATCH_JWT_EMAIL_OVERRIDE,
     DISPATCH_JWT_SECRET,
@@ -80,16 +81,18 @@ class BasicAuthProviderPlugin(AuthenticationProviderPlugin):
     def get_current_user(self, request: Request, **kwargs):
         authorization: str = request.headers.get("Authorization")
         scheme, param = get_authorization_scheme_param(authorization)
-        if not authorization or scheme.lower() != "bearer":
-            log.exception(
-                f"Malformed authorization header. Scheme: {scheme} Param: {param} Authorization: {authorization}"
+        # `param` is the parsed token; re-splitting the header IndexErrors on a
+        # bearer scheme with an empty token, i.e. an unauthenticated 500.
+        if not authorization or scheme.lower() != "bearer" or not param:
+            log.warning(
+                f"Malformed authorization header. Scheme: {scheme} Authorization: {authorization}"
             )
             return
 
-        token = authorization.split()[1]
-
         try:
-            data = jwt.decode(token, DISPATCH_JWT_SECRET)
+            # algorithms is required: unset, python-jose honours whatever the
+            # token declares, which is the opening for algorithm confusion.
+            data = jwt.decode(param, DISPATCH_JWT_SECRET, algorithms=[DISPATCH_JWT_ALG])
         except (JWKError, JWTError):
             raise HTTPException(
                 status_code=HTTP_401_UNAUTHORIZED,
@@ -127,9 +130,23 @@ class PKCEAuthProviderPlugin(AuthenticationProviderPlugin):
 
         # Grab all possible keys to account for key rotation and find the right key
         keys = requests.get(DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS).json()["keys"]
+        key = None
         for potential_key in keys:
             if potential_key["kid"] == key_info["kid"]:
                 key = potential_key
+
+        if key is None:
+            log.warning(f"No JWKS key matches the token's kid: {key_info.get('kid')}")
+            raise credentials_exception
+
+        # The key's own alg, else the asymmetric families a JWKS can serve.
+        # Never HMAC -- that is what lets a token ask for the public key to be
+        # verified against as a shared secret.
+        algorithms = (
+            [key["alg"]]
+            if key.get("alg")
+            else ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
+        )
 
         try:
             jwt_opts = {}
@@ -137,9 +154,15 @@ class PKCEAuthProviderPlugin(AuthenticationProviderPlugin):
                 jwt_opts = {"verify_at_hash": False}
             # If DISPATCH_JWT_AUDIENCE is defined, the we must include audience in the decode
             if DISPATCH_JWT_AUDIENCE:
-                data = jwt.decode(token, key, audience=DISPATCH_JWT_AUDIENCE, options=jwt_opts)
+                data = jwt.decode(
+                    token,
+                    key,
+                    algorithms=algorithms,
+                    audience=DISPATCH_JWT_AUDIENCE,
+                    options=jwt_opts,
+                )
             else:
-                data = jwt.decode(token, key, options=jwt_opts)
+                data = jwt.decode(token, key, algorithms=algorithms, options=jwt_opts)
         except JWTError as err:
             log.debug("JWT Decode error: {}".format(err))
             raise credentials_exception from err

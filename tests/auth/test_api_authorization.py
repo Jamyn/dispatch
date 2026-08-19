@@ -47,34 +47,34 @@ def authenticate(session, default_organization, basic_auth_plugin):
 # --- Tenant resolution ----------------------------------------------------
 
 
-def test_a_request_for_an_unknown_organization_is_refused_by_name(client):
+def test_a_request_for_an_unknown_organization_is_refused_by_name(api_client):
     """db_session_middleware maps the URL's organization onto a schema.
 
     Falling through to a default schema instead of refusing would serve one
     tenant's rows under another tenant's URL. The check runs ahead of
     authentication, so an unauthenticated request is enough to exercise it.
     """
-    response = client.get("/no-such-org/incidents")
+    response = api_client.get("/no-such-org/incidents")
 
     assert response.status_code == 500
     assert "dispatch_organization_no-such-org" in response.json()["detail"][0]["msg"]
 
 
-def test_a_request_without_credentials_is_refused(client, basic_auth_plugin):
+def test_a_request_without_credentials_is_refused(api_client, basic_auth_plugin):
     """No bearer token must not resolve to the default user on a real route."""
-    assert client.get("/default/incidents").status_code == 401
+    assert api_client.get("/default/incidents").status_code == 401
 
 
 @pytest.mark.parametrize(
     "header",
-    ["Bearer not-a-jwt", "Bearer a.b.c", "Basic dXNlcjpwYXNz", ""],
-    ids=["garbage-token", "jwt-shaped-garbage", "wrong-scheme", "empty-header"],
+    ["Bearer not-a-jwt", "Bearer a.b.c", "Bearer ", "Basic dXNlcjpwYXNz", ""],
+    ids=["garbage-token", "jwt-shaped-garbage", "empty-token", "wrong-scheme", "empty-header"],
 )
 def test_a_request_with_an_unusable_authorization_header_is_refused(
-    client, basic_auth_plugin, header
+    api_client, basic_auth_plugin, header
 ):
     """Every malformed-credential shape has to land on 401, not 200 or 500."""
-    response = client.get("/default/incidents", headers={"Authorization": header})
+    response = api_client.get("/default/incidents", headers={"Authorization": header})
 
     assert response.status_code == 401
 
@@ -83,7 +83,7 @@ def test_a_request_with_an_unusable_authorization_header_is_refused(
 
 
 def test_the_incident_list_hides_restricted_incidents_from_a_non_participant(
-    client, session, authenticate
+    api_client, session, authenticate
 ):
     """The confidentiality guarantee, asserted on the response body.
 
@@ -95,7 +95,7 @@ def test_the_incident_list_hides_restricted_incidents_from_a_non_participant(
     IncidentFactory(title="Restricted incident", visibility=Visibility.restricted)
     session.commit()
 
-    body = client.get("/default/incidents", headers=headers).json()
+    body = api_client.get("/default/incidents", headers=headers).json()
     titles = {item["title"] for item in body["items"]}
 
     assert open_incident.title in titles
@@ -103,7 +103,7 @@ def test_the_incident_list_hides_restricted_incidents_from_a_non_participant(
 
 
 def test_the_incident_list_shows_a_restricted_incident_to_its_participant(
-    client, session, authenticate
+    api_client, session, authenticate
 ):
     """Participants keep access, so the filter is a filter and not a blanket."""
     user, headers = authenticate(UserRoles.member)
@@ -113,24 +113,26 @@ def test_the_incident_list_shows_a_restricted_incident_to_its_participant(
     )
     session.commit()
 
-    body = client.get("/default/incidents", headers=headers).json()
+    body = api_client.get("/default/incidents", headers=headers).json()
 
     assert "Restricted incident" in {item["title"] for item in body["items"]}
 
 
-def test_the_incident_list_shows_restricted_incidents_to_an_admin(client, session, authenticate):
+def test_the_incident_list_shows_restricted_incidents_to_an_admin(
+    api_client, session, authenticate
+):
     """Admins see everything in their tenant -- the documented override."""
     _, headers = authenticate(UserRoles.admin)
     IncidentFactory(title="Restricted incident", visibility=Visibility.restricted)
     session.commit()
 
-    body = client.get("/default/incidents", headers=headers).json()
+    body = api_client.get("/default/incidents", headers=headers).json()
 
     assert "Restricted incident" in {item["title"] for item in body["items"]}
 
 
 def test_two_members_of_the_same_tenant_see_different_restricted_incidents(
-    client, session, authenticate
+    api_client, session, authenticate
 ):
     """The filter keys on the caller, not on a per-process or cached role.
 
@@ -148,10 +150,12 @@ def test_two_members_of_the_same_tenant_see_different_restricted_incidents(
     session.commit()
 
     alice_titles = {
-        i["title"] for i in client.get("/default/incidents", headers=alice_headers).json()["items"]
+        i["title"]
+        for i in api_client.get("/default/incidents", headers=alice_headers).json()["items"]
     }
     bob_titles = {
-        i["title"] for i in client.get("/default/incidents", headers=bob_headers).json()["items"]
+        i["title"]
+        for i in api_client.get("/default/incidents", headers=bob_headers).json()["items"]
     }
 
     assert "Alice's restricted" in alice_titles
@@ -163,7 +167,7 @@ def test_two_members_of_the_same_tenant_see_different_restricted_incidents(
 # --- Credential exposure --------------------------------------------------
 
 
-def test_the_user_list_never_returns_password_hashes(client, session, authenticate):
+def test_the_user_list_never_returns_password_hashes(api_client, session, authenticate):
     """UserRead is what stops the bcrypt hash reaching an API consumer.
 
     Every authenticated user can call this route, so a serializer change that
@@ -171,7 +175,7 @@ def test_the_user_list_never_returns_password_hashes(client, session, authentica
     """
     _, headers = authenticate(UserRoles.admin)
 
-    response = client.get("/default/users", headers=headers)
+    response = api_client.get("/default/users", headers=headers)
     assert response.status_code == 200
 
     body = response.text

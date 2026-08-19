@@ -8,6 +8,7 @@ chain most worth protecting.
 """
 
 import pytest
+from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from dispatch.auth.models import DispatchUser
@@ -66,3 +67,16 @@ def grant_role(session):
         return user
 
     return _grant
+
+
+@pytest.fixture
+def api_client(session):
+    """A TestClient over the real API, with the plugin registry left intact.
+
+    Deliberately not the shared `client` fixture: its `testapp` is session
+    scoped and unregisters every plugin, which strands any later test on the
+    same xdist worker that resolves a plugin by slug.
+    """
+    from dispatch.main import api
+
+    return TestClient(api)
