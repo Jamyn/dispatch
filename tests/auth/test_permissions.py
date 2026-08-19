@@ -81,9 +81,12 @@ def test_an_unknown_organization_slug_never_resolves_to_a_grant(
     class's own org_error_code suggests. What matters here is that the caller
     is refused; the status code is asserted end-to-end in
     test_api_authorization.py instead.
+
+    The slug must satisfy `OrganizationRead`'s pattern (no hyphens) or the model
+    rejects it first and the lookup is never reached.
     """
     grant_role(user, organization, UserRoles.owner)
-    request = as_request(user, organization, path_params={"organization": "no-such-org"})
+    request = as_request(user, organization, path_params={"organization": "no_such_org"})
 
     with pytest.raises(ValidationError):
         OrganizationOwnerPermission(request=request)

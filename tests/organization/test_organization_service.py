@@ -1,3 +1,14 @@
+import pytest
+from pydantic import ValidationError
+
+from dispatch.organization.models import OrganizationRead
+from dispatch.organization.service import (
+    get_by_name_or_raise,
+    get_by_slug_or_raise,
+    get_default_or_raise,
+)
+
+
 def test_get(session, organization):
     from dispatch.organization.service import get
 
@@ -83,3 +94,47 @@ def test_get_by_name_or_default__default(session, organization):
     organization_in = OrganizationRead(name="nonexistent")
     result = get_by_name_or_default(db_session=session, organization_in=organization_in)
     assert result.id == organization.id
+
+
+# --- The `_or_raise` helpers ---------------------------------------------
+#
+# `ExceptionMiddleware` turns a pydantic `ValidationError` into a 422 carrying
+# `.errors()`. Anything else reaches the caller as an opaque 500, so these
+# assert the error is both raised and renderable, not merely that the lookup
+# failed.
+
+
+def test_an_unknown_slug_is_reported_as_a_validation_error(session, organization):
+    """Given a slug no organization has, when resolving it, then a 422-able error is raised.
+
+    The slug is well-formed, so it reaches the lookup rather than being turned
+    away by `OrganizationRead`'s own pattern check.
+    """
+    organization_in = OrganizationRead(name="no_such_org", slug="no_such_org")
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_by_slug_or_raise(db_session=session, organization_in=organization_in)
+
+    assert "Organization not found." in str(exc_info.value.errors())
+
+
+def test_an_unknown_name_is_reported_as_a_validation_error(session, organization):
+    """Given a name no organization has, when resolving it, then a 422-able error is raised."""
+    organization_in = OrganizationRead(name="no_such_org", slug="no_such_org")
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_by_name_or_raise(db_session=session, organization_in=organization_in)
+
+    assert "Organization not found." in str(exc_info.value.errors())
+
+
+def test_having_no_default_organization_is_reported_as_a_validation_error(session, organization):
+    """Given no organization is marked default, when asking for it, then a 422-able error is raised."""
+    for org in session.query(type(organization)).all():
+        org.default = False
+    session.commit()
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_default_or_raise(db_session=session)
+
+    assert "No default organization defined." in str(exc_info.value.errors())

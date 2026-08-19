@@ -24,14 +24,16 @@ def get_default_or_raise(*, db_session) -> Organization:
     organization = get_default(db_session=db_session)
 
     if not organization:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "OrganizationRead",
             [
                 {
-                    "loc": ("organization",),
-                    "msg": "No default organization defined.",
                     "type": "value_error",
+                    "loc": ("organization",),
+                    "input": None,
+                    "ctx": {"error": ValueError("No default organization defined.")},
                 }
-            ]
+            ],
         )
     return organization
 
@@ -46,15 +48,16 @@ def get_by_name_or_raise(*, db_session, organization_in: OrganizationRead) -> Or
     organization = get_by_name(db_session=db_session, name=organization_in.name)
 
     if not organization:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "OrganizationRead",
             [
                 {
-                    "msg": "Organization not found.",
-                    "organization": organization_in.name,
-                    "loc": "organization",
+                    "type": "value_error",
+                    "loc": ("organization",),
+                    "input": organization_in.name,
+                    "ctx": {"error": ValueError("Organization not found.")},
                 }
             ],
-            model=OrganizationRead,
         )
 
     return organization
@@ -70,15 +73,16 @@ def get_by_slug_or_raise(*, db_session, organization_in: OrganizationRead) -> Or
     organization = get_by_slug(db_session=db_session, slug=organization_in.slug)
 
     if not organization:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "OrganizationRead",
             [
                 {
-                    "msg": "Organization not found.",
-                    "organization": organization_in.name,
-                    "loc": "organization",
+                    "type": "value_error",
+                    "loc": ("organization",),
+                    "input": organization_in.slug,
+                    "ctx": {"error": ValueError("Organization not found.")},
                 }
             ],
-            model=OrganizationRead,
         )
 
     return organization
