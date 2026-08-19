@@ -11,13 +11,11 @@ from typing import NoReturn
 from sqlalchemy.orm import Session
 
 from dispatch.decorators import scheduled_project_task, timer
-from dispatch.incident import service as incident_service
 from dispatch.plugin import service as plugin_service
 from dispatch.project.models import Project
 from dispatch.scheduler import scheduler
 from dispatch.tag import service as tag_service
 from dispatch.tag.models import TagCreate
-from dispatch.tag.recommender import build_model
 
 log = logging.getLogger(__name__)
 
@@ -47,20 +45,3 @@ def sync_tags(db_session: Session, project: Project) -> NoReturn:
         t["tag_type"].update({"project": project})
         tag_in = TagCreate(**t, project=project)
         tag_service.get_or_create(db_session=db_session, tag_in=tag_in)
-
-
-@scheduler.add(every(1).day, name="build-tag-models")
-@timer
-@scheduled_project_task
-def build_tag_models(db_session: Session, project: Project) -> NoReturn:
-    """Builds the incident tag recommendation models."""
-    incidents = incident_service.get_all(db_session=db_session, project_id=project.id).all()
-
-    log.debug(f"Building the incident tag recommendation models for project {project.name}...")
-
-    try:
-        build_model(incidents, project.organization.slug, project.slug, "incident")
-    except Exception as e:
-        log.exception(e)
-
-    log.debug("Successfully built the incident tag recommendation models.")

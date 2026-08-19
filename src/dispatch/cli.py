@@ -737,7 +737,7 @@ def dispatch_scheduler():
     from .incident_cost.scheduled import calculate_incidents_response_cost  # noqa
     from .monitor.scheduled import sync_active_stable_monitors  # noqa
     from .report.scheduled import incident_report_reminders  # noqa
-    from .tag.scheduled import build_tag_models, sync_tags  # noqa
+    from .tag.scheduled import sync_tags  # noqa
     from .task.scheduled import (
         create_incident_tasks_reminders,  # noqa
     )
