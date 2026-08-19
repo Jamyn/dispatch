@@ -71,11 +71,11 @@ def grant_role(session):
 
 @pytest.fixture
 def api_client(session):
-    """A TestClient over the real API, with the plugin registry left intact.
+    """A TestClient over the real API.
 
-    Deliberately not the shared `client` fixture: its `testapp` is session
-    scoped and unregisters every plugin, which strands any later test on the
-    same xdist worker that resolves a plugin by slug.
+    Local on purpose. A shared session-scoped app fixture is what makes global
+    plugin-registry mutation tempting, and unregistering there strands any
+    later test on the same xdist worker that resolves a plugin by slug.
     """
     from dispatch.main import api
 
