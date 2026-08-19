@@ -54,11 +54,18 @@ def create_service(
         project_name=service_in.project.name,
     )
     if service:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ServiceCreate",
             [
                 {
-                    "msg": "An oncall service with this external id already exists.",
-                    "loc": "external_id",
+                    "type": "value_error",
+                    "loc": ("external_id",),
+                    "input": service_in.external_id,
+                    "ctx": {
+                        "error": ValueError(
+                            "An oncall service with this external id already exists."
+                        )
+                    },
                 }
             ],
         )
@@ -79,11 +86,16 @@ def update_service(db_session: DbSession, service_id: PrimaryKey, service_in: Se
     try:
         service = update(db_session=db_session, service=service, service_in=service_in)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ServiceUpdate",
             [
                 {
-                    "msg": "An oncall service with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": service_in.name,
+                    "ctx": {
+                        "error": ValueError("An oncall service with this name already exists.")
+                    },
                 }
             ],
         ) from None

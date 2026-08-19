@@ -38,15 +38,20 @@ def get_by_name_or_raise(
     )
 
     if not data_format:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SourceDataFormatRead",
             [
                 {
-                    "loc": ("dataFormat",),
-                    "msg": f"SourceDataFormat not found: {source_data_format_in.name}",
                     "type": "value_error",
+                    "loc": ("dataFormat",),
                     "input": source_data_format_in.name,
+                    "ctx": {
+                        "error": ValueError(
+                            f"SourceDataFormat not found: {source_data_format_in.name}"
+                        )
+                    },
                 }
-            ]
+            ],
         )
 
     return data_format

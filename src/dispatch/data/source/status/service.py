@@ -32,15 +32,18 @@ def get_by_name_or_raise(
     status = get_by_name(db_session=db_session, project_id=project_id, name=source_status_in.name)
 
     if not status:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SourceStatusRead",
             [
                 {
-                    "loc": ("status",),
-                    "msg": f"SourceStatus not found: {source_status_in.name}",
                     "type": "value_error",
+                    "loc": ("status",),
                     "input": source_status_in.name,
+                    "ctx": {
+                        "error": ValueError(f"SourceStatus not found: {source_status_in.name}")
+                    },
                 }
-            ]
+            ],
         )
 
     return status

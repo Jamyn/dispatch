@@ -19,14 +19,16 @@ def get_by_name_or_raise(*, db_session, alert_in: AlertRead) -> AlertRead:
     alert = get_by_name(db_session=db_session, name=alert_in.name)
 
     if not alert:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "AlertRead",
             [
                 {
-                    "msg": "Alert not found.",
-                    "alert": alert_in.name,
-                    "loc": ["alert"],
+                    "type": "value_error",
+                    "loc": ("alert",),
+                    "input": alert_in.name,
+                    "ctx": {"error": ValueError("Alert not found.")},
                 }
-            ]
+            ],
         )
 
     return alert
