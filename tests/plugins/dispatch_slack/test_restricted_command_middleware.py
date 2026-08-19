@@ -32,9 +32,9 @@ RENOUNCED_AT = datetime(2024, 1, 1, 12, 0, 0)
 def caller(session):
     """The Slack user running the command.
 
-    Its email must stay clear of the contact factories' `user{n}@example.com`
-    sequence: those counters are independent, so a colliding address makes the
-    participant lookup match a second, unrelated contact.
+    Pinned rather than generated so the participant lookup can only match the
+    contact this test builds. The factories no longer share an address space
+    (see `tests/test_factory_contract.py`), but the lookup keys off email alone.
     """
     return DispatchUserFactory(email="caller-under-test@example.com")
 
