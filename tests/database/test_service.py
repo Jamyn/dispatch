@@ -901,3 +901,26 @@ def test_a_null_check_is_a_filter_in_its_own_right(session, admin_user, project)
     present = names_for("is_not_null")
     assert went_stable.name in present
     assert never_stable.name not in present
+
+
+def test_an_unparseable_search_leaves_the_session_usable(session, incidents, admin_user):
+    """Given a search Postgres cannot parse, when it fails, then the session still works.
+
+    Search strings come straight from a user, and `tsq_parse` rejects stray
+    tsquery operators. Postgres aborts the transaction on that error, so
+    returning empty without rolling back left everything later in the request
+    failing with InFailedSqlTransaction.
+    """
+    from dispatch.incident.models import Incident
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Incident",
+        query_str="foo & | bar",
+        current_user=admin_user,
+        role=UserRoles.admin,
+    )
+    assert result["total"] == 0
+
+    # the request is not over: whatever runs next must still be able to query
+    assert session.query(Incident).count() >= 0, "the session was left in an aborted transaction"
