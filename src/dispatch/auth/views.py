@@ -101,13 +101,16 @@ def create_user(
     """Creates a new user."""
     user = get_by_email(db_session=db_session, email=user_in.email)
     if user:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "UserCreate",
             [
                 {
-                    "msg": "A user with this email already exists.",
-                    "loc": "email",
+                    "type": "value_error",
+                    "loc": ("email",),
+                    "input": user_in.email,
+                    "ctx": {"error": ValueError("A user with this email already exists.")},
                 }
-            ]
+            ],
         )
 
     current_user_organization_role = current_user.get_organization_role(organization)

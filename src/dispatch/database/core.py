@@ -10,7 +10,7 @@ import re
 from contextlib import contextmanager
 
 from fastapi import Depends
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import Session, object_session, sessionmaker, DeclarativeBase, declared_attr
@@ -188,15 +188,16 @@ def get_class_by_tablename(table_fullname: str) -> Any:
         mapped_class = _find_class(f"dispatch_core.{mapped_name}")
 
     if not mapped_class:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SearchFilter",
             [
                 {
                     "type": "value_error",
                     "loc": ("filter",),
-                    "msg": "Model not found. Check the name of your model.",
+                    "input": table_fullname,
+                    "ctx": {"error": ValueError("Model not found. Check the name of your model.")},
                 }
             ],
-            model=BaseModel,
         )
 
     return mapped_class

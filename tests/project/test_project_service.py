@@ -208,3 +208,46 @@ def test_the_label_index_matches_the_ordering_it_exists_for(session):
         "the index expression and the query's ordering have drifted, so the index "
         f"can no longer serve it:\n  index: {index_sql}\n  order: {order_sql}"
     )
+
+
+# --- The `_or_raise` helpers ---------------------------------------------
+#
+# `ExceptionMiddleware` turns a pydantic `ValidationError` into a 422 carrying
+# `.errors()`; anything else reaches the caller as an opaque 500. These two are
+# the most-called guards in the tree -- `get_by_name_or_raise` alone is reached
+# from around forty places -- so they assert the error is renderable, not just
+# that the lookup failed.
+
+
+def test_an_unknown_project_name_is_reported_as_a_validation_error(session, project):
+    """Given a name no project has, when resolving it, then a 422-able error is raised."""
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.project.models import ProjectRead
+    from dispatch.project.service import get_by_name_or_raise
+
+    project_in = ProjectRead(name="no such project")
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_by_name_or_raise(db_session=session, project_in=project_in)
+
+    assert "Project not found." in str(exc_info.value.errors())
+
+
+def test_having_no_default_project_is_reported_as_a_validation_error(session, project):
+    """Given no project is marked default, when asking for it, then a 422-able error is raised."""
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.project.models import Project
+    from dispatch.project.service import get_default_or_raise
+
+    for existing in session.query(Project).all():
+        existing.default = False
+    session.commit()
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_default_or_raise(db_session=session)
+
+    assert "No default project defined." in str(exc_info.value.errors())

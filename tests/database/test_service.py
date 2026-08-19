@@ -741,3 +741,20 @@ def test_get_query_models_includes_joined_entities(session):
     assert "Incident" in models
     assert "Participant" in models
     assert "IndividualContact" in models
+
+
+def test_an_unknown_model_name_in_a_filter_is_reported_as_a_validation_error(session):
+    """Given a filter naming no model, when resolving it, then a 422-able error is raised.
+
+    Search filters carry user-supplied model names, so this is reachable from
+    the API and has to answer 422 rather than an opaque 500.
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.database.core import get_class_by_tablename
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_class_by_tablename("NoSuchModel")
+
+    assert "Model not found." in str(exc_info.value.errors())
