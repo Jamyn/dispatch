@@ -337,3 +337,31 @@ def test_an_explicitly_supplied_password_is_kept(session, default_organization):
     )
 
     assert user.verify_password("hunter2hunter2")
+
+
+def test_a_role_stated_inside_organizations_is_honoured_too(session, default_organization):
+    """The registration path states the role differently, and it must still apply.
+
+    `UserCreate` carries the role at the top level; `UserRegister` carries it
+    inside `organizations`. `create` read only the first, so `dispatch user
+    register --role owner` reported success and granted `member`.
+    """
+    user = auth_service.create(
+        db_session=session,
+        organization=default_organization.slug,
+        user_in=UserRegister(
+            email="registered-owner@example.com",
+            password="Str0ngEnough",
+            organizations=[
+                UserOrganization(
+                    role=UserRoles.owner,
+                    organization=OrganizationRead(
+                        id=default_organization.id, name=default_organization.name
+                    ),
+                )
+            ],
+        ),
+    )
+
+    assert user.get_organization_role(default_organization.slug) == UserRoles.owner
+    assert user.is_owner(default_organization.slug)
