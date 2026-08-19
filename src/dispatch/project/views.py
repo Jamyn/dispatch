@@ -46,22 +46,28 @@ def create_project(
     """Create a new project."""
     project = get_by_name(db_session=db_session, name=project_in.name)
     if project:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ProjectCreate",
             [
                 {
-                    "msg": "A project with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": project_in.name,
+                    "ctx": {"error": ValueError("A project with this name already exists.")},
                 }
-            ]
+            ],
         )
     if project_in.id and get(db_session=db_session, project_id=project_in.id):
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ProjectCreate",
             [
                 {
-                    "msg": "A project with this id already exists.",
-                    "loc": "id",
+                    "type": "value_error",
+                    "loc": ("id",),
+                    "input": project_in.id,
+                    "ctx": {"error": ValueError("A project with this id already exists.")},
                 }
-            ]
+            ],
         )
 
     project = create(db_session=db_session, project_in=project_in)
