@@ -152,13 +152,20 @@ def update_instance(
                 db_session=db_session, service_type=plugin_instance.plugin.slug, is_active=True
             )
             if oncall_services:
-                raise ValidationError(
+                raise ValidationError.from_exception_data(
+                    "PluginInstanceUpdate",
                     [
                         {
-                            "msg": "Cannot disable plugin instance: {plugin_instance.plugin.title}. One or more oncall services depend on it. ",
-                            "loc": "plugin_instance",
+                            "type": "value_error",
+                            "loc": ("plugin_instance",),
+                            "input": plugin_instance.plugin.title,
+                            "ctx": {
+                                "error": ValueError(
+                                    f"Cannot disable plugin instance: {plugin_instance.plugin.title}. One or more oncall services depend on it. "
+                                )
+                            },
                         }
-                    ]
+                    ],
                 )
 
     for field in plugin_instance_data:

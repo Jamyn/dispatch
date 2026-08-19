@@ -98,13 +98,16 @@ def create_executive_report(
     incident = incident_service.get(db_session=db_session, incident_id=incident_id)
 
     if not incident.incident_type.executive_template_document:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ExecutiveReportCreate",
             [
                 {
-                    "msg": "No executive report template defined.",
-                    "loc": "executive_template_document",
+                    "type": "value_error",
+                    "loc": ("executive_template_document",),
+                    "input": None,
+                    "ctx": {"error": ValueError("No executive report template defined.")},
                 }
-            ]
+            ],
         )
 
     # we fetch all previous executive reports

@@ -33,8 +33,8 @@ def get_individual(db_session: DbSession, individual_contact_id: PrimaryKey):
                 {
                     "type": "value_error",
                     "loc": ("individual",),
-                    "msg": "Individual not found.",
                     "input": individual_contact_id,
+                    "ctx": {"error": ValueError("Individual not found.")},
                 }
             ],
         )
@@ -56,13 +56,16 @@ def create_individual(db_session: DbSession, individual_contact_in: IndividualCo
         project_id=individual_contact_in.project.id,
     )
     if individual:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "IndividualContactCreate",
             [
                 {
-                    "msg": "An individual with this email already exists.",
-                    "loc": "email",
+                    "type": "value_error",
+                    "loc": ("email",),
+                    "input": individual_contact_in.email,
+                    "ctx": {"error": ValueError("An individual with this email already exists.")},
                 }
-            ]
+            ],
         )
     return create(db_session=db_session, individual_contact_in=individual_contact_in)
 
@@ -87,8 +90,8 @@ def update_individual(
                 {
                     "type": "value_error",
                     "loc": ("individual",),
-                    "msg": "Individual not found.",
                     "input": individual_contact_id,
+                    "ctx": {"error": ValueError("Individual not found.")},
                 }
             ],
         )
@@ -115,8 +118,8 @@ def delete_individual(db_session: DbSession, individual_contact_id: PrimaryKey):
                 {
                     "type": "value_error",
                     "loc": ("individual",),
-                    "msg": "Individual not found.",
                     "input": individual_contact_id,
+                    "ctx": {"error": ValueError("Individual not found.")},
                 }
             ],
         )
