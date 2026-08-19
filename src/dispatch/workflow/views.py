@@ -68,13 +68,16 @@ def create_workflow(db_session: DbSession, workflow_in: WorkflowCreate):
         db_session=db_session, plugin_instance_id=workflow_in.plugin_instance.id
     )
     if not plugin_instance:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "WorkflowCreate",
             [
                 {
-                    "msg": "No plugin instance found.",
-                    "loc": "plugin_instance",
+                    "type": "value_error",
+                    "loc": ("plugin_instance",),
+                    "input": None,
+                    "ctx": {"error": ValueError("No plugin instance found.")},
                 }
-            ]
+            ],
         )
 
     return create(db_session=db_session, workflow_in=workflow_in)

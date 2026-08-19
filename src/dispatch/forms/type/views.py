@@ -48,11 +48,14 @@ def create_forms_type(
     try:
         return create(db_session=db_session, creator=current_user, forms_type_in=forms_type_in)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "FormsTypeCreate",
             [
                 {
-                    "msg": "A form type with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": forms_type_in.name,
+                    "ctx": {"error": ValueError("A form type with this name already exists.")},
                 }
             ],
         ) from None
@@ -80,11 +83,14 @@ def update_forms_type(
             db_session=db_session, forms_type=forms_type, forms_type_in=forms_type_in
         )
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "FormsTypeUpdate",
             [
                 {
-                    "msg": "A form type with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": forms_type_in.name,
+                    "ctx": {"error": ValueError("A form type with this name already exists.")},
                 }
             ],
         ) from None

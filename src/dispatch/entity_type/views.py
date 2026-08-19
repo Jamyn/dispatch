@@ -48,13 +48,16 @@ def create_entity_type(db_session: DbSession, entity_type_in: EntityTypeCreate):
     try:
         entity_type = create(db_session=db_session, entity_type_in=entity_type_in)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "EntityTypeCreate",
             [
                 {
-                    "msg": "An entity with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": entity_type_in.name,
+                    "ctx": {"error": ValueError("An entity with this name already exists.")},
                 }
-            ]
+            ],
         ) from None
     return entity_type
 
@@ -67,13 +70,16 @@ def create_entity_type_with_case(
     try:
         entity_type = create(db_session=db_session, entity_type_in=entity_type_in, case_id=case_id)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "EntityTypeCreate",
             [
                 {
-                    "msg": "An entity with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": entity_type_in.name,
+                    "ctx": {"error": ValueError("An entity with this name already exists.")},
                 }
-            ]
+            ],
         ) from None
     return entity_type
 
@@ -147,13 +153,16 @@ def update_entity_type(
             db_session=db_session, entity_type=entity_type, entity_type_in=entity_type_in
         )
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "EntityTypeUpdate",
             [
                 {
-                    "msg": "An entity with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": entity_type_in.name,
+                    "ctx": {"error": ValueError("An entity with this name already exists.")},
                 }
-            ]
+            ],
         ) from None
     return entity_type
 
@@ -177,13 +186,16 @@ def process_entity_type(
             db_session=db_session, entity_type=entity_type, entity_type_in=entity_type_in
         )
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "EntityTypeUpdate",
             [
                 {
-                    "msg": "An entity with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": entity_type_in.name,
+                    "ctx": {"error": ValueError("An entity with this name already exists.")},
                 }
-            ]
+            ],
         ) from None
     return entity_type
 

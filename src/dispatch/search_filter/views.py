@@ -55,11 +55,14 @@ def create_search_filter(
             db_session=db_session, creator=current_user, search_filter_in=search_filter_in
         )
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SearchFilterCreate",
             [
                 {
-                    "msg": "A search filter with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": search_filter_in.name,
+                    "ctx": {"error": ValueError("A search filter with this name already exists.")},
                 }
             ],
         ) from None
@@ -87,11 +90,14 @@ def update_search_filter(
             db_session=db_session, search_filter=search_filter, search_filter_in=search_filter_in
         )
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SearchFilterUpdate",
             [
                 {
-                    "msg": "A search filter with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": search_filter_in.name,
+                    "ctx": {"error": ValueError("A search filter with this name already exists.")},
                 }
             ],
         ) from None

@@ -102,13 +102,18 @@ def create(*, db_session, document_in: DocumentCreate) -> Document:
             .one_or_none()
         )
         if faq_doc:
-            raise ValidationError(
+            raise ValidationError.from_exception_data(
+                "DocumentCreate",
                 [
                     {
-                        "msg": "FAQ document already defined for this project.",
-                        "loc": "document",
+                        "type": "value_error",
+                        "loc": ("document",),
+                        "input": document_in.name,
+                        "ctx": {
+                            "error": ValueError("FAQ document already defined for this project.")
+                        },
                     }
-                ]
+                ],
             )
 
     if document_in.resource_type == DocumentResourceTemplateTypes.forms:
@@ -119,13 +124,20 @@ def create(*, db_session, document_in: DocumentCreate) -> Document:
             .one_or_none()
         )
         if forms_doc:
-            raise ValidationError(
+            raise ValidationError.from_exception_data(
+                "DocumentCreate",
                 [
                     {
-                        "msg": "Forms export template document already defined for this project.",
-                        "loc": "document",
+                        "type": "value_error",
+                        "loc": ("document",),
+                        "input": document_in.name,
+                        "ctx": {
+                            "error": ValueError(
+                                "Forms export template document already defined for this project."
+                            )
+                        },
                     }
-                ]
+                ],
             )
 
     filters = [

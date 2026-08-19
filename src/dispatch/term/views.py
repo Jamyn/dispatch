@@ -22,13 +22,16 @@ def create_term(db_session: DbSession, term_in: TermCreate):
     """Create a new term."""
     term = get_by_text(db_session=db_session, text=term_in.text)
     if term:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "TermCreate",
             [
                 {
-                    "msg": "A term with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": term_in.text,
+                    "ctx": {"error": ValueError("A term with this name already exists.")},
                 }
-            ]
+            ],
         )
     term = create(db_session=db_session, term_in=term_in)
     return term
