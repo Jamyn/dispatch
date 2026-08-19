@@ -233,3 +233,107 @@ def test_get_organization_role_is_none_for_a_tenant_the_user_is_not_in(
     assert user.get_organization_role(other.slug) is None
     assert user.is_owner(home.slug)
     assert not user.is_owner(other.slug)
+
+
+def test_a_user_can_be_added_to_an_organization_they_were_not_in(
+    session, organizations, grant_role
+):
+    """Granting a role in a second tenant is the admin path for onboarding.
+
+    create_or_update_organization_role read `organization.id`, which is only
+    bound when the caller looks the organization up by name -- supplying the
+    id instead raised UnboundLocalError, and the row it built was never added
+    to the session, so the grant would not have persisted regardless.
+    """
+    home, other = organizations
+    user = DispatchUserFactory()
+    grant_role(user, home, UserRoles.member)
+
+    auth_service.update(
+        db_session=session,
+        user=user,
+        user_in=UserUpdate(
+            id=user.id,
+            organizations=[
+                UserOrganization(
+                    organization=OrganizationRead(id=other.id, name=other.name, slug=other.slug),
+                    role=UserRoles.admin,
+                )
+            ],
+        ),
+    )
+    session.commit()
+    session.refresh(user)
+
+    assert user.get_organization_role(other.slug) == UserRoles.admin
+    assert user.get_organization_role(home.slug) == UserRoles.member
+
+
+def test_a_role_can_be_granted_by_organization_name_without_an_id(
+    session, organizations, grant_role
+):
+    """The lookup-by-name branch has to keep working alongside the id branch."""
+    home, other = organizations
+    user = DispatchUserFactory()
+    grant_role(user, home, UserRoles.member)
+
+    auth_service.create_or_update_organization_role(
+        db_session=session,
+        user=user,
+        role_in=UserOrganization(
+            organization=OrganizationRead(name=other.name, slug=other.slug),
+            role=UserRoles.owner,
+        ),
+    )
+    session.commit()
+    session.refresh(user)
+
+    assert user.get_organization_role(other.slug) == UserRoles.owner
+
+
+def test_an_auto_provisioned_user_gets_a_generated_password_not_an_empty_one(
+    session, default_organization
+):
+    """The account auth.service creates on first sight must have a credential.
+
+    UserRegister leaves the field empty when a caller omits it, so create()
+    generates one. Storing the empty value instead would leave the account one
+    weakened verify_password guard away from authenticating against nothing.
+    """
+    user = auth_service.create(
+        db_session=session,
+        organization=default_organization.slug,
+        user_in=UserRegister(email="newcomer@example.com"),
+    )
+
+    assert user.password.startswith(b"$2b$")
+    assert not user.verify_password("")
+
+
+def test_two_auto_provisioned_users_do_not_share_a_password(session, default_organization):
+    """A constant here would give every auto-provisioned account one key."""
+    first = auth_service.create(
+        db_session=session,
+        organization=default_organization.slug,
+        user_in=UserRegister(email="one@example.com"),
+    )
+    second = auth_service.create(
+        db_session=session,
+        organization=default_organization.slug,
+        user_in=UserRegister(email="two@example.com"),
+    )
+
+    assert first.password != second.password
+
+
+def test_an_explicitly_supplied_password_is_kept(session, default_organization):
+    """Generation must only fill a gap, never overwrite a real password."""
+    registered = UserRegister(email="chosen@example.com", password="hunter2hunter2")
+
+    user = auth_service.create(
+        db_session=session,
+        organization=default_organization.slug,
+        user_in=registered,
+    )
+
+    assert user.verify_password("hunter2hunter2")

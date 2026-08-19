@@ -67,8 +67,8 @@ def test_a_request_without_credentials_is_refused(client, basic_auth_plugin):
 
 @pytest.mark.parametrize(
     "header",
-    ["Bearer not-a-jwt", "Bearer a.b.c", "Basic dXNlcjpwYXNz", ""],
-    ids=["garbage-token", "jwt-shaped-garbage", "wrong-scheme", "empty-header"],
+    ["Bearer not-a-jwt", "Bearer a.b.c", "Bearer ", "Basic dXNlcjpwYXNz", ""],
+    ids=["garbage-token", "jwt-shaped-garbage", "empty-token", "wrong-scheme", "empty-header"],
 )
 def test_a_request_with_an_unusable_authorization_header_is_refused(
     client, basic_auth_plugin, header

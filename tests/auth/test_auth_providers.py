@@ -93,6 +93,36 @@ def test_an_unsigned_alg_none_token_is_rejected():
     assert exc.value.status_code == 401
 
 
+def test_a_token_signed_with_an_unexpected_algorithm_is_rejected():
+    """The decode pins DISPATCH_JWT_ALG rather than trusting the token's header.
+
+    Left open, python-jose verifies with whatever algorithm the token asks
+    for. That is the precondition for algorithm confusion, so the pin is
+    asserted here even though this provider's shared secret makes the HS256
+    case unexploitable on its own.
+    """
+    exp = (datetime.utcnow() + timedelta(hours=1)).timestamp()
+    other_alg = jwt.encode(
+        {"exp": exp, "email": "attacker@example.com"}, DISPATCH_JWT_SECRET, algorithm="HS512"
+    )
+    request = request_with_headers(Authorization=f"Bearer {other_alg}")
+
+    with pytest.raises(HTTPException) as exc:
+        BasicAuthProviderPlugin().get_current_user(request)
+    assert exc.value.status_code == 401
+
+
+def test_a_bearer_scheme_with_an_empty_token_yields_no_user():
+    """ "Authorization: Bearer " once raised IndexError -- an unauthenticated 500.
+
+    It has to take the same path as any other unusable header: return None so
+    auth.service raises the 401.
+    """
+    request = request_with_headers(Authorization="Bearer ")
+
+    assert BasicAuthProviderPlugin().get_current_user(request) is None
+
+
 @pytest.mark.parametrize(
     "headers",
     [{}, {"Authorization": "Basic dXNlcjpwYXNz"}, {"Authorization": "token abc"}],

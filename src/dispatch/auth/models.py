@@ -191,6 +191,9 @@ class UserLogin(UserBase):
 class UserRegister(UserLogin):
     """Pydantic model for user registration data."""
 
+    # The default is deliberately not validated: hashing on every construction
+    # would land on get_current_user, which builds one per request.
+    # auth.service.create generates the password instead.
     password: str = ""
 
     @field_validator("password", mode="before")
