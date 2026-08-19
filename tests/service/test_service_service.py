@@ -35,3 +35,49 @@ def test_delete(session, service):
 
     delete(db_session=session, service_id=service.id)
     assert not get(db_session=session, service_id=service.id)
+
+
+def test_an_unknown_service_name_is_reported_as_a_validation_error(session, service):
+    """Given a name no service has, when resolving it, then a 422-able error is raised.
+
+    `ExceptionMiddleware` renders a pydantic ValidationError as a 422 carrying
+    `.errors()`; anything else reaches the caller as an opaque 500.
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.service.models import ServiceRead
+    from dispatch.service.service import get_by_name_or_raise
+
+    service_in = ServiceRead.from_orm(service)
+    service_in.name = "no such service"
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_by_name_or_raise(
+            db_session=session, project_id=service.project.id, service_in=service_in
+        )
+
+    assert "Service not found" in str(exc_info.value.errors())
+
+
+def test_an_unknown_external_id_is_reported_as_a_validation_error(session, service):
+    """Given an external id no service has, when resolving it, then a 422-able error is raised.
+
+    This one also read `service.external_id` off the `None` it had just checked
+    for, so it raised AttributeError before reaching the error it meant to build.
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.service.models import ServiceRead
+    from dispatch.service.service import get_by_external_id_and_project_id_or_raise
+
+    service_in = ServiceRead.from_orm(service)
+    service_in.external_id = "no-such-external-id"
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_by_external_id_and_project_id_or_raise(
+            db_session=session, project_id=service.project.id, service_in=service_in
+        )
+
+    assert "Service not found." in str(exc_info.value.errors())
