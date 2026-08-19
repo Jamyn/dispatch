@@ -752,9 +752,12 @@ def list_tasks():
 
     table = []
     for task in scheduler.registered_tasks:
-        table.append([task["name"], task["job"].period, task["job"].at_time])
+        job = task["job"]
+        # `schedule` describes an interval as a count and a unit; `Job.period`
+        # is not part of its API, so reading one raised for every invocation.
+        table.append([task["name"], f"{job.interval} {job.unit}", job.at_time, job.next_run])
 
-    click.secho(tabulate(table, headers=["Task Name", "Period", "At Time"]), fg="blue")
+    click.secho(tabulate(table, headers=["Task Name", "Period", "At Time", "Next Run"]), fg="blue")
 
 
 @dispatch_scheduler.command("start")
