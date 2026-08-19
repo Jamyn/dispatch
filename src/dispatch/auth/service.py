@@ -9,6 +9,7 @@ import logging
 from typing import Annotated
 
 from fastapi import HTTPException, Depends
+from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.status import HTTP_401_UNAUTHORIZED
 from sqlalchemy.exc import IntegrityError
@@ -127,6 +128,18 @@ def create_or_update_organization_role(
         organization = organization_service.get_by_name(
             db_session=db_session, name=role_in.organization.name
         )
+        if not organization:
+            raise ValidationError.from_exception_data(
+                "UserOrganization",
+                [
+                    {
+                        "type": "value_error",
+                        "loc": ("organization",),
+                        "input": role_in.organization.name,
+                        "ctx": {"error": ValueError("Organization not found.")},
+                    }
+                ],
+            )
         organization_id = organization.id
     else:
         organization_id = role_in.organization.id
