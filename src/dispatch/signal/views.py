@@ -387,13 +387,16 @@ def _update_signal(
             update_filters=update_filters,
         )
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SignalRead",
             [
                 {
-                    "msg": "A signal with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": signal_in.name,
+                    "ctx": {"error": ValueError("A signal with this name already exists.")},
                 }
-            ]
+            ],
         ) from None
 
     return signal

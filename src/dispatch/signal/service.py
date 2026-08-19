@@ -87,13 +87,16 @@ def get_signal_engagement_by_name_or_raise(
     )
 
     if not signal_engagement:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SignalEngagementRead",
             [
                 {
-                    "msg": "Signal engagement not found.",
-                    "loc": "signalEngagement",
+                    "type": "value_error",
+                    "loc": ("signalEngagement",),
+                    "input": signal_engagement_in.name,
+                    "ctx": {"error": ValueError("Signal engagement not found.")},
                 }
-            ]
+            ],
         )
     return signal_engagement
 
@@ -257,13 +260,16 @@ def get_signal_filter_by_name_or_raise(
     )
 
     if not signal_filter:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SignalFilterRead",
             [
                 {
-                    "msg": "Signal Filter not found.",
-                    "loc": "signalFilter",
+                    "type": "value_error",
+                    "loc": ("signalFilter",),
+                    "input": signal_filter_in.name,
+                    "ctx": {"error": ValueError("Signal Filter not found.")},
                 }
-            ]
+            ],
         )
     return signal_filter
 

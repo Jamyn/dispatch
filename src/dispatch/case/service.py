@@ -53,14 +53,16 @@ def get_by_name_or_raise(*, db_session, project_id: int, case_in: CaseRead) -> C
     case = get_by_name(db_session=db_session, project_id=project_id, name=case_in.name)
 
     if not case:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "CaseRead",
             [
                 {
-                    "msg": "Case not found.",
-                    "query": case_in.name,
-                    "loc": "case",
+                    "type": "value_error",
+                    "loc": ("case",),
+                    "input": case_in.name,
+                    "ctx": {"error": ValueError("Case not found.")},
                 }
-            ]
+            ],
         )
     return case
 

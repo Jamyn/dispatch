@@ -93,3 +93,28 @@ def test_get_by_name_or_default__default(session, incident_priority):
         incident_priority_in=incident_priority_in,
     )
     assert result.id == incident_priority.id
+
+
+def test_an_unknown_priority_name_is_reported_as_a_validation_error(session, incident_priority):
+    """Given a name no priority has, when resolving it, then a 422-able error is raised.
+
+    `ExceptionMiddleware` renders a pydantic ValidationError as a 422 carrying
+    `.errors()`; anything else reaches the caller as an opaque 500.
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.incident.priority.models import IncidentPriorityRead
+    from dispatch.incident.priority.service import get_by_name_or_raise
+
+    priority_in = IncidentPriorityRead.from_orm(incident_priority)
+    priority_in.name = "no such priority"
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_by_name_or_raise(
+            db_session=session,
+            project_id=incident_priority.project.id,
+            incident_priority_in=priority_in,
+        )
+
+    assert "Incident priority not found." in str(exc_info.value.errors())
