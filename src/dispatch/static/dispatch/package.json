@@ -123,6 +123,9 @@
     },
     "editorconfig": {
       "minimatch": "9.0.7"
+    },
+    "eslint-plugin-prettier": {
+      "prettier": "$prettier"
     }
   }
 }
