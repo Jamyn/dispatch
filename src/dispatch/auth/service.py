@@ -9,6 +9,7 @@ import logging
 from typing import Annotated
 
 from fastapi import HTTPException, Depends
+from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.status import HTTP_401_UNAUTHORIZED
 from sqlalchemy.exc import IntegrityError
@@ -37,6 +38,8 @@ from .models import (
     UserCreate,
     UserSettingsCreate,
     UserSettingsUpdate,
+    generate_password,
+    hash_password,
 )
 
 
@@ -125,6 +128,18 @@ def create_or_update_organization_role(
         organization = organization_service.get_by_name(
             db_session=db_session, name=role_in.organization.name
         )
+        if not organization:
+            raise ValidationError.from_exception_data(
+                "UserOrganization",
+                [
+                    {
+                        "type": "value_error",
+                        "loc": ("organization",),
+                        "input": role_in.organization.name,
+                        "ctx": {"error": ValueError("Organization not found.")},
+                    }
+                ],
+            )
         organization_id = organization.id
     else:
         organization_id = role_in.organization.id
@@ -139,10 +154,16 @@ def create_or_update_organization_role(
     )
 
     if not organization_role:
-        return DispatchUserOrganization(
-            organization_id=organization.id,
+        # organization_id, not organization.id: the latter is bound only on the
+        # lookup-by-name branch above. The row needs adding here too -- callers
+        # discard the return value.
+        organization_role = DispatchUserOrganization(
+            dispatch_user_id=user.id,
+            organization_id=organization_id,
             role=role_in.role,
         )
+        db_session.add(organization_role)
+        return organization_role
 
     organization_role.role = role_in.role
     return organization_role
@@ -150,24 +171,36 @@ def create_or_update_organization_role(
 
 def create(*, db_session, organization: str, user_in: (UserRegister | UserCreate)) -> DispatchUser:
     """Creates a new dispatch user."""
-    # pydantic forces a string password, but we really want bytes
-    password = bytes(user_in.password, "utf-8")
+    # UserRegister leaves password empty when omitted (pydantic skips a
+    # mode="before" validator on a field default), so generate it here rather
+    # than on the model -- get_current_user builds one per request.
+    password = (
+        bytes(user_in.password, "utf-8") if user_in.password else hash_password(generate_password())
+    )
 
     # create the user
     user = DispatchUser(
         **user_in.model_dump(exclude={"password", "organizations", "projects", "role"}),
         password=password,
     )
+    # Before the association below, not after: SQLAlchemy 2.0 dropped save-update
+    # cascade along backrefs, so a DispatchUserOrganization built against the
+    # persistent Organization is dropped by any autoflush until the user is added.
+    db_session.add(user)
 
     org = organization_service.get_by_slug_or_raise(
         db_session=db_session,
         organization_in=OrganizationRead(name=organization, slug=organization),
     )
 
-    # add user to the current organization
-    role = UserRoles.member
-    if hasattr(user_in, "role"):
-        role = user_in.role
+    # add user to the current organization. The two input models carry the role
+    # differently -- UserCreate at the top level, UserRegister only inside
+    # `organizations` -- and reading just the first registered every user
+    # arriving as a UserRegister as a member, whatever role was asked for.
+    role = getattr(user_in, "role", None)
+    if role is None:
+        role = next((o.role for o in user_in.organizations or [] if o.role), None)
+    role = role or UserRoles.member
 
     user.organizations.append(DispatchUserOrganization(organization=org, role=role))
 
@@ -195,7 +228,6 @@ def create(*, db_session, organization: str, user_in: (UserRegister | UserCreate
         )
     user.projects = projects
 
-    db_session.add(user)
     db_session.commit()
     return user
 
@@ -226,12 +258,8 @@ def update(*, db_session, user: DispatchUser, user_in: UserUpdate) -> DispatchUs
             setattr(user, field, update_data[field])
 
     if user_in.organizations:
-        roles = []
-
         for role in user_in.organizations:
-            roles.append(
-                create_or_update_organization_role(db_session=db_session, user=user, role_in=role)
-            )
+            create_or_update_organization_role(db_session=db_session, user=user, role_in=role)
 
     if user_in.projects:
         # we reset the default value for all user projects

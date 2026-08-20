@@ -34,8 +34,8 @@ def get_tag_type(db_session: DbSession, tag_type_id: PrimaryKey):
                 {
                     "type": "value_error",
                     "loc": ("tag_type",),
-                    "msg": "Tag type not found.",
                     "input": tag_type_id,
+                    "ctx": {"error": ValueError("Tag type not found.")},
                 }
             ],
         )
@@ -48,11 +48,14 @@ def create_tag_type(db_session: DbSession, tag_type_in: TagTypeCreate):
     try:
         tag_type = create(db_session=db_session, tag_type_in=tag_type_in)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "TagTypeCreate",
             [
                 {
-                    "msg": "A tag type with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": tag_type_in.name,
+                    "ctx": {"error": ValueError("A tag type with this name already exists.")},
                 }
             ],
         ) from None
@@ -70,8 +73,8 @@ def update_tag_type(db_session: DbSession, tag_type_id: PrimaryKey, tag_type_in:
                 {
                     "type": "value_error",
                     "loc": ("tag_type",),
-                    "msg": "Tag type not found.",
                     "input": tag_type_id,
+                    "ctx": {"error": ValueError("Tag type not found.")},
                 }
             ],
         )
@@ -79,11 +82,14 @@ def update_tag_type(db_session: DbSession, tag_type_id: PrimaryKey, tag_type_in:
     try:
         tag_type = update(db_session=db_session, tag_type=tag_type, tag_type_in=tag_type_in)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "TagTypeUpdate",
             [
                 {
-                    "msg": "A tag type with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": tag_type_in.name,
+                    "ctx": {"error": ValueError("A tag type with this name already exists.")},
                 }
             ],
         ) from None
@@ -101,8 +107,8 @@ def delete_tag_type(db_session: DbSession, tag_type_id: PrimaryKey):
                 {
                     "type": "value_error",
                     "loc": ("tag_type",),
-                    "msg": "Tag type not found.",
                     "input": tag_type_id,
+                    "ctx": {"error": ValueError("Tag type not found.")},
                 }
             ],
         )

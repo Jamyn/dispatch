@@ -126,11 +126,14 @@ def update_organization(
             db_session=db_session, organization=organization, organization_in=organization_in
         )
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "OrganizationUpdate",
             [
                 {
-                    "msg": "An organization with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": organization.name,
+                    "ctx": {"error": ValueError("An organization with this name already exists.")},
                 }
             ],
         ) from None

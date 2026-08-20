@@ -39,13 +39,16 @@ def create_definition(db_session: DbSession, definition_in: DefinitionCreate):
     """Create a new definition."""
     definition = get_by_text(db_session=db_session, text=definition_in.text)
     if definition:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "DefinitionCreate",
             [
                 {
-                    "msg": "A description with this text already exists.",
-                    "loc": "text",
+                    "type": "value_error",
+                    "loc": ("text",),
+                    "input": definition_in.text,
+                    "ctx": {"error": ValueError("A description with this text already exists.")},
                 }
-            ]
+            ],
         )
 
     return create(db_session=db_session, definition_in=definition_in)

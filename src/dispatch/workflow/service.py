@@ -38,13 +38,16 @@ def get_by_name_or_raise(*, db_session: Session, workflow_in: WorkflowRead) -> W
     workflow = get_by_name(db_session=db_session, name=workflow_in.name)
 
     if not workflow:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "WorkflowRead",
             [
                 {
-                    "msg": "Workflow not found.",
-                    "loc": "workflow",
+                    "type": "value_error",
+                    "loc": ("workflow",),
+                    "input": workflow_in.name,
+                    "ctx": {"error": ValueError("Workflow not found.")},
                 }
-            ]
+            ],
         )
     return workflow
 
