@@ -223,18 +223,44 @@ def rsa_keypair():
 
 @pytest.fixture
 def published_jwks(monkeypatch, rsa_keypair):
-    """Serve the keypair's public half where the plugin fetches its JWKS."""
+    """Serve the keypair's public half where the plugin fetches its JWKS.
+
+    The JWKS url has to be set too: with none configured the provider rejects
+    every request before it looks at the token, which would leave the rejection
+    tests below passing for the wrong reason. The key cache is process-global,
+    so it is emptied around each test to keep one test's keys out of the next.
+    """
     import dispatch.plugins.dispatch_core.plugin as core_plugin
 
     _, _, jwks_entry = rsa_keypair
 
     class FakeResponse:
         @staticmethod
+        def raise_for_status():
+            return None
+
+        @staticmethod
         def json():
             return {"keys": [jwks_entry]}
 
     monkeypatch.setattr(core_plugin.requests, "get", lambda *a, **kw: FakeResponse())
-    return jwks_entry
+    monkeypatch.setattr(
+        core_plugin,
+        "DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS",
+        "https://idp.example.com/keys",
+    )
+    core_plugin.jwks_cache.clear()
+    yield jwks_entry
+    core_plugin.jwks_cache.clear()
+
+
+def pkce_claims(**overrides) -> dict:
+    """The minimum an id token needs to be accepted, plus any overrides."""
+    return {
+        "email": "ada@example.com",
+        "exp": int((datetime.utcnow() + timedelta(hours=1)).timestamp()),
+        **overrides,
+    }
 
 
 def pkce_request(token: str) -> Request:
@@ -244,9 +270,7 @@ def pkce_request(token: str) -> Request:
 def test_pkce_accepts_a_token_signed_by_the_published_key(rsa_keypair, published_jwks):
     """The success path: an RS256 token whose kid matches the JWKS."""
     private_pem, _, _ = rsa_keypair
-    token = jwt.encode(
-        {"email": "ada@example.com"}, private_pem, algorithm="RS256", headers={"kid": "test-key"}
-    )
+    token = jwt.encode(pkce_claims(), private_pem, algorithm="RS256", headers={"kid": "test-key"})
 
     assert PKCEAuthProviderPlugin().get_current_user(pkce_request(token)) == "ada@example.com"
 
@@ -271,7 +295,7 @@ def test_pkce_rejects_a_token_signed_with_the_public_key_as_an_hmac_secret(
         return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
     header = b64(json.dumps({"alg": "HS256", "typ": "JWT", "kid": "test-key"}).encode())
-    payload = b64(json.dumps({"email": "attacker@example.com"}).encode())
+    payload = b64(json.dumps(pkce_claims(email="attacker@example.com")).encode())
     signing_input = f"{header}.{payload}".encode()
     signature = b64(hmac.new(public_pem.encode(), signing_input, hashlib.sha256).digest())
     forged = f"{header}.{payload}.{signature}"
@@ -295,7 +319,7 @@ def test_pkce_rejects_a_token_signed_by_a_key_the_provider_does_not_publish(
         serialization.NoEncryption(),
     ).decode()
     forged = jwt.encode(
-        {"email": "attacker@example.com"},
+        pkce_claims(email="attacker@example.com"),
         attacker_pem,
         algorithm="RS256",
         headers={"kid": "test-key"},
@@ -314,7 +338,7 @@ def test_pkce_rejects_a_token_whose_kid_matches_no_published_key(rsa_keypair, pu
     """
     private_pem, _, _ = rsa_keypair
     token = jwt.encode(
-        {"email": "ada@example.com"}, private_pem, algorithm="RS256", headers={"kid": "rotated-out"}
+        pkce_claims(), private_pem, algorithm="RS256", headers={"kid": "rotated-out"}
     )
 
     with pytest.raises(HTTPException) as exc:

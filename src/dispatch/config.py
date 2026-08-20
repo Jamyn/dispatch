@@ -122,12 +122,6 @@ elif DISPATCH_ESCAPE_HTML is None and DISPATCH_MARKDOWN_IN_INCIDENT_DESC:
 DISPATCH_JWT_AUDIENCE = config("DISPATCH_JWT_AUDIENCE", default=None)
 DISPATCH_JWT_EMAIL_OVERRIDE = config("DISPATCH_JWT_EMAIL_OVERRIDE", default=None)
 
-if DISPATCH_AUTHENTICATION_PROVIDER_SLUG == "dispatch-auth-provider-pkce":
-    if not DISPATCH_JWT_AUDIENCE:
-        log.warn("No JWT Audience specified. This is required for IdPs like Okta")
-    if not DISPATCH_JWT_EMAIL_OVERRIDE:
-        log.warn("No JWT Email Override specified. 'email' is expected in the idtoken.")
-
 DISPATCH_JWT_SECRET = config("DISPATCH_JWT_SECRET", default=None)
 DISPATCH_JWT_ALG = config("DISPATCH_JWT_ALG", default="HS256")
 DISPATCH_JWT_EXP = config("DISPATCH_JWT_EXP", cast=int, default=86400)  # Seconds
@@ -144,13 +138,51 @@ DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS = config(
     "DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS", default=None
 )
 
-DISPATCH_PKCE_DONT_VERIFY_AT_HASH = config("DISPATCH_PKCE_DONT_VERIFY_AT_HASH", default=False)
+# The exact `iss` an id token must carry. An identity provider's JWKS is not
+# necessarily scoped to one tenant -- Microsoft Entra ID serves overlapping
+# signing keys across every tenant -- so a valid signature says the token came
+# from that provider, not that it came from *your* directory.
+DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER = config(
+    "DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER", default=None
+)
+
+DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_CACHE_SECONDS = config(
+    "DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_CACHE_SECONDS", cast=int, default=300
+)
+
+DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_TIMEOUT_SECONDS = config(
+    "DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_TIMEOUT_SECONDS", cast=int, default=5
+)
+
+# Tolerance applied to exp/nbf/iat. Zero means any clock drift between this host
+# and the identity provider fails every login with an indistinguishable 401.
+DISPATCH_AUTHENTICATION_PROVIDER_PKCE_LEEWAY_SECONDS = config(
+    "DISPATCH_AUTHENTICATION_PROVIDER_PKCE_LEEWAY_SECONDS", cast=int, default=60
+)
+
+# cast=bool is required: without it "false" arrives as a non-empty string and
+# silently disables at_hash verification -- the opposite of what was asked for.
+DISPATCH_PKCE_DONT_VERIFY_AT_HASH = config(
+    "DISPATCH_PKCE_DONT_VERIFY_AT_HASH", cast=bool, default=False
+)
 
 if DISPATCH_AUTHENTICATION_PROVIDER_SLUG == "dispatch-auth-provider-pkce":
     if not DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS:
-        log.warn(
+        log.warning(
             "No PKCE JWKS url provided, this is required if you are using PKCE authentication."
         )
+    if not DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER:
+        log.warning(
+            "No PKCE issuer specified. Set DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER to the "
+            "exact 'iss' your identity provider mints, or any tenant it serves is accepted."
+        )
+    if not DISPATCH_JWT_AUDIENCE:
+        log.warning(
+            "No JWT Audience specified. Set DISPATCH_JWT_AUDIENCE to the client id the id token "
+            "is issued for; required for IdPs like Okta and Microsoft Entra ID."
+        )
+    if not DISPATCH_JWT_EMAIL_OVERRIDE:
+        log.warning("No JWT Email Override specified. 'email' is expected in the idtoken.")
 
 DISPATCH_AUTHENTICATION_PROVIDER_HEADER_NAME = config(
     "DISPATCH_AUTHENTICATION_PROVIDER_HEADER_NAME", default="remote-user"
