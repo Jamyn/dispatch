@@ -35,9 +35,6 @@ def describe(exception: Exception) -> str:
 class ConfluenceConfiguration(ConfluenceConfigurationBase):
     """Confluence configuration description."""
 
-    template_id: str = Field(
-        title="Incident template ID", description="This is the page id of the template."
-    )
     root_id: str = Field(
         title="Root Incident Storage Page ID",
         description=(
@@ -105,11 +102,16 @@ class ConfluencePagePlugin(StoragePlugin):
             )
 
     def copy_file(self, folder_id: str, file_id: str, name: str):
-        # TODO : This is the function that is responsible for making the incident documents.
+        """Copies the page it is given into the page it is given.
+
+        `file_id` is the template Dispatch resolved for this document -- the
+        incident type's own template, the executive report's, or the form
+        export's. They are different pages, and which one this is is the
+        caller's decision to make.
+        """
         try:
             api = confluence_api(self.configuration)
-            logger.info(f"Copy_file function with args {folder_id}, {file_id}, {name}")
-            template_content = api.get_page(self.configuration.template_id)
+            template_content = api.get_page(file_id)
             page_details = api.create_page(
                 parent_id=folder_id,
                 title=name,
@@ -122,6 +124,14 @@ class ConfluencePagePlugin(StoragePlugin):
             }
         except Exception as e:
             logger.error(f"Exception happened while creating page {name!r}: {describe(e)}")
+
+    def delete_file(self, file_id: str, **kwargs):
+        """Removes a page and everything filed beneath it.
+
+        Failures are left to `delete_storage`, which logs them: swallowing one
+        here would report storage as cleaned up when it is still there.
+        """
+        confluence_api(self.configuration).delete_page(file_id)
 
     def move_file(self, new_folder_id: str, file_id: str, **kwargs):
         """Moves a file from one place to another. Not used in the plugin,

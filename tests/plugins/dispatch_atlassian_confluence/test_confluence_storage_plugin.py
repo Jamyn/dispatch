@@ -1,7 +1,10 @@
 """What ConfluencePagePlugin actually sends and returns, per platform (#214, #242)."""
 
 import pytest
+from atlassian.errors import ApiError
+from requests import HTTPError
 
+from dispatch.plugins.dispatch_atlassian_confluence.client import ConfluenceError
 from tests.plugins.dispatch_atlassian_confluence.conftest import storage_plugin
 from tests.plugins.dispatch_atlassian_confluence.fake_confluence import (
     REPORTED_BASE,
@@ -207,26 +210,33 @@ def test_copy_file_sends_the_template_storage_body_not_the_body_object(confluenc
     object nests a dict under `body.storage.value`, which both APIs reject."""
     plugin = storage_plugin(hosting_type)
 
-    plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id="ignored", name="Incident Review")
+    plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id=TEMPLATE_ID, name="Incident Review")
 
     created = confluence.last("POST").body["body"]["storage"]["value"]
     assert created == TEMPLATE_BODY
     assert isinstance(created, str)
 
 
-def test_copy_file_reads_the_configured_template(confluence, hosting_type):
+def test_copy_file_copies_the_template_it_was_given(confluence, hosting_type):
+    """Dispatch resolves a different template per document -- the incident
+    type's, the executive report's, the form export's -- and passes it as
+    `file_id`. The plugin used to ignore it and copy one configured page, so
+    every executive report was a copy of the incident template."""
     plugin = storage_plugin(hosting_type)
 
-    plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id="ignored", name="Incident Review")
+    plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id=ROOT_PAGE_ID, name="Executive Report")
 
-    assert any(TEMPLATE_ID in r.path for r in confluence.requests if r.method == "GET")
+    read = [r.path for r in confluence.requests if r.method == "GET"]
+    assert any(ROOT_PAGE_ID in path for path in read)
+    assert not any(TEMPLATE_ID in path for path in read)
+    assert confluence.last("POST").body["body"]["storage"]["value"] == "<p>Incident home</p>"
 
 
 def test_copy_file_creates_the_page_under_the_given_folder(confluence, hosting_type):
     plugin = storage_plugin(hosting_type)
     incident = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
 
-    result = plugin.copy_file(folder_id=incident["id"], file_id="ignored", name="Incident Review")
+    result = plugin.copy_file(folder_id=incident["id"], file_id=TEMPLATE_ID, name="Incident Review")
 
     request = confluence.last("POST")
     if hosting_type == "cloud":
@@ -244,7 +254,7 @@ def test_copy_file_links_to_the_new_page_not_the_template(confluence, hosting_ty
     persisted as the document's own link."""
     plugin = storage_plugin(hosting_type)
 
-    result = plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id="ignored", name="Incident Review")
+    result = plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id=TEMPLATE_ID, name="Incident Review")
 
     assert result["id"] in result["weblink"] or "Incident+Review" in result["weblink"]
     assert TEMPLATE_ID not in result["weblink"]
@@ -258,7 +268,7 @@ def test_copy_file_needs_no_second_call_to_place_the_page(confluence, hosting_ty
     raise on 4xx, so the move only ever failed silently."""
     plugin = storage_plugin(hosting_type)
 
-    plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id="ignored", name="Incident Review")
+    plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id=TEMPLATE_ID, name="Incident Review")
 
     assert all("/move/" not in request.path for request in confluence.requests)
     assert all(request.method != "PUT" for request in confluence.requests)
@@ -284,7 +294,10 @@ def test_copy_file_returns_none_and_logs_when_confluence_fails(
     plugin = storage_plugin(hosting_type)
     confluence.fail_with(status)
 
-    assert plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id="x", name="Incident Review") is None
+    assert (
+        plugin.copy_file(folder_id=ROOT_PAGE_ID, file_id=TEMPLATE_ID, name="Incident Review")
+        is None
+    )
     assert "Exception happened while creating page" in caplog.text
 
 
@@ -427,3 +440,63 @@ def test_cloud_failures_are_logged_with_something_actionable(confluence, caplog)
     assert plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident") is None
 
     assert "403" in caplog.text
+
+
+# -- deleting storage -------------------------------------------------------
+
+
+def test_delete_file_removes_the_page(confluence, hosting_type):
+    plugin = storage_plugin(hosting_type)
+    incident = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+
+    plugin.delete_file(file_id=incident["id"])
+
+    assert incident["id"] not in confluence.pages
+
+
+def test_delete_file_takes_the_whole_incident_with_it(confluence, hosting_type):
+    """Cloud re-parents a deleted page's children onto its grandparent rather
+    than removing them, so a delete that does not walk the tree leaves Logs,
+    Screengrabs and every document sitting on the storage root."""
+    plugin = storage_plugin(hosting_type)
+    incident = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+    logs = plugin.create_file(parent_id=incident["id"], name="Logs")
+    document = plugin.copy_file(folder_id=logs["id"], file_id=TEMPLATE_ID, name="Incident Document")
+
+    plugin.delete_file(file_id=incident["id"])
+
+    for page_id in (incident["id"], logs["id"], document["id"]):
+        assert page_id not in confluence.pages
+    assert ROOT_PAGE_ID in confluence.pages
+
+
+def test_delete_file_leaves_the_rest_of_the_space_alone(confluence, hosting_type):
+    plugin = storage_plugin(hosting_type)
+    keep = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Another Incident")
+    keep_logs = plugin.create_file(parent_id=keep["id"], name="Logs")
+    remove = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+
+    plugin.delete_file(file_id=remove["id"])
+
+    assert keep["id"] in confluence.pages
+    assert keep_logs["id"] in confluence.pages
+    assert TEMPLATE_ID in confluence.pages
+
+
+@pytest.mark.parametrize("methods", [(), ("DELETE",)])
+def test_delete_file_reports_a_failure_rather_than_swallowing_it(confluence, hosting_type, methods):
+    """`delete_storage` logs what this raises. Returning quietly would report
+    storage as cleaned up while the pages are still there.
+
+    Refusing only the DELETE is the case that matters: the v1 client issues it
+    in a mode that skips raise_for_status, so the refusal arrives as a status
+    code rather than an exception."""
+    plugin = storage_plugin(hosting_type)
+    incident = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+    confluence.fail_with(403, methods=methods)
+
+    # Cloud raises from the client, Server returns a status the wrapper turns
+    # into one, and a refused listing raises before either.
+    with pytest.raises((HTTPError, ApiError, ConfluenceError)):
+        plugin.delete_file(file_id=incident["id"])
+    assert incident["id"] in confluence.pages
