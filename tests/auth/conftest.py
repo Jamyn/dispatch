@@ -80,3 +80,38 @@ def api_client(session):
     from dispatch.main import api
 
     return TestClient(api)
+
+
+@pytest.fixture
+def signing_keys():
+    """Two RSA keypairs published under one JWKS, as a rotation window looks."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from jose import jwk
+
+    def keypair(kid):
+        private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem = private.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ).decode()
+        public_pem = (
+            private.public_key()
+            .public_bytes(
+                serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            .decode()
+        )
+        entry = {**jwk.construct(public_pem, "RS256").to_dict(), "kid": kid, "alg": "RS256"}
+        # to_dict returns bytes for the modulus and exponent; the real endpoint
+        # serves JSON, so hand the plugin the same str shape it would see.
+        entry = {k: v.decode() if isinstance(v, bytes) else v for k, v in entry.items()}
+        return pem, entry
+
+    current_pem, current_jwk = keypair("current-key")
+    next_pem, next_jwk = keypair("next-key")
+    return {
+        "current": (current_pem, current_jwk),
+        "next": (next_pem, next_jwk),
+    }

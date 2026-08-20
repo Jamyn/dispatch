@@ -89,11 +89,14 @@ For this plugin to work, you need to set `DISPATCH_JWT_SECRET`.
 
 #### `DISPATCH_JWT_AUDIENCE`
 
-> Override what the `Audience` is expected to be in the PKCE JWT decode
+> The `aud` the PKCE provider requires an id token to carry — normally the OIDC
+> client id. Tokens issued for a different application are rejected. If your
+> provider sets `aud` and this is unset, every token is rejected.
 
 #### `DISPATCH_JWT_EMAIL_OVERRIDE`
 
-> Override where Dispatch should find the user email in the idtoken.
+> Override where Dispatch should find the user email in the idtoken. Defaults to
+> the `email` claim. A token with no value for the configured claim is rejected.
 
 #### `DISPATCH_AUTHENTICATION_DEFAULT_USER` \['default': dispatch@example.com\]
 
@@ -101,9 +104,18 @@ For this plugin to work, you need to set `DISPATCH_JWT_SECRET`.
 
 #### Configuration for `dispatch-auth-provider-pkce`
 
+This is Dispatch's generic OpenID Connect provider. It authenticates the browser
+with the authorization code flow plus PKCE, and validates the resulting token on
+every API request. It works with any spec-compliant OIDC provider — Okta, Google,
+Keycloak, Microsoft Entra ID. For a worked Entra example see
+[Authenticating with Microsoft Entra ID](authentication-entra-id).
+
 :::info
-For this plugin to work with your OIDC setup, you may need to set
-`DISPATCH_JWT_AUDIENCE` and `DISPATCH_PKCE_DONT_VERIFY_AT_HASH`.
+For this plugin to work with your OIDC setup, you need to set
+`DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS`,
+`DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER` and `DISPATCH_JWT_AUDIENCE`. You
+may additionally need `DISPATCH_JWT_EMAIL_OVERRIDE` and
+`DISPATCH_PKCE_DONT_VERIFY_AT_HASH`, depending on what your provider issues.
 :::
 
 #### `DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS`
@@ -112,10 +124,49 @@ For this plugin to work with your OIDC setup, you may need to set
 > This will likely be the `jwks_uri` URL from your OIDC provider.
 > This is required when using the `dispatch-auth-provider-pkce` auth provider.
 
+#### `DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER`
+
+> The exact `iss` value your provider mints, for example
+> `https://login.microsoftonline.com/<tenant-id>/v2.0`. Tokens carrying any other
+> issuer are rejected.
+
+:::warning
+Leaving this unset accepts any issuer whose signature the configured JWKS
+validates. Some providers — Microsoft Entra ID among them — sign every tenant's
+tokens with a shared key set, so without an expected issuer a valid signature
+does not establish which directory the user came from. Dispatch logs a warning at
+startup when the PKCE provider is selected and this is unset. It has no default so
+that existing deployments keep working, but a new deployment should always set it.
+:::
+
+#### `DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_CACHE_SECONDS` \['default': 300\]
+
+> How long the provider's signing keys are cached. Keys are also refetched
+> immediately when a token arrives with a key id Dispatch has not seen, so a
+> rotated signing key is picked up without waiting for this to expire.
+
+#### `DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_TIMEOUT_SECONDS` \['default': 5\]
+
+> Request timeout when fetching the JWKS. If the fetch fails and keys are already
+> cached, the cached keys keep being used rather than failing every request for
+> the duration of the provider's outage.
+
+#### `DISPATCH_AUTHENTICATION_PROVIDER_PKCE_LEEWAY_SECONDS` \['default': 60\]
+
+> Clock skew tolerated when checking `exp`, `nbf` and `iat`. Set to `0` to require
+> exact agreement with the identity provider's clock.
+
 #### `DISPATCH_PKCE_DONT_VERIFY_AT_HASH` \['default': false\]
 
 > Depending on what values your OIDC provider sends, you may need to set this to `true` for the Dispatch backend
-> to be able to decode the JWT token.
+> to be able to decode the JWT token. Accepts `true`/`false` (or `1`/`0`) only;
+> any other value is rejected at startup.
+
+:::info
+Microsoft Entra ID emits `at_hash` only from its `/authorize` endpoint, never from
+the code-for-token exchange this flow uses, so an Entra deployment does not need
+this setting.
+:::
 
 #### `DISPATCH_AUTHENTICATION_PROVIDER_PKCE_OPEN_ID_CONNECT_URL`
 
