@@ -269,6 +269,35 @@ def test_a_page_cannot_be_created_under_a_page_that_does_not_exist(live):
     assert live.storage.create_file(parent_id="1", name=live.title("orphan")) is None
 
 
+def test_deleting_storage_takes_the_whole_incident_with_it(live):
+    """Cloud trashes only the page named and re-parents its children onto the
+    grandparent, leaving them current -- observed here, and the reason
+    `delete_page` walks the tree rather than calling the API once."""
+    incident = live.track(
+        live.storage.create_file(parent_id=live.root_id, name=live.title("incident"))
+    )
+    logs = live.track(live.storage.create_file(parent_id=incident["id"], name="Logs"))
+    document = live.track(
+        live.storage.copy_file(
+            folder_id=logs["id"], file_id=live.settings["template_id"], name=live.title("doc")
+        )
+    )
+
+    live.storage.delete_file(file_id=incident["id"])
+
+    for page_id in (document["id"], logs["id"], incident["id"]):
+        assert _is_gone(live, page_id), f"{page_id} survived the delete"
+    assert live.api.get_page(live.root_id)["id"] == live.root_id
+
+
+def _is_gone(live, page_id: str) -> bool:
+    """Trashed counts as gone: Cloud's delete is a soft delete."""
+    try:
+        return live.api.get_page(page_id).get("status") == "trashed"
+    except HTTPError as exception:
+        return exception.response is not None and exception.response.status_code in (404, 400)
+
+
 # -- inferences from the schema that only a real instance can settle ---------
 
 

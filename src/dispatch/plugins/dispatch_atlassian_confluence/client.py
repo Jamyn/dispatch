@@ -26,6 +26,10 @@ from dispatch.plugins.dispatch_atlassian_confluence.config import (
 )
 
 
+class ConfluenceError(Exception):
+    """A refusal the 5.x client reports without raising one of its own."""
+
+
 class ConfluenceApi:
     """The Confluence operations Dispatch performs, over one 5.x client."""
 
@@ -88,6 +92,10 @@ class ConfluenceApi:
     def get_page(self, page_id: str) -> dict:
         raise NotImplementedError
 
+    def delete_page(self, page_id: str) -> None:
+        """Removes a page and everything filed beneath it."""
+        raise NotImplementedError
+
     def update_page(self, *, page: dict, body: str) -> dict:
         """Rewrites the body of a page already read with ``get_page``.
 
@@ -144,6 +152,22 @@ class CloudApi(ConfluenceApi):
     def get_page(self, page_id: str) -> dict:
         return self.client.get_page_by_id(page_id, body_format="storage")
 
+    def delete_page(self, page_id: str) -> None:
+        # Cloud trashes only the page it is given and re-parents the children
+        # onto their grandparent, so an incident's sub-pages would resurface on
+        # the storage root. Depth-first, and each level is listed in full
+        # before any of it is removed.
+        for child_id in self._child_ids(page_id):
+            self.delete_page(child_id)
+        self.client.delete_page(page_id)
+
+    def _child_ids(self, page_id: str) -> list[str]:
+        # Not get_child_pages: it addresses `/children/page`, which is not an
+        # endpoint, and asks for the body-format the API rejects. Its paging
+        # helper is sound, though, and cursors are not worth restating.
+        children = self.client._get_paged(f"api/v2/pages/{page_id}/children", params={"limit": 250})
+        return [child["id"] for child in children]
+
     def update_page(self, *, page: dict, body: str) -> dict:
         # PageUpdateRequest requires id, status, title, body and version, and
         # the client sends `status` only when asked to. Supplying `version` is
@@ -193,6 +217,18 @@ class ServerApi(ConfluenceApi):
 
     def get_page(self, page_id: str) -> dict:
         return self.client.get_page_by_id(page_id, expand="body.storage", status=None, version=None)
+
+    def delete_page(self, page_id: str) -> None:
+        # Not remove_page(recursive=True): it issues the DELETE in advanced
+        # mode, which skips raise_for_status, so its own error handling never
+        # runs and a refusal comes back as a status code nobody reads. Each
+        # level is listed in full before any of it goes -- the collection
+        # shifts under a paged read otherwise.
+        for child in list(self.client.get_page_child_by_type(page_id)):
+            self.delete_page(child["id"])
+        status = self.client.remove_page(page_id)
+        if not 200 <= status < 300:
+            raise ConfluenceError(f"Confluence refused to delete page {page_id}: HTTP {status}")
 
     def update_page(self, *, page: dict, body: str) -> dict:
         # v1 reads the version from the page's history itself.

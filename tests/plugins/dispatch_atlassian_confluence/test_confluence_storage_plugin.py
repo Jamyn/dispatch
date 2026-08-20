@@ -1,7 +1,10 @@
 """What ConfluencePagePlugin actually sends and returns, per platform (#214, #242)."""
 
 import pytest
+from atlassian.errors import ApiError
+from requests import HTTPError
 
+from dispatch.plugins.dispatch_atlassian_confluence.client import ConfluenceError
 from tests.plugins.dispatch_atlassian_confluence.conftest import storage_plugin
 from tests.plugins.dispatch_atlassian_confluence.fake_confluence import (
     REPORTED_BASE,
@@ -437,3 +440,63 @@ def test_cloud_failures_are_logged_with_something_actionable(confluence, caplog)
     assert plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident") is None
 
     assert "403" in caplog.text
+
+
+# -- deleting storage -------------------------------------------------------
+
+
+def test_delete_file_removes_the_page(confluence, hosting_type):
+    plugin = storage_plugin(hosting_type)
+    incident = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+
+    plugin.delete_file(file_id=incident["id"])
+
+    assert incident["id"] not in confluence.pages
+
+
+def test_delete_file_takes_the_whole_incident_with_it(confluence, hosting_type):
+    """Cloud re-parents a deleted page's children onto its grandparent rather
+    than removing them, so a delete that does not walk the tree leaves Logs,
+    Screengrabs and every document sitting on the storage root."""
+    plugin = storage_plugin(hosting_type)
+    incident = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+    logs = plugin.create_file(parent_id=incident["id"], name="Logs")
+    document = plugin.copy_file(folder_id=logs["id"], file_id=TEMPLATE_ID, name="Incident Document")
+
+    plugin.delete_file(file_id=incident["id"])
+
+    for page_id in (incident["id"], logs["id"], document["id"]):
+        assert page_id not in confluence.pages
+    assert ROOT_PAGE_ID in confluence.pages
+
+
+def test_delete_file_leaves_the_rest_of_the_space_alone(confluence, hosting_type):
+    plugin = storage_plugin(hosting_type)
+    keep = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Another Incident")
+    keep_logs = plugin.create_file(parent_id=keep["id"], name="Logs")
+    remove = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+
+    plugin.delete_file(file_id=remove["id"])
+
+    assert keep["id"] in confluence.pages
+    assert keep_logs["id"] in confluence.pages
+    assert TEMPLATE_ID in confluence.pages
+
+
+@pytest.mark.parametrize("methods", [(), ("DELETE",)])
+def test_delete_file_reports_a_failure_rather_than_swallowing_it(confluence, hosting_type, methods):
+    """`delete_storage` logs what this raises. Returning quietly would report
+    storage as cleaned up while the pages are still there.
+
+    Refusing only the DELETE is the case that matters: the v1 client issues it
+    in a mode that skips raise_for_status, so the refusal arrives as a status
+    code rather than an exception."""
+    plugin = storage_plugin(hosting_type)
+    incident = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+    confluence.fail_with(403, methods=methods)
+
+    # Cloud raises from the client, Server returns a status the wrapper turns
+    # into one, and a refused listing raises before either.
+    with pytest.raises((HTTPError, ApiError, ConfluenceError)):
+        plugin.delete_file(file_id=incident["id"])
+    assert incident["id"] in confluence.pages

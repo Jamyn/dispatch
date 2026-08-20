@@ -175,8 +175,10 @@ class FakeConfluence:
     def __init__(self):
         self.requests = []
         self.failure = None
+        self.failing_methods = ()
         self.omit_webui = False
         self.next_id = 900001
+        self.deleted = []
         self.pages = {
             ROOT_PAGE_ID: Page(ROOT_PAGE_ID, "Incidents", "<p>Incident home</p>"),
             TEMPLATE_ID: Page(TEMPLATE_ID, "Incident Template", TEMPLATE_BODY),
@@ -184,9 +186,14 @@ class FakeConfluence:
 
     # -- what comes back ---------------------------------------------------
 
-    def fail_with(self, status: int, body: dict | None = None):
-        """Every subsequent request fails, in Confluence's error envelope."""
+    def fail_with(self, status: int, body: dict | None = None, methods: tuple = ()):
+        """Subsequent requests fail, in Confluence's error envelope.
+
+        ``methods`` narrows it to those verbs, which is the only way to reach
+        a refusal of the delete itself rather than of the read before it.
+        """
         self.failure = (status, body if body is not None else {"message": "boom"})
+        self.failing_methods = methods
 
     def page(self, page_id: str) -> Page:
         """The stored page, for asserting on where it ended up."""
@@ -219,10 +226,19 @@ class FakeConfluence:
     # -- the routes --------------------------------------------------------
 
     def handle(self, request: Request):
-        if self.failure:
+        if self.failure and request.method in (self.failing_methods or (request.method,)):
             return self.failure
 
         path, method = request.path, request.method
+
+        if path.endswith("/children") and method == "GET":
+            return self._children(path.split("/")[-2])
+        if path.endswith("/child/page") and method == "GET":
+            return self._children(path.split("/")[-3])
+        if "/api/v2/pages/" in path and method == "DELETE":
+            return self._delete(path.rsplit("/", 1)[1], reparent=True)
+        if "/rest/api/content/" in path and method == "DELETE":
+            return self._delete(path.rsplit("/", 1)[1], reparent=False)
 
         # v2 (Cloud). Matched on the API path alone: the context path in front
         # of it is /wiki for a tenant URL and /ex/confluence/{cloudId} for a
@@ -249,6 +265,30 @@ class FakeConfluence:
             return self._v1_update(request)
 
         return 404, {"message": f"no route for {method} {path}"}
+
+    def _children(self, page_id):
+        if page_id not in self.pages:
+            return 404, {"message": "page not found"}
+        kids = [page for page in self.pages.values() if page.parent_id == page_id]
+        return 200, {"results": [{"id": page.id, "title": page.title} for page in kids]}
+
+    def _delete(self, page_id, *, reparent: bool):
+        """Removes one page, as Confluence removes one page.
+
+        Cloud re-parents the children onto the grandparent and leaves them
+        current -- observed against a real site -- so a delete that does not
+        walk the tree strands an incident's sub-pages on the storage root.
+        Server's client walks the tree itself.
+        """
+        page = self.pages.pop(page_id, None)
+        if page is None:
+            return 404, {"message": "page not found"}
+        if reparent:
+            for orphan in self.pages.values():
+                if orphan.parent_id == page_id:
+                    orphan.parent_id = page.parent_id
+        self.deleted.append(page_id)
+        return 204, {}
 
     # -- v2 ----------------------------------------------------------------
 

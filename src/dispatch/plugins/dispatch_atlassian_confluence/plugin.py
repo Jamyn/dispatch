@@ -125,6 +125,14 @@ class ConfluencePagePlugin(StoragePlugin):
         except Exception as e:
             logger.error(f"Exception happened while creating page {name!r}: {describe(e)}")
 
+    def delete_file(self, file_id: str, **kwargs):
+        """Removes a page and everything filed beneath it.
+
+        Failures are left to `delete_storage`, which logs them: swallowing one
+        here would report storage as cleaned up when it is still there.
+        """
+        confluence_api(self.configuration).delete_page(file_id)
+
     def move_file(self, new_folder_id: str, file_id: str, **kwargs):
         """Moves a file from one place to another. Not used in the plugin,
         keeping the body as the interface is needed to avoid exceptions.
