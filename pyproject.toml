@@ -56,7 +56,7 @@ dependencies = [
     "h11",
     "httpx",
     "jinja2",
-    "jira",
+    "jira==3.10.5",
     "joblib",
     "jsonpath_ng",
     "lxml==6.1.1",
