@@ -29,6 +29,16 @@ class ConfluenceApi:
             password=configuration.password.get_secret_value(),
         )
 
+    @property
+    def site_url(self) -> str:
+        """The configured site, without a trailing slash.
+
+        AnyHttpUrl only appends one when the path is empty, so a Server
+        instance under a context path would otherwise be concatenated straight
+        onto the next path segment.
+        """
+        return str(self.configuration.api_url).rstrip("/")
+
 
 class CloudApi(ConfluenceApi):
     """Confluence Cloud, over the REST v2 API.
@@ -55,12 +65,21 @@ class CloudApi(ConfluenceApi):
         return self.client.get_page_by_id(page_id, body_format="storage")
 
     def update_page(self, *, page_id: str, title: str, body: str) -> dict:
+        # v2's PageUpdateRequest requires id, status, title, body and version.
+        # The client sends `status` only when asked to, so omitting it here
+        # produces a payload the API rejects.
         return self.client.update_page(
-            page_id=page_id, title=title, body=body, body_format="storage"
+            page_id=page_id, title=title, body=body, body_format="storage", status="current"
         )
 
+    @property
+    def site_url(self) -> str:
+        # The client appends /wiki itself, so an operator who already included
+        # it would otherwise get it twice in every weblink.
+        return super().site_url.removesuffix("/wiki")
+
     def page_weblink(self, *, space: str, page_id: str, title: str) -> str:
-        return f"{self.configuration.api_url}wiki/spaces/{space}/pages/{page_id}/{title}"
+        return f"{self.site_url}/wiki/spaces/{space}/pages/{page_id}/{title}"
 
 
 class ServerApi(ConfluenceApi):
@@ -103,7 +122,7 @@ class ServerApi(ConfluenceApi):
     def page_weblink(self, *, space: str, page_id: str, title: str) -> str:
         # Server has no /wiki context path, and addressing by page id avoids
         # having to encode the space key and title into the path.
-        return f"{self.configuration.api_url}pages/viewpage.action?pageId={page_id}"
+        return f"{self.site_url}/pages/viewpage.action?pageId={page_id}"
 
 
 APIS = {HostingType.cloud: CloudApi, HostingType.server: ServerApi}

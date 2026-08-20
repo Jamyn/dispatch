@@ -13,6 +13,7 @@ deployment type reaches the right one.
 """
 
 import json
+from urllib.parse import parse_qsl, urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -36,6 +37,13 @@ PARENT_ID = "222222"
 ROOT_PAGE_ID = "333333"
 
 TEMPLATE_BODY = "<p>Commander: {{commander}} Status: {{status}}</p>"
+
+# Straight out of Atlassian's published v2 OpenAPI spec
+# (developer.atlassian.com/cloud/confluence/openapi-v2.v3.json): the client
+# sends only what it is told to, so a wrapper that omits one of these builds a
+# request the API rejects and no amount of method-level mocking would notice.
+V2_CREATE_REQUIRED = ("spaceId",)
+V2_UPDATE_REQUIRED = ("id", "status", "title", "body", "version")
 
 
 def build_configuration(hosting_type: str, **overrides):
@@ -77,8 +85,10 @@ class Request:
     def __init__(self, prepared):
         self.method = prepared.method
         self.url = prepared.url
-        self.path = requests.utils.urlparse(prepared.url).path
-        self.query = requests.utils.urlparse(prepared.url).query
+        parsed = urlparse(prepared.url)
+        self.path = parsed.path
+        self.query = parsed.query
+        self.params = dict(parse_qsl(parsed.query))
         self.headers = prepared.headers
         self.body = json.loads(prepared.body) if prepared.body else None
 
@@ -114,19 +124,32 @@ class FakeConfluence:
         path, method = request.path, request.method
 
         # v2 (Cloud)
-        if path == "/wiki/api/v2/spaces" and method == "GET":
-            return 200, {"results": [{"id": SPACE_ID, "key": SPACE_KEY, "name": "Incidents"}]}
-        if path == "/wiki/api/v2/pages" and method == "POST":
+        if path.endswith("/wiki/api/v2/spaces") and method == "GET":
+            # Honours the keys filter, so a page id sent where a space key
+            # belongs comes back empty, as it would from real Confluence.
+            keys = request.params.get("keys", "").split(",")
+            found = [{"id": SPACE_ID, "key": SPACE_KEY, "name": "Incidents"}]
+            return 200, {"results": found if SPACE_KEY in keys else []}
+        if path.endswith("/wiki/api/v2/pages") and method == "POST":
+            # PageCreateRequest requires spaceId, and the space must exist.
+            missing = self._missing(request.body, V2_CREATE_REQUIRED)
+            if missing:
+                return 400, {"errors": [{"title": f"missing required field(s): {missing}"}]}
+            if request.body["spaceId"] != str(SPACE_ID):
+                return 404, {"errors": [{"title": "space not found"}]}
             return 200, self._v2_page(
                 page_id="900001",
                 title=request.body["title"],
                 body=request.body["body"]["storage"]["value"],
             )
-        if path.startswith("/wiki/api/v2/pages/") and method == "GET":
+        if "/wiki/api/v2/pages/" in path and method == "GET":
             return 200, self._v2_page(
                 page_id=path.rsplit("/", 1)[1], title="Incident Template", body=TEMPLATE_BODY
             )
-        if path.startswith("/wiki/api/v2/pages/") and method == "PUT":
+        if "/wiki/api/v2/pages/" in path and method == "PUT":
+            missing = self._missing(request.body, V2_UPDATE_REQUIRED)
+            if missing:
+                return 400, {"errors": [{"title": f"missing required field(s): {missing}"}]}
             return 200, self._v2_page(
                 page_id=path.rsplit("/", 1)[1],
                 title=request.body["title"],
@@ -143,17 +166,19 @@ class FakeConfluence:
         if path.endswith("/history") and method == "GET":
             # update_page reads the current version from here before its PUT.
             return 200, {"lastUpdated": {"number": 1}}
-        if path.rstrip("/") == "/rest/api/content" and method == "POST":
+        if path.rstrip("/").endswith("/rest/api/content") and method == "POST":
+            if request.body["space"]["key"] != SPACE_KEY:
+                return 400, {"message": f"unknown space key {request.body['space']['key']}"}
             return 200, self._v1_page(
                 page_id="900001",
                 title=request.body["title"],
                 body=request.body["body"]["storage"]["value"],
             )
-        if path.startswith("/rest/api/content/") and method == "GET":
+        if "/rest/api/content/" in path and method == "GET":
             return 200, self._v1_page(
                 page_id=path.rsplit("/", 1)[1], title="Incident Template", body=TEMPLATE_BODY
             )
-        if path.startswith("/rest/api/content/") and method == "PUT":
+        if "/rest/api/content/" in path and method == "PUT":
             return 200, self._v1_page(
                 page_id=path.rsplit("/", 1)[1],
                 title=request.body["title"],
@@ -162,6 +187,10 @@ class FakeConfluence:
             )
 
         return 404, {"message": f"no route for {method} {path}"}
+
+    @staticmethod
+    def _missing(body, required):
+        return sorted(field for field in required if not body.get(field))
 
     @staticmethod
     def _v2_page(*, page_id, title, body, version=1):

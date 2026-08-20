@@ -1,6 +1,7 @@
 """What ConfluencePageDocPlugin actually substitutes and sends (#214)."""
 
 import pytest
+from atlassian.errors import ApiError
 from requests import HTTPError
 
 from tests.plugins.dispatch_atlassian_confluence.conftest import document_plugin
@@ -77,14 +78,40 @@ def test_update_returns_the_updated_page(confluence, hosting_type):
     assert result["body"]["storage"]["value"] == "<p>Commander: Ada Lovelace Status: {{status}}</p>"
 
 
-def test_update_propagates_confluence_failures(confluence, hosting_type):
+@pytest.mark.parametrize("status", [403, 404, 500])
+def test_update_propagates_confluence_failures(confluence, hosting_type, status):
     """`DocumentPlugin.update` has no except of its own, and its callers treat a
     raised error as the document flow failing. Swallowing it here would report
-    an unsubstituted document as successfully written."""
-    plugin = document_plugin(hosting_type)
-    confluence.fail_with(500)
+    an unsubstituted document as successfully written.
 
-    with pytest.raises(HTTPError):
+    Both exception families are accepted because the two clients differ: the
+    Server client translates 403/404 into atlassian's own ApiError subclasses,
+    while the Cloud client lets requests' HTTPError through.
+    """
+    plugin = document_plugin(hosting_type)
+    confluence.fail_with(status)
+
+    with pytest.raises((HTTPError, ApiError)):
         plugin.update(ROOT_PAGE_ID, commander="Ada Lovelace")
 
     assert all(request.method != "PUT" for request in confluence.requests)
+
+
+def test_server_skips_the_write_when_nothing_changed(confluence):
+    """A documented platform difference: the v1 client compares the stored body
+    first and returns without a PUT when it matches, where v2 always writes."""
+    plugin = document_plugin("server")
+
+    plugin.update(ROOT_PAGE_ID, commander="")
+
+    assert all(request.method != "PUT" for request in confluence.requests)
+
+
+def test_cloud_writes_even_when_nothing_changed(confluence):
+    plugin = document_plugin("cloud")
+
+    plugin.update(ROOT_PAGE_ID, commander="")
+
+    assert confluence.last("PUT").body["body"]["storage"]["value"] == (
+        "<p>Commander: {{commander}} Status: {{status}}</p>"
+    )

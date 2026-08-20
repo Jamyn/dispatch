@@ -12,6 +12,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def describe(exception: Exception) -> str:
+    """Renders an exception that may carry nothing but a response.
+
+    The Cloud client's raise_for_status does not understand v2's error
+    envelope, so HTTPError arrives with an empty message and the status is the
+    only thing left to report. The body is deliberately not included: it is not
+    audited for what a Confluence error may quote back.
+    """
+    response = getattr(exception, "response", None)
+    if str(exception) or response is None:
+        return str(exception)
+    return f"HTTP {response.status_code} {response.reason}"
+
+
 # TODO : Use the common config from the root directory.
 class ConfluenceConfiguration(ConfluenceConfigurationBase):
     """Confluence configuration description."""
@@ -79,7 +93,7 @@ class ConfluencePagePlugin(StoragePlugin):
                 "description": "",
             }
         except Exception as e:
-            logger.error(f"Exception happened while creating page: {e}")
+            logger.error(f"Exception happened while creating page: {describe(e)}")
 
     def copy_file(self, folder_id: str, file_id: str, name: str):
         # TODO : This is the function that is responsible for making the incident documents.
@@ -98,13 +112,13 @@ class ConfluencePagePlugin(StoragePlugin):
                 self.move_file_confluence(page_id_to_move=page_details["id"], parent_id=folder_id)
             return {
                 "weblink": api.page_weblink(
-                    space=folder_id, page_id=page_details["id"], title=name
+                    space=self.configuration.root_id, page_id=page_details["id"], title=name
                 ),
                 "id": page_details["id"],
                 "name": name,
             }
         except Exception as e:
-            logger.error(f"Exception happened while creating page: {e}")
+            logger.error(f"Exception happened while creating page: {describe(e)}")
 
     def move_file(self, new_folder_id: str, file_id: str, **kwargs):
         """Moves a file from one place to another. Not used in the plugin,
@@ -121,4 +135,4 @@ class ConfluencePagePlugin(StoragePlugin):
             response = requests.request("PUT", url, headers=headers, auth=auth)
             return response
         except Exception as e:
-            logger.error(f"Exception happened while moving page: {e}")
+            logger.error(f"Exception happened while moving page: {describe(e)}")
