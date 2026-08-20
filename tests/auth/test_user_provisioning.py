@@ -9,7 +9,10 @@ because auth_service.create resolves the default project with one_or_none() --
 a second default in the same schema makes it raise rather than choose.
 """
 
+import warnings
+
 import pytest
+from sqlalchemy.exc import SAWarning
 
 from dispatch.auth import service as auth_service
 from dispatch.auth.models import UserCreate, UserOrganization, UserRegister, UserUpdate
@@ -365,3 +368,33 @@ def test_a_role_stated_inside_organizations_is_honoured_too(session, default_org
 
     assert user.get_organization_role(default_organization.slug) == UserRoles.owner
     assert user.is_owner(default_organization.slug)
+
+
+def test_creating_a_user_never_flushes_the_organization_role_while_it_is_orphaned(
+    session, default_organization
+):
+    """The association row must be reachable from the session before any flush.
+
+    `create` attaches DispatchUserOrganization to an already-persistent
+    Organization via the backref. SQLAlchemy 2.0 dropped save-update cascade
+    along backrefs, so any autoflush between that append and `db_session.add`
+    finds the association reachable only from the Organization, warns, and
+    skips it.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SAWarning)
+        user = auth_service.create(
+            db_session=session,
+            organization=default_organization.slug,
+            user_in=UserRegister(
+                email="cli-registered@example.com",
+                organizations=[
+                    UserOrganization(
+                        role=UserRoles.owner,
+                        organization={"name": default_organization.slug},
+                    )
+                ],
+            ),
+        )
+
+    assert user.get_organization_role(default_organization.slug) == UserRoles.owner

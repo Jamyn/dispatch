@@ -183,6 +183,10 @@ def create(*, db_session, organization: str, user_in: (UserRegister | UserCreate
         **user_in.model_dump(exclude={"password", "organizations", "projects", "role"}),
         password=password,
     )
+    # Before the association below, not after: SQLAlchemy 2.0 dropped save-update
+    # cascade along backrefs, so a DispatchUserOrganization built against the
+    # persistent Organization is dropped by any autoflush until the user is added.
+    db_session.add(user)
 
     org = organization_service.get_by_slug_or_raise(
         db_session=db_session,
@@ -224,7 +228,6 @@ def create(*, db_session, organization: str, user_in: (UserRegister | UserCreate
         )
     user.projects = projects
 
-    db_session.add(user)
     db_session.commit()
     return user
 
