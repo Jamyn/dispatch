@@ -83,7 +83,7 @@
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^8.10.0",
     "eslint-plugin-local-rules": "^2.0.1",
-    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-prettier": "^5.5.6",
     "eslint-plugin-vue": "^10.10.0",
     "eslint-plugin-vuetify": "^2.7.2",
     "happy-dom": "^20.11.2",
@@ -123,6 +123,9 @@
     },
     "editorconfig": {
       "minimatch": "9.0.7"
+    },
+    "eslint-plugin-prettier": {
+      "prettier": "$prettier"
     }
   }
 }
