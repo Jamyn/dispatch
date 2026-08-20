@@ -282,6 +282,7 @@ def test_cloud_rejects_an_update_that_omits_the_status(cloud):
             title=current["title"],
             body="<p>rewritten</p>",
             body_format="storage",
+            representation="storage",
             version=current["version"]["number"],
         )
 

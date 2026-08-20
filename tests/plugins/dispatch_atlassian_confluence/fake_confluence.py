@@ -257,6 +257,9 @@ class FakeConfluence:
         missing = self._missing(request.body, V2_CREATE_REQUIRED)
         if missing:
             return 400, {"errors": [{"title": f"missing required field(s): {missing}"}]}
+        unrepresented = self._unrepresented(request.body)
+        if unrepresented:
+            return unrepresented
         if request.body["spaceId"] != str(SPACE_ID):
             return 404, {"errors": [{"title": "space not found"}]}
         parent_id = request.body.get("parentId")
@@ -286,6 +289,9 @@ class FakeConfluence:
         missing = self._missing(request.body, V2_UPDATE_REQUIRED)
         if missing:
             return 400, {"errors": [{"title": f"missing required field(s): {missing}"}]}
+        unrepresented = self._unrepresented(request.body)
+        if unrepresented:
+            return unrepresented
         page = self.pages.get(request.path.rsplit("/", 1)[1])
         if page is None:
             return 404, {"errors": [{"title": "page not found"}]}
@@ -327,6 +333,21 @@ class FakeConfluence:
         page.body = request.body["body"]["storage"]["value"]
         page.version = request.body["version"]["number"]
         return 200, self._render(page, expand=("space", "body.storage"))
+
+    @staticmethod
+    def _unrepresented(body):
+        """v2's answer to a body with no `representation` beside its value.
+
+        Observed against a real Cloud site: a 500, not the 400 a malformed
+        request usually earns, which is why nothing about the error says what
+        is wrong with it. The 5.x client omits the field unless asked.
+        """
+        storage = (body.get("body") or {}).get("storage")
+        if storage is not None and "representation" not in storage:
+            return 500, {
+                "errors": [{"status": 500, "code": "INTERNAL_SERVER_ERROR", "detail": None}]
+            }
+        return None
 
     @staticmethod
     def _missing(body, required):

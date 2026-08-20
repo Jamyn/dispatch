@@ -129,6 +129,10 @@ class CloudApi(ConfluenceApi):
             title=self._title_under(parent, title, qualify_title),
             body=body,
             body_format="storage",
+            # Confluence answers 500, not 400, to a storage body with no
+            # representation beside it. The client documents this argument as
+            # wiki-only and omits it otherwise, so it has to be asked for.
+            representation="storage",
         )
 
     def _parent(self, page_id: str) -> dict:
@@ -151,6 +155,7 @@ class CloudApi(ConfluenceApi):
             title=page["title"],
             body=body,
             body_format="storage",
+            representation="storage",
             status="current",
             version=page["version"]["number"],
         )
