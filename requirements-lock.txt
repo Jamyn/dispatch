@@ -164,9 +164,9 @@ anyio==4.14.2 \
     #   httpx2
     #   openai
     #   starlette
-atlassian-python-api==4.0.7 \
-    --hash=sha256:46a70cb29eaab87c0a1697fccd3e25df1aa477e6aa4fb9ba936a9d46b425933c \
-    --hash=sha256:8d9cc6068b1d2a48eb434e22e57f6bbd918a47fac9e46b95b7a3cefb00fceacb
+atlassian-python-api==5.0.3 \
+    --hash=sha256:7d0443a01568cdbf9af45efd30980472979923f6b605f2640e0e80dd02c1dc8a \
+    --hash=sha256:c5265c39a8bceb7c3b254d768b4a006a63c7fd80153d293a686fa4e31d52e3c2
     # via dispatch (pyproject.toml)
 attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \

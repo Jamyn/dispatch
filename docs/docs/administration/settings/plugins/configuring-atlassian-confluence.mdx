@@ -12,7 +12,11 @@ Dispatch ships with Atlassian Confluence storage and document plugins. This page
 
 ### `API URL` \[Required\]
 
-> URL of the confluence cloud instance.
+> URL of the Confluence instance. For Cloud this is the site root, for example `https://your-site.atlassian.net/`, without the `/wiki` path.
+
+### `Hosting Type` \[Default: cloud\]
+
+> Either `cloud` or `server`. Dispatch reaches Confluence Cloud over the REST v2 API and Confluence Server/Data Center over REST v1; these are different APIs, so this must match the deployment.
 
 ### `Username` \[Required\]
 
@@ -46,7 +50,11 @@ Dispatch ships with Atlassian Confluence storage and document plugins. This page
 
 ### `API URL` \[Required\]
 
-> URL of the confluence cloud instance.
+> URL of the Confluence instance. For Cloud this is the site root, for example `https://your-site.atlassian.net/`, without the `/wiki` path.
+
+### `Hosting Type` \[Default: cloud\]
+
+> Either `cloud` or `server`. Dispatch reaches Confluence Cloud over the REST v2 API and Confluence Server/Data Center over REST v1; these are different APIs, so this must match the deployment.
 
 ### `Username` \[Required\]
 
