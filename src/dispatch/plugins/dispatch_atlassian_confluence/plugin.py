@@ -34,7 +34,8 @@ class ConfluenceConfiguration(ConfluenceConfigurationBase):
         title="Incident template ID", description="This is the page id of the template."
     )
     root_id: str = Field(
-        title="Default Space ID", description="Defines the default Confluence Space to use."
+        title="Default Space Key",
+        description="Key of the default Confluence Space to use, not its numeric id or display name.",
     )
     parent_id: str = Field(
         title="Parent ID for the pages",

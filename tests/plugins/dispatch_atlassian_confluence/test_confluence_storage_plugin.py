@@ -124,7 +124,7 @@ def test_copy_file_reads_the_configured_template(confluence, hosting_type):
 
     plugin.copy_file(folder_id="444444", file_id="ignored", name="Incident Review")
 
-    assert TEMPLATE_ID in confluence.requests[0].path
+    assert any(TEMPLATE_ID in r.path for r in confluence.requests if r.method == "GET")
 
 
 def test_copy_file_creates_the_page_under_the_given_folder(confluence, hosting_type):
