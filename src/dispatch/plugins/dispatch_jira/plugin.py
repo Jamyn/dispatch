@@ -78,10 +78,19 @@ def get_email_username(email: str) -> str:
     return email
 
 
+def site_url(url) -> str:
+    """A base other paths can be joined onto.
+
+    AnyHttpUrl appends a trailing slash when the path is empty, so
+    concatenating a rooted path onto it yields `//browse/KEY`.
+    """
+    return str(url).rstrip("/")
+
+
 def get_cloud_user_account_id_by_email(configuration: JiraConfiguration, user_email: str) -> dict:
     """Gets the cloud Jira user account id by email address."""
     endpoint = "groupuserpicker"
-    url = f"{configuration.api_url}/rest/api/2/{endpoint}?query={user_email}&maxResults=1"
+    url = f"{site_url(configuration.api_url)}/rest/api/2/{endpoint}?query={user_email}&maxResults=1"
     auth = (configuration.username, configuration.password.get_secret_value())
 
     headers = {"Accept": "application/json"}
@@ -93,7 +102,8 @@ def get_cloud_user_account_id_by_email(configuration: JiraConfiguration, user_em
 
     # we get and return the account id of the default Jira account
     url = (
-        f"{configuration.api_url}/rest/api/2/{endpoint}?query={configuration.username}&maxResults=1"
+        f"{site_url(configuration.api_url)}/rest/api/2/{endpoint}"
+        f"?query={configuration.username}&maxResults=1"
     )
     response = requests.request("GET", url, headers=headers, auth=HTTPBasicAuth(*auth))
     users = json.loads(response.text)
@@ -247,14 +257,20 @@ def create_case_issue_fields(
 def create(configuration: dict, client: Any, issue_fields: dict) -> dict:
     """Creates a Jira issue."""
     issue = client.create_issue(fields=issue_fields)
-    return {"resource_id": issue.key, "weblink": f"{configuration.browser_url}/browse/{issue.key}"}
+    return {
+        "resource_id": issue.key,
+        "weblink": f"{site_url(configuration.browser_url)}/browse/{issue.key}",
+    }
 
 
 def update(
     configuration: dict, client: Any, issue: Any, issue_fields: dict, transition: str = None
 ) -> dict:
     """Updates a Jira issue."""
-    data = {"resource_id": issue.key, "link": f"{configuration.browser_url}/browse/{issue.key}"}
+    data = {
+        "resource_id": issue.key,
+        "link": f"{site_url(configuration.browser_url)}/browse/{issue.key}",
+    }
 
     if issue_fields:
         issue.update(fields=issue_fields)
@@ -551,7 +567,7 @@ class JiraTicketPlugin(TicketPlugin):
 
         return {
             "resource_id": issue.key,
-            "weblink": f"{self.configuration.browser_url}/browse/{issue.key}",
+            "weblink": f"{site_url(self.configuration.browser_url)}/browse/{issue.key}",
         }
 
     def update_case_ticket(
