@@ -12,12 +12,7 @@ def replace_content(api: ConfluenceApi, document_id: str, replacements: dict[str
         if v:
             current_content_body = current_content_body.replace(k, v)
 
-    updated_content = api.update_page(
-        page_id=document_id,
-        title=current_content["title"],
-        body=current_content_body,
-    )
-    return updated_content
+    return api.update_page(page=current_content, body=current_content_body)
 
 
 class ConfluencePageDocPlugin(DocumentPlugin):

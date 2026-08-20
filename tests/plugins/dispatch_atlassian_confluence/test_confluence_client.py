@@ -86,3 +86,27 @@ def test_credentials_reach_the_wire_as_basic_auth(confluence, hosting_type):
     # get_secret_value(), not str(SecretStr): the latter is "**********", which
     # authenticates against nothing and would still look like a token here.
     assert base64.b64decode(encoded).decode() == f"{USERNAME}:{PASSWORD}"
+
+
+def test_cloud_adds_the_wiki_context_path_a_custom_hostname_would_not_get():
+    """`_is_cloud_url` recognises *.atlassian.net, *.jira.com and the API
+    gateway, so the client leaves a Cloud site on a custom domain addressing
+    /api/v2 off the domain root. `hosting_type` is what the operator declared."""
+    api = confluence_api(build_configuration("cloud", api_url="https://wiki.example.com"))
+
+    assert api.client.url == "https://wiki.example.com/wiki"
+
+
+def test_cloud_does_not_add_a_second_wiki_context_path():
+    api = confluence_api(build_configuration("cloud", api_url="https://wiki.example.com/wiki"))
+
+    assert api.client.url == "https://wiki.example.com/wiki"
+
+
+def test_server_is_left_on_the_url_it_was_configured_with():
+    """Server has no /wiki context path, and often has one of its own."""
+    api = confluence_api(
+        build_configuration("server", api_url="https://confluence.example.com/confluence")
+    )
+
+    assert api.client.url == "https://confluence.example.com/confluence"

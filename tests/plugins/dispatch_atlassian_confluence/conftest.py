@@ -22,16 +22,6 @@ from tests.plugins.dispatch_atlassian_confluence.fake_confluence import (
 )
 
 
-class _DirectRequests:
-    """Stands in for the `requests` module inside the storage plugin."""
-
-    def __init__(self, session):
-        self.session = session
-
-    def request(self, method, url, **kwargs):
-        return self.session.request(method, url, **kwargs)
-
-
 @pytest.fixture
 def confluence(monkeypatch):
     """Serve Confluence from memory for the duration of a test."""
@@ -45,14 +35,6 @@ def confluence(monkeypatch):
 
     monkeypatch.setattr(CloudApi, "client_class", transport(ConfluenceV2))
     monkeypatch.setattr(ServerApi, "client_class", transport(ConfluenceServer))
-
-    # move_file_confluence bypasses the client and calls `requests` directly,
-    # so it needs the same transport or the test opens a real socket.
-    monkeypatch.setattr(
-        "dispatch.plugins.dispatch_atlassian_confluence.plugin.requests",
-        _DirectRequests(session_for(api)),
-        raising=True,
-    )
     return api
 
 

@@ -6,9 +6,19 @@ speaking REST v1, with different method signatures. The 4.x
 carrying none of the methods used here, so ``hosting_type`` selects a class
 rather than being passed through as a flag. Both call shapes live here so the
 plugins never branch on the deployment type.
+
+Every identifier crossing this boundary is a **page id**. Dispatch's storage
+hierarchy is therefore pages under pages, and a page's space is read from its
+parent rather than configured alongside it. Confluence Cloud does have folders
+now, but a folder cannot be a page's space source here, so the root must be a
+page.
+
+Page titles are unique per space, not per parent, which is why creating a page
+can rename it: see ``qualify_title``.
 """
 
 from atlassian import ConfluenceServer, ConfluenceV2
+from atlassian.confluence_base import ConfluenceBase
 
 from dispatch.plugins.dispatch_atlassian_confluence.config import (
     ConfluenceConfigurationBase,
@@ -24,20 +34,68 @@ class ConfluenceApi:
     def __init__(self, configuration: ConfluenceConfigurationBase):
         self.configuration = configuration
         self.client = self.client_class(
-            url=str(configuration.api_url),
+            url=self.site_url,
             username=configuration.username,
             password=configuration.password.get_secret_value(),
         )
 
     @property
     def site_url(self) -> str:
-        """The configured site, without a trailing slash.
+        """The instance root that both requests and weblinks hang off.
 
-        AnyHttpUrl only appends one when the path is empty, so a Server
-        instance under a context path would otherwise be concatenated straight
-        onto the next path segment.
+        AnyHttpUrl only appends a trailing slash when the path is empty, so a
+        Server instance under a context path would otherwise be concatenated
+        straight onto the next path segment.
         """
         return str(self.configuration.api_url).rstrip("/")
+
+    def page_weblink(self, page: dict) -> str:
+        """A browser URL for a page Confluence has just returned.
+
+        ``_links.webui`` is site-relative and already carries the space key,
+        which is otherwise a lookup. ``_links.base`` is deliberately ignored:
+        on Server it is whatever the instance believes its own address to be,
+        which need not be the one Dispatch was pointed at.
+
+        Server's form names the page rather than identifying it, so a rename
+        strands the stored link; the id form below is the fallback, not the
+        default, because it is not the link Confluence's own UI hands out.
+        """
+        webui = (page.get("_links") or {}).get("webui")
+        if webui:
+            return f"{self.site_url}/{webui.lstrip('/')}"
+        return f"{self.site_url}/pages/viewpage.action?pageId={page['id']}"
+
+    def create_page(
+        self, *, parent_id: str, title: str, body: str, qualify_title: bool = False
+    ) -> dict:
+        """Creates a page under ``parent_id``.
+
+        ``qualify_title`` prefixes the parent's title. Confluence page titles
+        are unique per space, so a name the caller reuses across subjects needs
+        it; one that already names its subject does not.
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def _title_under(parent: dict, title: str, qualify: bool) -> str:
+        return f"{parent['title']} - {title}" if qualify else title
+
+    def _parent(self, page_id: str) -> dict:
+        """The page a new page goes under, read for its space and its title."""
+        raise NotImplementedError
+
+    def get_page(self, page_id: str) -> dict:
+        raise NotImplementedError
+
+    def update_page(self, *, page: dict, body: str) -> dict:
+        """Rewrites the body of a page already read with ``get_page``.
+
+        Both clients need the page's current version to build an update, and
+        one of them charges a request for it, so the caller hands over what it
+        already has rather than naming the page again.
+        """
+        raise NotImplementedError
 
 
 class CloudApi(ConfluenceApi):
@@ -49,37 +107,58 @@ class CloudApi(ConfluenceApi):
 
     client_class = ConfluenceV2
 
-    def create_page(self, *, space: str, title: str, body: str, parent_id: str) -> dict:
-        # v2 addresses spaces by numeric id. `space` is the configured space
-        # key, which the v2 page endpoint rejects, so resolve it first.
-        space_id = self.client.get_space_by_key(space)["id"]
+    @property
+    def site_url(self) -> str:
+        # Cloud always serves Confluence under /wiki, but the client appends
+        # it only for hostnames it recognises, so a site on a custom domain
+        # would address /api/v2 off the domain root. Gateway URLs already carry
+        # /ex/confluence/{cloudId}; upstream's own test for them is reused
+        # rather than restated, so the two cannot drift apart.
+        url = super().site_url
+        if url.endswith("/wiki") or ConfluenceBase._is_api_gateway_url(url):
+            return url
+        return f"{url}/wiki"
+
+    def create_page(
+        self, *, parent_id: str, title: str, body: str, qualify_title: bool = False
+    ) -> dict:
+        parent = self._parent(parent_id)
         return self.client.create_page(
-            space_id=str(space_id),
-            title=title,
-            body=body,
+            space_id=str(parent["spaceId"]),
             parent_id=parent_id,
+            title=self._title_under(parent, title, qualify_title),
+            body=body,
             body_format="storage",
+            # Confluence answers 500, not 400, to a storage body with no
+            # representation beside it. The client documents this argument as
+            # wiki-only and omits it otherwise, so it has to be asked for.
+            representation="storage",
         )
+
+    def _parent(self, page_id: str) -> dict:
+        # v2 requires spaceId on create even when parentId identifies the space
+        # unambiguously. Asking for no body at all is not an option: the client
+        # renders get_body=False as body-format=none, which the API rejects.
+        return self.client.get_page_by_id(page_id)
 
     def get_page(self, page_id: str) -> dict:
         return self.client.get_page_by_id(page_id, body_format="storage")
 
-    def update_page(self, *, page_id: str, title: str, body: str) -> dict:
-        # v2's PageUpdateRequest requires id, status, title, body and version.
-        # The client sends `status` only when asked to, so omitting it here
-        # produces a payload the API rejects.
+    def update_page(self, *, page: dict, body: str) -> dict:
+        # PageUpdateRequest requires id, status, title, body and version, and
+        # the client sends `status` only when asked to. Supplying `version` is
+        # not an optimisation: without it the client reads the page back with
+        # get_body=False, which renders as body-format=none -- not a member of
+        # PrimaryBodyRepresentationSingle, so the API rejects it.
         return self.client.update_page(
-            page_id=page_id, title=title, body=body, body_format="storage", status="current"
+            page_id=page["id"],
+            title=page["title"],
+            body=body,
+            body_format="storage",
+            representation="storage",
+            status="current",
+            version=page["version"]["number"],
         )
-
-    @property
-    def site_url(self) -> str:
-        # The client appends /wiki itself, so an operator who already included
-        # it would otherwise get it twice in every weblink.
-        return super().site_url.removesuffix("/wiki")
-
-    def page_weblink(self, *, space: str, page_id: str, title: str) -> str:
-        return f"{self.site_url}/wiki/spaces/{space}/pages/{page_id}/{title}"
 
 
 class ServerApi(ConfluenceApi):
@@ -92,25 +171,34 @@ class ServerApi(ConfluenceApi):
 
     client_class = ConfluenceServer
 
-    def create_page(self, *, space: str, title: str, body: str, parent_id: str) -> dict:
+    def create_page(
+        self, *, parent_id: str, title: str, body: str, qualify_title: bool = False
+    ) -> dict:
+        parent = self._parent(parent_id)
         return self.client.create_page(
-            space=space,
-            title=title,
-            body=body,
+            space=parent["space"]["key"],
             parent_id=parent_id,
+            title=self._title_under(parent, title, qualify_title),
+            body=body,
             type="page",
             representation="storage",
             editor="v2",
             full_width=False,
         )
 
+    def _parent(self, page_id: str) -> dict:
+        # v1 addresses spaces by key, and a page carries its space only when
+        # the expand is asked for.
+        return self.client.get_page_by_id(page_id, expand="space")
+
     def get_page(self, page_id: str) -> dict:
         return self.client.get_page_by_id(page_id, expand="body.storage", status=None, version=None)
 
-    def update_page(self, *, page_id: str, title: str, body: str) -> dict:
+    def update_page(self, *, page: dict, body: str) -> dict:
+        # v1 reads the version from the page's history itself.
         return self.client.update_page(
-            page_id=page_id,
-            title=title,
+            page_id=page["id"],
+            title=page["title"],
             body=body,
             representation="storage",
             type="page",
@@ -118,11 +206,6 @@ class ServerApi(ConfluenceApi):
             minor_edit=False,
             full_width=False,
         )
-
-    def page_weblink(self, *, space: str, page_id: str, title: str) -> str:
-        # Server has no /wiki context path, and addressing by page id avoids
-        # having to encode the space key and title into the path.
-        return f"{self.site_url}/pages/viewpage.action?pageId={page_id}"
 
 
 APIS = {HostingType.cloud: CloudApi, HostingType.server: ServerApi}
