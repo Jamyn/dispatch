@@ -1,7 +1,7 @@
 """create_storage's handling of a storage plugin that cannot make sub-folders.
 
-Confluence has no folders: its storage plugin creates the incident's home page
-and returns None for the "Logs" and "Screengrabs" calls that follow. With
+A storage plugin reports a folder it could not create by returning None, the
+same way it reports a root it could not create. With
 `storage_use_folder_one_as_primary` set -- the default on a project created
 through the API -- that None used to be subscripted, and nothing in
 `incident_create_flow` catches the resulting TypeError.

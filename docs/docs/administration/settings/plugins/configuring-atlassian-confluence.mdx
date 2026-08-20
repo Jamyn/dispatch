@@ -12,7 +12,7 @@ Dispatch ships with Atlassian Confluence storage and document plugins. This page
 
 ### `API URL` \[Required\]
 
-> URL of the Confluence instance. For Cloud this is the site root, for example `https://your-site.atlassian.net/`, without the `/wiki` path.
+> URL of the Confluence instance. For Cloud this is the site root, for example `https://your-site.atlassian.net/`; Dispatch appends the `/wiki` path itself, including for a site on a custom domain. For Server/Data Center this is the instance URL, including any context path it is served under.
 
 ### `Hosting Type` \[Default: cloud\]
 
@@ -30,27 +30,39 @@ Dispatch ships with Atlassian Confluence storage and document plugins. This page
 
 > This is the page id of the template that contains the post incident review document details. The plugin uses this template to create a new page and then replace the supported variables with the incident details.
 
-### `Default Space Key` \[Required\]
+### `Root Incident Storage Page ID` \[Required\]
 
-> This is the default space [key](https://confluence.atlassian.com/doc/space-keys-829076188.html) where all the pages will be created in confluence. The space key, not its numeric id: on Cloud, Dispatch resolves the key to the id the v2 API requires.
-
-### `Parent ID of the pages` \[Required\]
-
-> This is the page id, where all the new pages and subpages will be created.
+> Page id of the page each incident's own page is created under, found in the page URL: `/pages/<id>/<title>`.
+>
+> This is a **page id, not a space key**, and it must be a page rather than a Confluence Cloud folder. A document cannot live in a Confluence folder, so Dispatch's storage hierarchy is pages beneath pages: the incident's page under this one, and its sub-pages under that. The space is read from this page, so there is nothing else to configure; every incident lands in that space unless the project routes it elsewhere with a storage tag type.
+>
+> Confluence requires page titles to be unique within a space, while Dispatch names each incident's sub-folders from the project's `storage_folder_one`/`storage_folder_two` settings — the same names for every incident. Dispatch therefore prefixes a sub-page's title with the incident's own page title, so the folder named `Logs` is created as `INC-0001 - Logs`. The name shown in Dispatch is unchanged.
+>
+> :::warning
+> Earlier releases took a space key here, alongside a separate `Parent ID of the pages` field. Upgrading moves that parent page id into this field and drops the old one, so an existing instance needs no edit. Setting it by hand is the case to watch: a space key cannot be read as a page, so no incident storage is created and each attempt logs `Exception happened while creating page … under <space key>`.
+> :::
 
 ### `Open On Close` \[Default: false\]
 
 > Controls the visibility of resources on incident close. If enabled, Dispatch will make all resources visible to the entire workspace.
+>
+> :::note
+> The Confluence plugin does not implement this yet; the setting is accepted and has no effect. Closing an incident logs a failure event for the attempt.
+> :::
 
 ### `Readonly` \[Default: false\]
 
 > The incident document will be marked as readonly on incident close. Participants will still be able to interact with the document but any other viewers will not.
+>
+> :::note
+> The Confluence plugin does not implement this yet, in the same way as `Open On Close` above.
+> :::
 
 ## Dispatch Configuration Variables for document plugin
 
 ### `API URL` \[Required\]
 
-> URL of the Confluence instance. For Cloud this is the site root, for example `https://your-site.atlassian.net/`, without the `/wiki` path.
+> URL of the Confluence instance. For Cloud this is the site root, for example `https://your-site.atlassian.net/`; Dispatch appends the `/wiki` path itself, including for a site on a custom domain. For Server/Data Center this is the instance URL, including any context path it is served under.
 
 ### `Hosting Type` \[Default: cloud\]
 
