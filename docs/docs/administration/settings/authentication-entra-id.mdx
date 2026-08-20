@@ -1,0 +1,247 @@
+---
+description: >-
+  Configuring Dispatch to authenticate users against Microsoft Entra ID using
+  OpenID Connect.
+---
+
+# Authenticating with Microsoft Entra ID
+
+Dispatch authenticates against Microsoft Entra ID through its generic OpenID
+Connect provider, `dispatch-auth-provider-pkce`. There is no Entra-specific
+plugin and none is needed: the browser runs the OAuth 2.0 authorization code
+flow with PKCE against your tenant, and the Dispatch API validates the resulting
+**ID token** on every request.
+
+This page is the complete configuration for a single organization's internal
+Dispatch deployment. For the meaning of each individual setting, see
+[Server](server#authentication).
+
+:::warning
+Everyone who can sign in gets an account. Dispatch creates a `Member` user the
+first time an identity it accepts makes a request — there is no approval step and
+no allow list. The tenant boundary *is* the authorization boundary, which is why
+`DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER` below is not optional in practice.
+See [Who can sign in](#who-can-sign-in).
+:::
+
+## Create the app registration
+
+In the [Microsoft Entra admin center](https://entra.microsoft.com), go to
+**Identity → Applications → App registrations → New registration**.
+
+| Field | Value |
+| --- | --- |
+| **Name** | `Dispatch` |
+| **Supported account types** | **Accounts in this organizational directory only (Single tenant)** |
+| **Redirect URI** | Platform **Single-page application (SPA)**, URI `https://dispatch.example.com/implicit/callback` |
+
+Record the **Application (client) ID** and the **Directory (tenant) ID** from the
+registration's Overview page.
+
+### Supported account types
+
+Choose **single tenant**. Dispatch has no per-user approval step, so a multitenant
+registration means any Microsoft work, school, or personal account in the world
+can sign in and be provisioned. Only pick multitenant if you genuinely intend to
+admit guests from other directories, and pair it with a separate authorization
+control — the issuer setting below can only pin one tenant.
+
+### Redirect URI
+
+The redirect URI must be registered under the **Single-page application**
+platform, not **Web**. That is what makes Entra:
+
+* serve CORS headers on the token endpoint, so the browser can redeem the code, and
+* accept the code redemption without a client secret.
+
+Registering it as **Web** produces `AADSTS9002326: Cross-origin token redemption
+is permitted only for the 'Single-Page Application' client-type` at the token
+exchange.
+
+The path is fixed: Dispatch's frontend always redirects to `/implicit/callback`
+on its own origin and restores the page you were on from browser storage, so only
+this one URI needs registering however many routes the app has. Add
+`http://localhost:8080/implicit/callback` as a second URI if you want the local
+dev server to sign in against the same registration.
+
+### Client secret
+
+**Do not create one.** A single-page application is a public client; Microsoft
+documents that SPAs must not use secrets or certificates when redeeming an
+authorization code, and Entra refuses client credentials on any request carrying
+an `Origin` header. Dispatch never sends one and has nowhere to put one that the
+browser could not read. PKCE, not a secret, is what binds the code to this client.
+
+### Scopes and permissions
+
+`openid`, `profile` and `email` — the three OpenID Connect scopes the frontend
+already requests. Nothing else. These are delegated permissions that need no
+admin consent, and none of them is a Microsoft Graph permission: Dispatch reads
+the user's identity out of the ID token and never calls Graph.
+
+Leave **API permissions** at the `User.Read` default Entra adds, or remove it.
+Dispatch does not use it.
+
+### Token claims
+
+Dispatch needs exactly one claim: an email address to key the user on. By default
+it reads `email`, but Entra emits `email` for a managed user only if you add it as
+an optional claim or request the `email` scope, and Microsoft documents the value
+as user-mutable and not guaranteed to be correct.
+
+Use `preferred_username` instead, which is the user principal name, is issued
+with the `profile` scope, and is controlled by the directory:
+
+```text
+DISPATCH_JWT_EMAIL_OVERRIDE=preferred_username
+```
+
+No optional claims configuration is required. If your UPNs are not routable email
+addresses — Dispatch also uses this value to match people to incidents and to
+address notifications — add `email` under **Token configuration → Add optional
+claim → ID → email** and leave `DISPATCH_JWT_EMAIL_OVERRIDE` unset instead.
+
+## Configure Dispatch
+
+With `<tenant-id>` and `<client-id>` from the registration:
+
+```bash
+# Select the OIDC provider
+DISPATCH_AUTHENTICATION_PROVIDER_SLUG=dispatch-auth-provider-pkce
+
+# Backend: which tokens to accept
+DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS=https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
+DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
+DISPATCH_JWT_AUDIENCE=<client-id>
+DISPATCH_JWT_EMAIL_OVERRIDE=preferred_username
+
+# Frontend: how to obtain one
+VITE_DISPATCH_AUTHENTICATION_PROVIDER_PKCE_OPEN_ID_CONNECT_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
+DISPATCH_AUTHENTICATION_PROVIDER_PKCE_CLIENT_ID=<client-id>
+DISPATCH_AUTHENTICATION_PROVIDER_USE_ID_TOKEN=true
+```
+
+Notes on the less obvious ones:
+
+* **`..._OPEN_ID_CONNECT_URL` is the issuer, with no trailing slash and no
+  `.well-known` suffix.** The frontend appends
+  `/.well-known/openid-configuration` itself.
+* **`..._USE_ID_TOKEN=true` is required, not a preference.** Without it the
+  frontend sends Entra's *access* token to the Dispatch API. With only OIDC
+  scopes requested that token is issued for Microsoft Graph, not for Dispatch —
+  Microsoft's guidance is not to read or validate tokens for an API you do not
+  own, and its format is not guaranteed to be a validatable JWT.
+* **`DISPATCH_JWT_AUDIENCE` is the client id.** An Entra ID token's `aud` is the
+  application it was issued for. If it is left unset, every token is rejected.
+* Settings prefixed `VITE_` are read when the frontend bundle is **built**, not
+  when the server starts — see [Frontend build](#frontend-build).
+
+### Restricting sign-in to your tenant
+
+Two things do this, and both matter:
+
+1. **The registration is single tenant**, so Entra only ever mints a token with
+   your `aud` for your own directory's users.
+2. **`DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER` pins the tenant.** Entra signs
+   every tenant's tokens from a shared key set — the same key ids are published at
+   `/common` and at an individual tenant's `discovery/v2.0/keys` — so a valid
+   signature only proves the token came from Microsoft. A tenant-scoped JWKS URL
+   does not narrow that. The issuer check is what ties a token to your directory,
+   and it is the only control that still holds if the registration is ever
+   switched to multitenant.
+
+Restrict *which* users in the tenant may sign in with Entra's own controls, not
+with Dispatch's: set **Enterprise applications → Dispatch → Properties →
+Assignment required** to **Yes** and assign the groups that should have access.
+Dispatch has no equivalent.
+
+### Frontend build
+
+The three `VITE_`-prefixed values are compiled into the JavaScript bundle, so
+changing them means rebuilding the frontend, not restarting the server. When
+building the container image, pass them as build arguments:
+
+```bash
+docker build \
+  --build-arg VITE_DISPATCH_AUTHENTICATION_PROVIDER_SLUG=dispatch-auth-provider-pkce \
+  --build-arg VITE_DISPATCH_AUTHENTICATION_PROVIDER_PKCE_CLIENT_ID=<client-id> \
+  --build-arg VITE_DISPATCH_AUTHENTICATION_PROVIDER_PKCE_OPEN_ID_CONNECT_URL=https://login.microsoftonline.com/<tenant-id>/v2.0 \
+  --build-arg VITE_DISPATCH_AUTHENTICATION_PROVIDER_USE_ID_TOKEN=true \
+  -f docker/Dockerfile .
+```
+
+The backend settings are ordinary environment variables and take effect on
+restart. None of them is a secret, so they are safe in a Compose file or an image
+build log — there is no client secret anywhere in this configuration.
+
+## Who can sign in
+
+Dispatch provisions on first sight. The first request carrying an ID token it
+accepts creates a `DispatchUser` with the `Member` role in the organization being
+addressed; no administrator action is involved. `Member` cannot administer the
+deployment, but it can read and act on incidents and cases.
+
+Consequently:
+
+* **Restrict access in Entra, not in Dispatch.** Use *Assignment required* plus
+  group assignment on the enterprise application.
+* **Promote deliberately.** Grant `Admin` or `Owner` from
+  **Settings → Users**, or with
+  `dispatch user update --role owner --organization <org> <email>`.
+
+### Existing Dispatch users
+
+Users are keyed by email address, and that does not change when you enable Entra.
+An account that already exists — created by basic auth self-registration, by an
+administrator, or by an earlier OIDC provider — is matched by email and keeps its
+existing roles, projects and history the first time the same address signs in
+through Entra. No migration or re-provisioning step is required.
+
+The flip side is that whoever the directory hands an address to inherits the
+Dispatch account holding it. That is exactly why the issuer must be pinned to the
+one tenant that controls those mailboxes. Before switching a deployment over,
+review existing accounts for addresses your tenant does not own — external
+contractors, shared mailboxes, accounts created for testing — and remove or
+rename any that should not be claimable.
+
+:::info
+Dispatch deliberately does not key users on Entra's immutable `oid`/`sub`. Email is
+the join key throughout the product — for incident participants, contact
+resolution, and every messaging plugin — so an opaque identifier would have to be
+resolved back to an address anyway. The tenant restriction, not the claim's
+immutability, is what makes the address trustworthy.
+:::
+
+## Verifying it works
+
+1. Restart the server (and rebuild the frontend) with the settings above.
+2. Open Dispatch. You should be redirected to `login.microsoftonline.com` and back.
+3. Check the server log at startup. The PKCE provider warns about anything it
+   needs and does not have — a missing JWKS URL, issuer, or audience.
+
+### Troubleshooting
+
+| Symptom | Cause |
+| --- | --- |
+| `AADSTS9002326`, cross-origin token redemption | Redirect URI registered as **Web**; change it to **Single-page application**. |
+| CORS error on `/token` | Same as above. |
+| Redirect loop, or 401 on every API call after a successful sign-in | `DISPATCH_AUTHENTICATION_PROVIDER_USE_ID_TOKEN` is not `true`, so the Graph access token is being sent. |
+| 401 with *Token rejected: Invalid audience* in the log | `DISPATCH_JWT_AUDIENCE` unset or not the client id. |
+| 401 with *Token rejected: Invalid issuer* | Tenant id in `..._PKCE_ISSUER` does not match the tenant that signed in. |
+| 401 with *Token carries no 'email' claim* | Set `DISPATCH_JWT_EMAIL_OVERRIDE=preferred_username`, or add the `email` optional claim. |
+| `AADSTS50011`, redirect URI mismatch | The registered URI must be the deployment origin plus `/implicit/callback`, exactly. |
+
+## Reverting to another provider
+
+There is nothing to undo in the database — Entra sign-in creates ordinary
+Dispatch users. To go back to basic authentication, set
+
+```bash
+DISPATCH_AUTHENTICATION_PROVIDER_SLUG=dispatch-auth-provider-basic
+DISPATCH_JWT_SECRET=<secret>
+```
+
+rebuild the frontend with the matching `VITE_DISPATCH_AUTHENTICATION_PROVIDER_SLUG`,
+and restart. Accounts provisioned through Entra remain, but were created without a
+usable password, so each user needs a password reset from an owner before they can
+sign in again. Delete the app registration in Entra once you no longer need it.
