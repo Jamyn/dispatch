@@ -71,7 +71,6 @@ def build_configuration(hosting_type: str, **overrides):
         "hosting_type": hosting_type,
         "username": USERNAME,
         "password": PASSWORD,
-        "template_id": TEMPLATE_ID,
         "root_id": ROOT_PAGE_ID,
     }
     values.update(overrides)

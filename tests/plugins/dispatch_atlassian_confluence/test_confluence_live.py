@@ -93,7 +93,6 @@ class Live:
             username=settings["username"],
             password=settings["password"],
             root_id=settings["root_id"],
-            template_id=settings["template_id"],
         )
         self.storage = ConfluencePagePlugin()
         self.storage.configuration = self.configuration
@@ -212,6 +211,34 @@ def test_the_template_is_copied_under_the_incident_page(live):
         live.api.get_page(document["id"])["body"]["storage"]["value"]
         == (template["body"]["storage"]["value"])
     )
+
+
+def test_each_document_copies_the_template_it_was_given(live):
+    """Dispatch resolves a different template per document type. The plugin
+    used to ignore `file_id` and copy one configured page, so an executive
+    report was a copy of the incident template."""
+    incident = live.track(
+        live.storage.create_file(parent_id=live.root_id, name=live.title("incident"))
+    )
+    other_source = live.track(
+        live.storage.create_file(parent_id=live.root_id, name=live.title("other template"))
+    )
+
+    from_template = live.track(
+        live.storage.copy_file(
+            folder_id=incident["id"], file_id=live.settings["template_id"], name=live.title("a")
+        )
+    )
+    from_other = live.track(
+        live.storage.copy_file(
+            folder_id=incident["id"], file_id=other_source["id"], name=live.title("b")
+        )
+    )
+
+    body = lambda page_id: live.api.get_page(page_id)["body"]["storage"]["value"]  # noqa: E731
+    assert body(from_template["id"]) == body(live.settings["template_id"])
+    assert body(from_other["id"]) == body(other_source["id"])
+    assert body(from_template["id"]) != body(from_other["id"])
 
 
 def test_the_copied_document_can_be_substituted_into(live):
