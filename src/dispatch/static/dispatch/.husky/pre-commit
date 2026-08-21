@@ -1,1 +1,8 @@
+# core.hooksPath must point at this tracked directory, not husky's generated
+# .husky/_ -- that one is gitignored, so a fresh worktree or clone has no hook
+# there and git skips pre-commit silently. package.json's prepare enforces it.
+#
+# That prepare line ends in `|| true` because docker/Dockerfile runs `npm ci`
+# without --ignore-scripts and .dockerignore strips .git: `git config` exits
+# non-zero there, and without the guard it would fail the image build.
 cd "$(dirname -- "$0")/.." && npx lint-staged
