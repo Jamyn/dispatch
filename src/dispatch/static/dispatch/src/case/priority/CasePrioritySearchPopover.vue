@@ -38,7 +38,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 const selectCasePriority = async (casePriorityName: string) => {

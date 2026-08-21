@@ -282,3 +282,20 @@ def test_copy_case_events_to_incident(session, case: Case, incident):
             event.source == f"Test Source (copied from {case.name})"
             or event.source == f"Test Source 2 (copied from {case.name})"
         )
+
+
+def test_an_unknown_case_name_is_reported_as_a_validation_error(session, case):
+    """Given a name no case has, when resolving it, then a 422-able error is raised."""
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.case.models import CaseRead
+    from dispatch.case.service import get_by_name_or_raise
+
+    case_in = CaseRead.from_orm(case)
+    case_in.name = "no such case"
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_by_name_or_raise(db_session=session, project_id=case.project.id, case_in=case_in)
+
+    assert "Case not found." in str(exc_info.value.errors())

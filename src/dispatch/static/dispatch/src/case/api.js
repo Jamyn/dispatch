@@ -37,7 +37,7 @@ export default {
         // Fetch the full case data to ensure all required fields are available
         const fullCase = await this.get(case_obj.id)
         return this.update(case_obj.id, { ...fullCase.data, ...payload })
-      })
+      }),
     )
   },
 
@@ -45,7 +45,7 @@ export default {
     return Promise.all(
       cases.map((case_obj) => {
         return this.delete(case_obj.id)
-      })
+      }),
     )
   },
 

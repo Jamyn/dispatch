@@ -83,7 +83,7 @@ const actions = {
           text: "Plugin not installed correctly. Please review the Dispatch logs or contact your Dispatch Administrator",
           type: "exception",
         },
-        { root: true }
+        { root: true },
       )
       return
     }
@@ -117,7 +117,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Plugin instance created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -132,7 +132,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Plugin instance updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -147,7 +147,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Plugin instance deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

@@ -38,33 +38,36 @@ watch(
       tagsHaveChanged.value = false // Reset change flag when props update
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true, deep: true },
 )
 
 // Function to group tags by type
 const convertData = (data: any[]) => {
   if (!data) return []
-  const groupedObject = data.reduce((r, a) => {
-    if (!a.tag_type || a.tag_type.id === undefined || a.tag_type.id === null) {
-      // console.warn("Tag missing tag_type or tag_type.id:", a) // Keep minimal logs
-      return r
-    }
-    const typeId = a.tag_type.id
-    if (!r[typeId]) {
-      r[typeId] = {
-        id: typeId,
-        icon: a.tag_type.icon,
-        label: a.tag_type.name,
-        desc: a.tag_type.description,
-        color: a.tag_type.color,
-        isRequired: a.tag_type.required ?? false,
-        isExclusive: a.tag_type.exclusive ?? false,
-        menuItems: [],
+  const groupedObject = data.reduce(
+    (r, a) => {
+      if (!a.tag_type || a.tag_type.id === undefined || a.tag_type.id === null) {
+        // console.warn("Tag missing tag_type or tag_type.id:", a) // Keep minimal logs
+        return r
       }
-    }
-    r[typeId].menuItems.push(a)
-    return r
-  }, {} as Record<number, any>)
+      const typeId = a.tag_type.id
+      if (!r[typeId]) {
+        r[typeId] = {
+          id: typeId,
+          icon: a.tag_type.icon,
+          label: a.tag_type.name,
+          desc: a.tag_type.description,
+          color: a.tag_type.color,
+          isRequired: a.tag_type.required ?? false,
+          isExclusive: a.tag_type.exclusive ?? false,
+          menuItems: [],
+        }
+      }
+      r[typeId].menuItems.push(a)
+      return r
+    },
+    {} as Record<number, any>,
+  )
 
   return Object.values(groupedObject)
     .sort((a, b) => a.label.localeCompare(b.label))
@@ -163,7 +166,7 @@ const filteredGroupedTags = computed(() => {
 
   return groupedTags.value.reduce((acc, group) => {
     const filteredItems = group.menuItems.filter((item: any) =>
-      item.name.toLowerCase().includes(query)
+      item.name.toLowerCase().includes(query),
     )
 
     if (filteredItems.length > 0) {
@@ -188,7 +191,7 @@ watch(
         fetchData(true)
       }
     }
-  }
+  },
 )
 
 // Handler for prefetching data on hover

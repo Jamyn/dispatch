@@ -173,7 +173,7 @@ export default {
         this.$router.push({ query: { project: this.project[0].name } })
         this.getAll()
         this.restrictStable = this.stablePriority != null
-      }
+      },
     )
 
     this.$watch(
@@ -181,7 +181,7 @@ export default {
       () => {
         this.restrictStable = this.stablePriority != null
         this.updateStablePriority(this.restrictStable)
-      }
+      },
     )
   },
 

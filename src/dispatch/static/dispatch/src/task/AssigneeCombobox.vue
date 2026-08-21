@@ -103,7 +103,7 @@ export default {
         this.items,
         map(val, function (item) {
           return item["individual"]
-        })
+        }),
       )
     },
   },

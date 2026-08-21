@@ -154,7 +154,7 @@ watch(
   () => props.newEntityTypeJpath,
   (newJpath) => {
     newEntityTypeJpath.value = newJpath
-  }
+  },
 )
 
 let jpath = ref(props.newEntityTypeJpath)
@@ -176,7 +176,7 @@ const rules = {
   uniqueName: (value: string) => {
     // Check if the name already exists in the list of entity types
     const exists = entityTypes.value.some(
-      (entity) => entity.name.toLowerCase() === value.toLowerCase()
+      (entity) => entity.name.toLowerCase() === value.toLowerCase(),
     )
     return !exists || "Name already taken."
   },
@@ -190,7 +190,7 @@ watch(
       jpathInUse.value = false
       console.log(
         "The dialog is closed or no entity types are defined, resetting 'jpathInUse' to",
-        jpathInUse.value
+        jpathInUse.value,
       )
       return
     }
@@ -203,7 +203,7 @@ watch(
       jpathInUse.value = matchingEntity
       console.log(
         `The jpath is already in use by entity ${matchingEntity.name} for pattern`,
-        props.newEntityTypeJpath
+        props.newEntityTypeJpath,
       )
       return
     }
@@ -212,7 +212,7 @@ watch(
     jpathInUse.value = false
     console.log("The jpath is not in use for pattern", props.newEntityTypeJpath)
   },
-  { immediate: true } // Run the watcher immediately
+  { immediate: true }, // Run the watcher immediately
 )
 
 const emit = defineEmits(["update:dialog", "new-entity-type"])
@@ -312,7 +312,7 @@ const saveEntityType = async () => {
         text: `Form Invalid: ${errors}`,
         type: "exception",
       },
-      { root: true }
+      { root: true },
     )
     return
   }
@@ -332,7 +332,7 @@ const saveEntityType = async () => {
   try {
     const newEntityType = await EntityTypeApi.create_with_case(
       entityTypeData,
-      selectedCase.value.id
+      selectedCase.value.id,
     )
     // Use the case_id instead of signal_instance_id for recalculation
     await EntityTypeApi.recalculate(newEntityType.data.id, selectedCase.value.id)
@@ -343,7 +343,7 @@ const saveEntityType = async () => {
         text: "Entity Type created and associated with signal successfully.",
         type: "success",
       },
-      { root: true }
+      { root: true },
     )
   } catch (error) {
     store.commit(
@@ -352,7 +352,7 @@ const saveEntityType = async () => {
         text: `Failed to create Entity Type: ${error.message}`,
         type: "error",
       },
-      { root: true }
+      { root: true },
     )
     console.error(error)
   }
@@ -394,7 +394,12 @@ onMounted(async () => {
 }
 
 .code-font-field :deep(input) {
-  font-family: sfmono-regular, consolas, menlo, dejavu sans mono, monospace !important;
+  font-family:
+    sfmono-regular,
+    consolas,
+    menlo,
+    dejavu sans mono,
+    monospace !important;
   font-size: 0.8571428571em !important;
 }
 

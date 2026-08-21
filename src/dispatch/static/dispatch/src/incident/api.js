@@ -32,7 +32,7 @@ export default {
     return Promise.all(
       incidents.map((incident) => {
         return this.update(incident.id, { ...incident, ...payload })
-      })
+      }),
     )
   },
 
@@ -44,7 +44,7 @@ export default {
     return Promise.all(
       incidents.map((incident) => {
         return this.delete(incident.id)
-      })
+      }),
     )
   },
 

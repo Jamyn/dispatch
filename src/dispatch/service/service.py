@@ -38,15 +38,16 @@ def get_by_name_or_raise(*, db_session, project_id, service_in: ServiceRead) -> 
     source = get_by_name(db_session=db_session, project_id=project_id, name=service_in.name)
 
     if not source:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ServiceRead",
             [
                 {
-                    "loc": ("service",),
-                    "msg": f"Service not found: {service_in.name}",
                     "type": "value_error",
+                    "loc": ("service",),
                     "input": service_in.name,
+                    "ctx": {"error": ValueError(f"Service not found: {service_in.name}")},
                 }
-            ]
+            ],
         )
 
     return source
@@ -73,14 +74,16 @@ def get_by_external_id_and_project_id_or_raise(
     )
 
     if not service:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ServiceRead",
             [
                 {
-                    "msg": "Service not found.",
-                    "incident_priority": service.external_id,
+                    "type": "value_error",
+                    "loc": ("external_id",),
+                    "input": service_in.external_id,
+                    "ctx": {"error": ValueError("Service not found.")},
                 }
             ],
-            model=ServiceRead,
         )
 
     return service
@@ -193,14 +196,20 @@ def update(*, db_session, service: Service, service_in: ServiceUpdate) -> Servic
             db_session=db_session, slug=service_in.type, project_id=service.project.id
         )
         if not oncall_plugin_instance.enabled:
-            raise ValidationError(
+            raise ValidationError.from_exception_data(
+                "ServiceUpdate",
                 [
                     {
-                        "msg": "Cannot enable service. Its associated plugin is not enabled.",
-                        "loc": "type",
+                        "type": "value_error",
+                        "loc": ("type",),
+                        "input": service_in.type,
+                        "ctx": {
+                            "error": ValueError(
+                                "Cannot enable service. Its associated plugin is not enabled."
+                            )
+                        },
                     }
                 ],
-                model=ServiceUpdate,
             )
 
     for field in service_data:

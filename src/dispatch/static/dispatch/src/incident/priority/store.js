@@ -70,7 +70,7 @@ function commitStablePriority(commit, value) {
             text: `Setting updated.`,
             type: "success",
           },
-          { root: true }
+          { root: true },
         )
       })
     }
@@ -82,7 +82,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "IncidentPriority"
+      "IncidentPriority",
     )
     return IncidentPriorityApi.getAll(params)
       .then((response) => {
@@ -129,7 +129,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Incident priority created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -144,7 +144,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Incident priority updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -159,7 +159,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Incident priority deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

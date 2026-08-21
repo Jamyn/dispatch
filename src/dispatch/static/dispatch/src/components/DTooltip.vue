@@ -17,7 +17,7 @@ const props = withDefaults(
   }>(),
   {
     location: "bottom",
-  }
+  },
 )
 </script>
 

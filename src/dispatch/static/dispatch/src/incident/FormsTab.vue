@@ -139,7 +139,7 @@ export default {
       (vm) => [vm.project, vm.selected_incident, vm.project],
       () => {
         this.getFormsData()
-      }
+      },
     )
   },
 }

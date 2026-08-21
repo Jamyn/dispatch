@@ -68,7 +68,7 @@ test("mounts correctly and starts verification automatically", async () => {
 
 test("shows loading state while verifying", async () => {
   vi.mocked(authApi.verifyMfa).mockImplementationOnce(
-    () => new Promise(() => {}) // Never resolving promise
+    () => new Promise(() => {}), // Never resolving promise
   )
 
   const wrapper = mount(MfaVerification, {

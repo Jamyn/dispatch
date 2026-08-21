@@ -52,7 +52,7 @@ const actions = {
       {
         ...state.table.options,
       },
-      "SourceType"
+      "SourceType",
     )
     return TypeApi.getAll(params)
       .then((response) => {
@@ -113,7 +113,7 @@ const actions = {
               text: `type '${payload.name}' could not be found.`,
               type: "exception",
             },
-            { root: true }
+            { root: true },
           )
           commit("SET_DIALOG_SHOW_EDIT_SHEET", false)
         }
@@ -132,7 +132,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "type created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           return resp.data
         })
@@ -148,7 +148,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Type updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -163,7 +163,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Type deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

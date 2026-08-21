@@ -103,7 +103,7 @@ export default {
             {
               text: "Failed to add cost model activity. Please ensure all plugin events are unique for each cost model.",
             },
-            { root: true }
+            { root: true },
           )
           return
         }

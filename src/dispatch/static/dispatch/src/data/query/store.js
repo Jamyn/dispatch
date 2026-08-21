@@ -57,7 +57,7 @@ const actions = {
       {
         ...state.table.options,
       },
-      "Query"
+      "Query",
     )
     return QueryApi.getAll(params)
       .then((response) => {
@@ -118,7 +118,7 @@ const actions = {
               text: `Query '${payload.name}' could not be found.`,
               type: "exception",
             },
-            { root: true }
+            { root: true },
           )
           commit("SET_DIALOG_SHOW_EDIT_SHEET", false)
         }
@@ -137,7 +137,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Query created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           return resp.data
         })
@@ -153,7 +153,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Query updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -168,7 +168,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Query deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

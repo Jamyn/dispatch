@@ -40,15 +40,20 @@ def get_by_name_or_raise(
     )
 
     if not source:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "SourceEnvironmentRead",
             [
                 {
-                    "loc": ("source",),
-                    "msg": f"Source environment not found: {source_environment_in.name}",
                     "type": "value_error",
+                    "loc": ("source",),
                     "input": source_environment_in.name,
+                    "ctx": {
+                        "error": ValueError(
+                            f"Source environment not found: {source_environment_in.name}"
+                        )
+                    },
                 }
-            ]
+            ],
         )
 
     return source

@@ -225,7 +225,7 @@ const changeStatus = async (newStatus) => {
         text: `Failed to update case status`,
         type: "exception",
       },
-      { root: true }
+      { root: true },
     )
   }
 }
@@ -250,7 +250,7 @@ watch(
   () => props.modelValue.status,
   (newStatus) => {
     activeStatus.value = newStatus
-  }
+  },
 )
 
 const isActiveStatus = (status) => {

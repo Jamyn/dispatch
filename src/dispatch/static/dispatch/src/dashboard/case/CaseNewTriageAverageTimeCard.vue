@@ -59,8 +59,8 @@ export default {
                 endTime = item.triage_at
               }
               return differenceInHours(parseISO(endTime), parseISO(item.reported_at))
-            }) / value.length
-          )
+            }) / value.length,
+          ),
         )
       })
 

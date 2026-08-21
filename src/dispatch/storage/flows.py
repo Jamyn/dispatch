@@ -71,6 +71,14 @@ def create_storage(subject: Subject, storage_members: list[str], db_session: Ses
     plugin.instance.create_file(parent_id=external_storage["id"], name=folder_two_name)
 
     if subject.project.storage_use_folder_one_as_primary:
+        # A plugin that could not create the folder returns None, the same way
+        # the root above does. Subscripting it here would abort the whole
+        # incident flow, which has no except around this call.
+        if not folder_one:
+            log.error(
+                f"Storage not created. Plugin {plugin.plugin.slug} could not create {folder_one_name}."  # noqa: E501
+            )
+            return
         external_storage = folder_one
 
     # we create the internal storage

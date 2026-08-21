@@ -220,13 +220,18 @@ class ResourceBaseFactory(TimeStampBaseFactory):
 class ContactBaseFactory(TimeStampBaseFactory):
     """Contact Base Factory."""
 
+    # Deliberately not `user{n}@` -- DispatchUserFactory numbers its own
+    # `user{n}@example.com` from a separate counter, so a shared pattern made
+    # the two collide whenever the counters happened to line up. A contact that
+    # accidentally shares a user's address makes that user a participant, which
+    # is how a permissions test came to assert the opposite of what it meant.
     company = FuzzyText()
     contact_type = FuzzyChoice(["one", "two"])
-    email = Sequence(lambda n: f"user{n}@example.com")
+    email = Sequence(lambda n: f"contact{n}@example.com")
     is_active = Faker().pybool()
     is_external = Faker().pybool()
     notes = FuzzyText()
-    owner = Sequence(lambda n: f"user{n}@example.com")
+    owner = Sequence(lambda n: f"contact-owner{n}@example.com")
 
     @post_generation
     def incident_priorities(self, create, extracted, **kwargs):

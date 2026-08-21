@@ -100,7 +100,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Entity created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -115,7 +115,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Entity updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -130,7 +130,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Entity deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

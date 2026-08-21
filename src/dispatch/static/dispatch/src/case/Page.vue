@@ -139,7 +139,7 @@ const fetchDetails = async () => {
           text: `Case '${caseName}' could not be found.`,
           type: "exception",
         },
-        { root: true }
+        { root: true },
       )
     }
     loading.value = false
@@ -175,7 +175,7 @@ watch(
       fetchDetails()
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 </script>
 

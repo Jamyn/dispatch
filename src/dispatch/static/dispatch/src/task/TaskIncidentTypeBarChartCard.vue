@@ -84,7 +84,7 @@ export default {
           }),
           function (value, key) {
             return { name: key, data: [value] }
-          }
+          },
         )
 
         series = mergeWith(series, typeCount, function (objValue, srcValue) {

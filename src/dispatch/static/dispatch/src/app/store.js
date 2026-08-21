@@ -50,7 +50,7 @@ const actions = {
           text: `Hash: ${latestCommitHash} | Message: ${latestCommitMessage}`,
           type: "success",
         },
-        { root: true }
+        { root: true },
       )
     }
   },

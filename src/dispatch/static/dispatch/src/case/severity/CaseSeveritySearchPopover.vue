@@ -38,7 +38,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 const selectCaseSeverity = async (caseSeverityName: string) => {

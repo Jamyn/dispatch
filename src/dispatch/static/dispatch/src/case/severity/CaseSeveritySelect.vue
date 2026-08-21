@@ -105,7 +105,7 @@ export default {
       filterOptions = SearchUtils.createParametersFromTableOptions(
         { ...filterOptions },
         "CaseSeverity",
-        enabledFilter
+        enabledFilter,
       )
 
       CaseSeverityApi.getAll(filterOptions).then((response) => {
@@ -123,7 +123,7 @@ export default {
         this.fetchData()
         this.validateSeverity()
         this.$emit("update:modelValue", this.case_severity)
-      }
+      },
     )
   },
 }

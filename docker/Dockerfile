@@ -172,7 +172,11 @@ RUN buildDeps="" \
   && rm -rf /mjml_install \
   # npm is build-time only; every CRITICAL/HIGH in this image's node tree comes
   # from its bundled dependencies. The mjml CLI needs node, not npm.
-  && rm -rf /usr/lib/node_modules/npm /usr/bin/npm /usr/bin/npx
+  && rm -rf /usr/lib/node_modules/npm /usr/bin/npm /usr/bin/npx \
+  # pip is build-time only: it bootstraps uv above and nothing invokes it
+  # afterwards. trivy reads pip/_vendor/vendor.txt as installed packages, and
+  # its vendored msgpack and setuptools are this image's only CRITICAL/HIGH.
+  && python -m pip uninstall -y pip
 
 # The wheel no longer carries the frontend's node_modules, so the default
 # (a path inside the package) no longer resolves. Point at the tree above.

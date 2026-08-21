@@ -145,7 +145,7 @@ const policies = computed({
 
 useSortable(
   computed(() => sortableElement.value?.$el),
-  policies
+  policies,
 )
 
 watch(
@@ -155,7 +155,7 @@ watch(
       policies.value = response.data.policies
     })
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 function add() {
@@ -180,7 +180,7 @@ function save() {
       this.$store.commit(
         "notification_backend/addBeNotification",
         { text: "Role policies successfully updated.", type: "success" },
-        { root: true }
+        { root: true },
       )
       policies.value = response.data.policies
     })

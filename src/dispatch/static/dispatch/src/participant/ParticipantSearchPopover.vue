@@ -22,7 +22,7 @@ const props = withDefaults(
   }>(),
   {
     hotkey: "a",
-  }
+  },
 )
 
 interface Participant {
@@ -71,7 +71,7 @@ watch(
   async (newValue: string) => {
     await fetchParticipants(newValue)
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 // Fetch email for a specific participant by name
@@ -171,7 +171,7 @@ watch(
       selectedParticipantEmail.value = ""
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 const selectParticipant = (participant: Participant) => {
@@ -191,7 +191,7 @@ const filteredParticipants = computed(() => {
 
     // Check if the selected participant matches the search query
     const isSelectedParticipantIncluded = otherParticipants.some(
-      (p) => p.name === selectedParticipant.value
+      (p) => p.name === selectedParticipant.value,
     )
 
     // If not included, add to the top of the list

@@ -58,7 +58,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "Feedback"
+      "Feedback",
     )
     return FeedbackApi.getAll(params).then((response) => {
       commit("SET_TABLE_LOADING", false)
@@ -91,7 +91,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Feedback created successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
     } else {
@@ -101,7 +101,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Feedback updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
     }
@@ -113,7 +113,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Feedback deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

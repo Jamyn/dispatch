@@ -100,7 +100,7 @@ export default {
             text: `Failed to escalate case.`,
             type: "exception",
           },
-          { root: true }
+          { root: true },
         )
       } finally {
         this.loading = false
@@ -116,7 +116,7 @@ export default {
         this.incidentTitle = this.caseTitle
         this.incidentProject = this.caseProject ? this.caseProject : null
         this.incidentType = this.caseType?.incident_type ? this.caseType.incident_type : null
-      }
+      },
     )
   },
 }

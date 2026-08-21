@@ -148,7 +148,7 @@ export default {
       (vm) => [vm.components],
       () => {
         this.local_components = JSON.parse(this.components)
-      }
+      },
     )
   },
 }
