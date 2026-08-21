@@ -500,3 +500,48 @@ def test_delete_file_reports_a_failure_rather_than_swallowing_it(confluence, hos
     with pytest.raises((HTTPError, ApiError, ConfluenceError)):
         plugin.delete_file(file_id=incident["id"])
     assert incident["id"] in confluence.pages
+
+
+def _instance_context(path: str) -> str:
+    """The context path an API path hangs off, which must not move mid-listing."""
+    for marker in ("/api/v2", "/rest/api"):
+        if marker in path:
+            return path.split(marker)[0]
+    return path
+
+
+def test_delete_file_walks_every_page_of_a_paginated_child_listing(confluence, hosting_type):
+    """A child listing longer than one page still has to be walked in full.
+
+    This is the coverage that pins `atlassian-python-api>=5.0.3`. Earlier 5.0.x
+    builds a paged listing's next request by prefixing `_links.next` -- which
+    already carries the context path -- with `_links.base`, which carries it
+    too, so page two of a Cloud listing is fetched from `/wiki/wiki/api/v2/...`
+    and 404s. Nothing below page one was exercised before, so the whole delete
+    walk passed against a client that could not turn the page.
+    """
+    confluence.child_page_size = 2
+    plugin = storage_plugin(hosting_type)
+    incident = plugin.create_file(parent_id=ROOT_PAGE_ID, name="Dispatch Incident")
+    children = [plugin.create_file(parent_id=incident["id"], name=f"Logs {n}") for n in range(5)]
+
+    plugin.delete_file(file_id=incident["id"])
+
+    # Page one alone would have left the last three behind.
+    for page in (incident, *children):
+        assert page["id"] not in confluence.pages
+    assert ROOT_PAGE_ID in confluence.pages
+
+    listings = [
+        request
+        for request in confluence.requests
+        if request.method == "GET"
+        and (request.path.endswith("/children") or request.path.endswith("/child/page"))
+    ]
+    assert any("cursor" in request.params or "start" in request.params for request in listings), (
+        "the listing never paged, so this test would pass without turning a page"
+    )
+    # Every page of the listing addresses the instance Dispatch was pointed at.
+    assert {_instance_context(request.path) for request in listings} == {
+        _instance_context(confluence.requests[0].path)
+    }
