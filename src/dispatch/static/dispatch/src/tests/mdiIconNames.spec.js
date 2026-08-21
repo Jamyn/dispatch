@@ -4,6 +4,8 @@ import { createRequire } from "node:module"
 import { dirname, join, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import iconCatalog from "../assets/icons"
+
 // An `mdi-*` name that no longer exists in @mdi/font is not a build or lint
 // error -- it is a CSS class with no rule behind it, so the icon renders as a
 // blank box and every other check stays green. Only diffing the names used
@@ -53,6 +55,23 @@ describe("mdi icon names used in src/", () => {
     const missing = [...usedIcons]
       .filter(([name]) => !definedIcons.has(name))
       .map(([name, path]) => `${name} (${path})`)
+    expect(missing).toEqual([])
+  })
+})
+
+// The catalog stores bare names (`{ name: "abacus" }`) that IconPickerInput
+// renders as `mdi-${name}`, so the literal scan above cannot see them. An
+// unresolvable entry is offered to operators and persisted into tag_type.icon.
+describe("the icon catalog behind IconPickerInput", () => {
+  it("finds the names to check", () => {
+    expect(iconCatalog.length).toBeGreaterThan(1000)
+    expect(iconCatalog.every((icon) => typeof icon.name === "string")).toBe(true)
+  })
+
+  it("every name exists in the shipped font", () => {
+    const missing = iconCatalog
+      .map((icon) => icon.name)
+      .filter((name) => !definedIcons.has(`mdi-${name}`))
     expect(missing).toEqual([])
   })
 })
