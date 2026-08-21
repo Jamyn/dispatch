@@ -139,7 +139,7 @@ export default {
       filterOptions = SearchUtils.createParametersFromTableOptions(
         { ...filterOptions },
         "CaseSeverity",
-        enabledFilter
+        enabledFilter,
       )
 
       CaseSeverityApi.getAll(filterOptions).then((response) => {
@@ -167,7 +167,7 @@ export default {
       (vm) => [vm.project],
       () => {
         this.fetchData()
-      }
+      },
     )
   },
 }

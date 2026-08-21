@@ -92,7 +92,7 @@ const actions = {
 
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      documentTypes
+      documentTypes,
     )
     return DocumentApi.getAll(params)
       .then((response) => {
@@ -132,7 +132,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Document created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           return resp.data
         })
@@ -147,7 +147,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Document updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
     }
@@ -159,7 +159,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Document deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

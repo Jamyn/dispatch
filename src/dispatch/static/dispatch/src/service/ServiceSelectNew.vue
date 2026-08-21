@@ -129,7 +129,7 @@ export default {
       (vm) => [vm.project],
       () => {
         this.fetchData()
-      }
+      },
     )
   },
 }

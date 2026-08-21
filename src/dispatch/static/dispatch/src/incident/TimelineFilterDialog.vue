@@ -140,7 +140,7 @@ export default {
           // copy actual to local on dialog show
           this.local_filters = invertBooleanValues(this.timeline_filters)
         }
-      }
+      },
     )
   },
 }

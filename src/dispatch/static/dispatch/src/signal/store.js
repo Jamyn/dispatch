@@ -135,7 +135,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Signal Definition created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -150,7 +150,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Signal Definition updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -165,7 +165,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Signal Definition deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

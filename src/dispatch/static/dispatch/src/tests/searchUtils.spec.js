@@ -16,7 +16,7 @@ describe("SearchUtils.createSortExpression", () => {
     // value must NOT override what `order` says.
     const [sortBy, descending] = SearchUtils.createSortExpression(
       [{ key: "name", order: "asc" }],
-      [true]
+      [true],
     )
     expect(sortBy).toEqual(["name"])
     expect(descending).toEqual([false])
@@ -25,7 +25,7 @@ describe("SearchUtils.createSortExpression", () => {
   it("reads descending correctly for a desc column click", () => {
     const [sortBy, descending] = SearchUtils.createSortExpression(
       [{ key: "reported_at", order: "desc" }],
-      [false]
+      [false],
     )
     expect(sortBy).toEqual(["reported_at"])
     expect(descending).toEqual([true])

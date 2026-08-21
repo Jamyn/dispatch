@@ -55,7 +55,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "CostModel"
+      "CostModel",
     )
     return CostModelApi.getAll(params)
       .then((response) => {
@@ -101,7 +101,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Cost model created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -116,7 +116,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Cost model updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -131,7 +131,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Cost model deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

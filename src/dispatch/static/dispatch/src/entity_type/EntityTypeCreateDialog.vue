@@ -204,7 +204,7 @@ export default {
           },
         },
         null,
-        2
+        2,
       ),
       step: 1,
     }

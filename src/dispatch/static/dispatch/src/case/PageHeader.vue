@@ -131,7 +131,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 const emit = defineEmits(["toggle-drawer"])

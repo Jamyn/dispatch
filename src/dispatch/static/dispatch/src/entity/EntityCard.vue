@@ -134,11 +134,11 @@ export default {
         this.isLoading = true
 
         const casePromise = EntityApi.getCases(this.entity.id, this.selectedDateTime).then(
-          (response) => response.data
+          (response) => response.data,
         )
         const signalPromise = EntityApi.getSignalInstances(
           this.entity.id,
-          this.selectedDateTime
+          this.selectedDateTime,
         ).then((response) => response.data)
 
         const [casesResponse, signalResponse] = await Promise.all([casePromise, signalPromise])

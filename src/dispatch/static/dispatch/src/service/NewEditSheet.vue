@@ -244,7 +244,7 @@ export default {
     filterOptions = SearchUtils.createParametersFromTableOptions(
       { ...filterOptions },
       "Plugin",
-      typeFilter
+      typeFilter,
     )
 
     PluginApi.getAllInstances(filterOptions).then((response) => {

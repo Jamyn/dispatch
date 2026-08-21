@@ -89,7 +89,7 @@ export default {
       filterOptions = SearchUtils.createParametersFromTableOptions(
         { ...filterOptions },
         "Workflow",
-        enabledFilter
+        enabledFilter,
       )
 
       WorkflowApi.getAll(filterOptions).then((response) => {
@@ -105,7 +105,7 @@ export default {
       (vm) => [vm.project],
       () => {
         this.fetchData()
-      }
+      },
     )
   },
 }

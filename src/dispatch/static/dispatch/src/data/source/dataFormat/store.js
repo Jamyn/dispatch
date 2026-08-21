@@ -52,7 +52,7 @@ const actions = {
       {
         ...state.table.options,
       },
-      "SourceDataFormat"
+      "SourceDataFormat",
     )
     return DataFormatApi.getAll(params)
       .then((response) => {
@@ -113,7 +113,7 @@ const actions = {
               text: `DataFormat '${payload.name}' could not be found.`,
               type: "exception",
             },
-            { root: true }
+            { root: true },
           )
           commit("SET_DIALOG_SHOW_EDIT_SHEET", false)
         }
@@ -132,7 +132,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Dataformat created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           return resp.data
         })
@@ -148,7 +148,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "DataFormat updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -163,7 +163,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "DataFormat deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

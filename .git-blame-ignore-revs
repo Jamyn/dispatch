@@ -1,3 +1,5 @@
 # Mechanical reformats; keep out of git blame.
 # chore: bump pre-commit hooks and reformat with current ruff (#64)
 2d9d2b1e773325665ac1e5919ea3ce4fa81a6ffc
+# build(deps-dev): bump prettier from 2.8.8 to 3.9.6 and reformat (#250)
+0f37d8572ab6ec7e1f867ceb5210ac8458b4ce57

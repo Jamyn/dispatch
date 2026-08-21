@@ -70,10 +70,10 @@ export default {
           let tagCount = countBy(value, "name")
           let data = sortBy(
             Object.keys(tagCount).map((key) => ({ x: key, y: tagCount[key], items: value })),
-            ["y"]
+            ["y"],
           )
           tagSeries.push({ name: key, data: data })
-        }
+        },
       )
       return tagSeries
     },

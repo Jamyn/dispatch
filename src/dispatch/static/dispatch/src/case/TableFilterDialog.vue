@@ -135,7 +135,7 @@ const local_selected_case_types = ref([])
 const exclude_mode = ref(false) // Default to "include only selected" mode
 const local_case_type = computed(() => (!exclude_mode.value ? local_selected_case_types.value : []))
 const local_not_case_type = computed(() =>
-  exclude_mode.value ? local_selected_case_types.value : []
+  exclude_mode.value ? local_selected_case_types.value : [],
 )
 const local_closed_at = ref({})
 const local_project = ref(props.projects)
@@ -148,17 +148,17 @@ const local_participant_is_assignee = ref(false)
 const local_security_event_only = ref(false)
 
 const case_priority = computed(
-  () => store.state.case_management.table.options.filters.case_priority
+  () => store.state.case_management.table.options.filters.case_priority,
 )
 const case_severity = computed(
-  () => store.state.case_management.table.options.filters.case_severity
+  () => store.state.case_management.table.options.filters.case_severity,
 )
 const project = computed(() => store.state.case_management.table.options.filters.project)
 const status = computed(() => store.state.case_management.table.options.filters.status)
 const tag = computed(() => store.state.case_management.table.options.filters.tag)
 const tag_type = computed(() => store.state.case_management.table.options.filters.tag_type)
 const security_event_only = computed(
-  () => store.state.case_management.table.options.filters.security_event_only
+  () => store.state.case_management.table.options.filters.security_event_only,
 )
 const case_type = computed(() => store.state.case_management.table.options.filters.case_type)
 

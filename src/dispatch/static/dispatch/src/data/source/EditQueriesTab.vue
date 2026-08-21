@@ -69,7 +69,7 @@ export default {
       () => {
         if (!this.selectedQuery) return
         this.add()
-      }
+      },
     )
   },
 

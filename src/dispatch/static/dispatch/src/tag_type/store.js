@@ -92,7 +92,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Tag type created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -107,7 +107,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Tag type updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -122,7 +122,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Tag type deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

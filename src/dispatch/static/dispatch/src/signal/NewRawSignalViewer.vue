@@ -84,7 +84,7 @@ const editorBeforeMount = (monaco) => {
             position.lineNumber,
             word.startColumn,
             position.lineNumber,
-            word.endColumn
+            word.endColumn,
           )
           const title = `**Entity Type**: ${existingEntity.entity_type.name}\n`
           const pattern = `**Pattern**: ${existingEntity.entity_type.jpath}\n`
@@ -102,7 +102,7 @@ const editorBeforeMount = (monaco) => {
             position.lineNumber,
             word.startColumn,
             position.lineNumber,
-            word.endColumn
+            word.endColumn,
           )
           // Handle different entity structures
           const entityType = newEntity.entity_type || newEntity
@@ -148,7 +148,7 @@ const editorMounted = (editor, monaco) => {
                 text: `Unable to automatically generate JSON Path Expression. Defaulted to $`,
                 type: "exception",
               },
-              { root: true }
+              { root: true },
             )
           }
 

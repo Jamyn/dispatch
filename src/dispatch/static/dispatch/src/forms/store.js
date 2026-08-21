@@ -288,7 +288,7 @@ function save({ commit, dispatch }) {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form created successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         if (state.selected.status == "Completed") {
           FormsApi.sendEmailToService(response.data.id)
@@ -301,7 +301,7 @@ function save({ commit, dispatch }) {
     return FormsApi.update(
       state.selected.id,
       state.selected.creator.id,
-      createPayload(state.selected)
+      createPayload(state.selected),
     )
       .then((response) => {
         commit("SET_DIALOG_CREATE_EDIT", false)
@@ -312,7 +312,7 @@ function save({ commit, dispatch }) {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         if (state.selected.status == "Completed") {
           FormsApi.sendEmailToService(response.data.id)
@@ -337,7 +337,7 @@ const actions = {
     let filterOptions = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
       "Forms",
-      incidentFilter
+      incidentFilter,
     )
     commit("SET_TABLE_LOADING", "primary")
     let projectFilter = [
@@ -351,7 +351,7 @@ const actions = {
     let formsTypeFilter = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
       "FormsType",
-      projectFilter
+      projectFilter,
     )
     commit("SET_TABLE_LOADING", "primary")
     FormsApi.getAll(filterOptions)
@@ -398,8 +398,8 @@ const actions = {
       buildFormDoc(
         selected.form_type.form_schema,
         selected.form_data,
-        selected.form_type.attorney_form_schema
-      )
+        selected.form_type.attorney_form_schema,
+      ),
     )
     IncidentApi.get(selected.incident.id).then((response) => {
       commit("SET_INCIDENT_DATA", buildIncidentDoc(response.data))
@@ -418,8 +418,8 @@ const actions = {
           buildFormDoc(
             selected.form_type.form_schema,
             selected.form_data,
-            selected.form_type.attorney_form_schema
-          )
+            selected.form_type.attorney_form_schema,
+          ),
         )
         IncidentApi.get(selected.incident.id).then((response) => {
           commit("SET_INCIDENT_DATA", buildIncidentDoc(response.data))
@@ -431,7 +431,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form id not found.", type: "exception" },
-          { root: true }
+          { root: true },
         )
       })
   },
@@ -472,7 +472,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form deleted successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
       .catch(() => {

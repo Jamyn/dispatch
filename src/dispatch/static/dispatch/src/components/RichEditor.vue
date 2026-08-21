@@ -59,7 +59,7 @@ watch(
     }
 
     editor.value?.chain().setContent(`${value}`, false).run()
-  }
+  },
 )
 
 // Watch for modelValue changes (v-model support)
@@ -77,7 +77,7 @@ watch(
     }
 
     editor.value?.chain().setContent(`${value}`, false).run()
-  }
+  },
 )
 
 onMounted(() => {

@@ -64,7 +64,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "IncidentType"
+      "IncidentType",
     )
     return IncidentTypeApi.getAll(params)
       .then((response) => {
@@ -104,7 +104,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Incident type created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -119,7 +119,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Incident type updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -134,7 +134,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Incident type deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

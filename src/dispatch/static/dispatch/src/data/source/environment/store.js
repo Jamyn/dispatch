@@ -52,7 +52,7 @@ const actions = {
       {
         ...state.table.options,
       },
-      "SourceEnvironment"
+      "SourceEnvironment",
     )
     return EnvironmentApi.getAll(params)
       .then((response) => {
@@ -113,7 +113,7 @@ const actions = {
               text: `environment '${payload.name}' could not be found.`,
               type: "exception",
             },
-            { root: true }
+            { root: true },
           )
           commit("SET_DIALOG_SHOW_EDIT_SHEET", false)
         }
@@ -132,7 +132,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "environment created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           return resp.data
         })
@@ -148,7 +148,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Environment updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -163,7 +163,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Environment deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

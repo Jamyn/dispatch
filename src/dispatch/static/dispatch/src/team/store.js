@@ -94,7 +94,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Team created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -109,7 +109,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Team updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -124,7 +124,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Team deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

@@ -108,7 +108,7 @@ export default {
           Description: item.description,
           Owner: this.extractOwner(item),
         })),
-        this.name + "-timeline-export.csv"
+        this.name + "-timeline-export.csv",
       )
     },
     init() {

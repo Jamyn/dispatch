@@ -246,7 +246,7 @@ export default {
       (vm) => [vm.incident, vm.incident_type, vm.incident_priority, vm.project, vm.status],
       () => {
         this.getPreviewData()
-      }
+      },
     )
   },
 }

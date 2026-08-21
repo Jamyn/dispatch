@@ -158,7 +158,7 @@ const actions = {
     })
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "Incident"
+      "Incident",
     )
     return IncidentApi.getAll(params)
       .then((response) => {
@@ -204,7 +204,7 @@ const actions = {
               text: `Incident '${payload.name}' could not be found.`,
               type: "exception",
             },
-            { root: true }
+            { root: true },
           )
           commit("SET_DIALOG_SHOW_EDIT_SHEET", false)
         }
@@ -306,13 +306,13 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Ticket created successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       } else {
         commit(
           "notification_backend/addBeNotification",
           { text: "Ticket creation failed.", type: "error" },
-          { root: true }
+          { root: true },
         )
       }
     })
@@ -334,28 +334,28 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Event updated successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
     commit("SET_DIALOG_EDIT_EVENT", false)
   },
   exportDoc({ commit }, timeline_filters) {
-    commit(
+    ;(commit(
       "notification_backend/addBeNotification",
       { text: "Timeline export initiated. This may take a few minutes.", type: "success" },
-      { root: true }
+      { root: true },
     ),
       IncidentApi.exportTimeline(state.selected.id, timeline_filters)
         .then(() => {
           commit(
             "notification_backend/addBeNotification",
             { text: "Timeline exported successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
           commit("SET_DIALOG_EDIT_EVENT", false)
-        })
+        }))
   },
 
   closeDeleteEventDialog({ commit }) {
@@ -375,7 +375,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Event created successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
     commit("SET_DIALOG_EDIT_EVENT", false)
@@ -388,7 +388,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Event updated successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
     commit("SET_DIALOG_EDIT_EVENT", false)
@@ -401,7 +401,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Event deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
     commit("SET_DIALOG_DELETE_EVENT", false)
@@ -415,7 +415,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Task updated successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
     commit("SET_DIALOG_EDIT_TASK", false)
@@ -457,7 +457,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Incident created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_SELECTED_LOADING", false)
         })
@@ -472,7 +472,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Incident updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_SELECTED_LOADING", false)
         })
@@ -489,7 +489,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Incident(s) updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_BULK_EDIT_LOADING", false)
       })
@@ -505,7 +505,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Incident(s) deleted successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_BULK_EDIT_LOADING", false)
       })
@@ -520,21 +520,21 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Incident deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
   removeParticipant({ commit, dispatch, state }) {
     return IncidentApi.removeParticipant(
       state.selected.id,
-      state.dialogs.participantToRemove.individual.email
+      state.dialogs.participantToRemove.individual.email,
     ).then(function () {
       dispatch("closeRemoveParticipantDialog")
       dispatch("get", state.selected.id)
       commit(
         "notification_backend/addBeNotification",
         { text: "Participant removed successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
@@ -542,14 +542,14 @@ const actions = {
     return IncidentApi.createReport(
       state.selected.id,
       state.report.type,
-      state.report[state.report.type]
+      state.report[state.report.type],
     ).then(function () {
       dispatch("closeReportDialog")
       dispatch("getAll")
       commit(
         "notification_backend/addBeNotification",
         { text: "Report created successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
@@ -582,7 +582,7 @@ const actions = {
             text: "Tactical report generated successfully.",
             type: "success",
           },
-          { root: true }
+          { root: true },
         )
       } else {
         commit(
@@ -594,7 +594,7 @@ const actions = {
                 : "Unknown error generating tactical report.",
             type: "error",
           },
-          { root: true }
+          { root: true },
         )
       }
       commit("SET_TACTICAL_REPORT_LOADING", false)
@@ -622,7 +622,7 @@ const actions = {
                   commit(
                     "notification_backend/addBeNotification",
                     { text: "Resources(s) created successfully.", type: "success" },
-                    { root: true }
+                    { root: true },
                   )
                 })
               }
@@ -642,7 +642,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "You have successfully joined the incident.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
@@ -654,7 +654,7 @@ const actions = {
           text: "You have successfully subscribed to the incident. You will receive all tactical reports about this incident via email.",
           type: "success",
         },
-        { root: true }
+        { root: true },
       )
     })
   },
@@ -667,7 +667,7 @@ const actions = {
           text: "Summary has been successfully regenerated.",
           type: "success",
         },
-        { root: true }
+        { root: true },
       )
     })
   },

@@ -63,7 +63,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "CaseType"
+      "CaseType",
     )
     return CaseTypeApi.getAll(params)
       .then((response) => {
@@ -103,7 +103,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Case type created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -118,7 +118,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Case type updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -133,7 +133,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Case type deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

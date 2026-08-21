@@ -97,7 +97,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Service created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           return resp.data
         })
@@ -113,7 +113,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Service updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -128,7 +128,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Service deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

@@ -51,7 +51,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Organization created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -66,7 +66,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Organization updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {

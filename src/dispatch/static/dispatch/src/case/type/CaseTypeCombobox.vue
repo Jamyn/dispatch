@@ -140,7 +140,7 @@ export default {
       filterOptions = SearchUtils.createParametersFromTableOptions(
         { ...filterOptions },
         "CaseType",
-        enabledFilter
+        enabledFilter,
       )
 
       CaseTypeApi.getAll(filterOptions).then((response) => {
@@ -168,7 +168,7 @@ export default {
       (vm) => [vm.project],
       () => {
         this.fetchData()
-      }
+      },
     )
   },
 }

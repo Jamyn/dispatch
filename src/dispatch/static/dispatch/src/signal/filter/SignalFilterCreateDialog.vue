@@ -274,7 +274,7 @@ export default {
       () => {
         this.expression = SearchUtils.createFilterExpression(this.filters)
         this.getPreviewData()
-      }
+      },
     )
   },
 }

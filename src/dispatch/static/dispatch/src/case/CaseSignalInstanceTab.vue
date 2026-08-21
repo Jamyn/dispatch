@@ -69,14 +69,14 @@ watch(
   () => props.modelValue,
   (newValue) => {
     signalInstances.value = newValue
-  }
+  },
 )
 
 watch(
   () => props.loading,
   (newValue) => {
     internalLoading.value = newValue
-  }
+  },
 )
 
 const selectItem = (item) => {
@@ -98,7 +98,7 @@ watch(
       selectedItem.value = newSignalInstances[index]
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true, deep: true },
 )
 </script>
 

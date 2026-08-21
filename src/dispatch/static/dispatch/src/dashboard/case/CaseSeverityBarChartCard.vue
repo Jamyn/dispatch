@@ -54,8 +54,8 @@ export default {
             sortBy(response.data.items, function (value) {
               return value.view_order
             }),
-            "name"
-          )
+            "name",
+          ),
         ),
       ]
     })
@@ -117,7 +117,7 @@ export default {
       let series = DashboardUtils.createCountedSeriesData(
         this.modelValue,
         "case_severity.name",
-        this.severities
+        this.severities,
       )
       return series
     },

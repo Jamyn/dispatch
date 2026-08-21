@@ -200,7 +200,7 @@ export default {
           },
         },
         null,
-        2
+        2,
       ),
     }
   },

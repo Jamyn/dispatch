@@ -46,6 +46,6 @@ watch(
     if (newVal) {
       updatedAtRef.value = newVal
     }
-  }
+  },
 )
 </script>

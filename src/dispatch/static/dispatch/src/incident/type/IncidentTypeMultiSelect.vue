@@ -97,7 +97,7 @@ export default {
     filterOptions = SearchUtils.createParametersFromTableOptions(
       { ...filterOptions },
       "IncidentType",
-      enabledFilter
+      enabledFilter,
     )
 
     IncidentTypeApi.getAll(filterOptions).then((response) => {

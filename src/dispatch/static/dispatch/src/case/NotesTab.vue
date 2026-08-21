@@ -75,7 +75,7 @@ export default {
           notesContent.value = ""
         }
       },
-      { immediate: true }
+      { immediate: true },
     )
 
     // Methods

@@ -36,7 +36,7 @@ export default {
       () => props.modelValue,
       (newVal) => {
         internalModelValue.value = newVal
-      }
+      },
     )
 
     watch(internalModelValue, (newVal) => {

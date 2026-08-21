@@ -60,7 +60,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "FormsType"
+      "FormsType",
     )
     return FormsTypeApi.getAll(params)
       .then((response) => {
@@ -100,7 +100,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Form type created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -115,7 +115,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Form type updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -132,7 +132,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form type deleted successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
       .catch(() => {
