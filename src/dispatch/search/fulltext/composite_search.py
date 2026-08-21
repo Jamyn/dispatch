@@ -50,10 +50,13 @@ class CompositeSearch(object):
     def union_query(self, search_query):
         """Matches and ranks each model under its own regconfig.
 
-        The union collapses vectors from models that declare different
-        regconfigs into one column, so a single tsquery applied afterwards is
-        necessarily wrong for some arm. Both the predicate and the rank are
-        therefore built per model, before the union.
+        Models declare different regconfigs, so a single tsquery applied after
+        the union is necessarily wrong for some arm. Both the predicate and the
+        rank are therefore built per model, before the union.
+
+        The vector itself is not projected: nothing downstream reads it, and
+        `tsvector` has no hash opclass, so including it forces the union's
+        duplicate elimination to sort every matching row instead of hashing.
 
         Returns a selectable, not a Query. All arms are combined in one n-ary
         union: folding them pairwise nests each union inside the next, and from
@@ -70,7 +73,6 @@ class CompositeSearch(object):
             arms.append(
                 self.session.query(
                     model_class.id.label("id"),
-                    vector.label("vector"),
                     literal(model_class.__name__).label("type"),
                     func.ts_rank_cd(vector, tsquery).label("rank"),
                 )
@@ -94,7 +96,7 @@ class CompositeSearch(object):
         the result would drop rows and repeat others across pages (#160).
         """
         combined = self.union_query(search_query).subquery()
-        qs = self.session.query(combined.c.id, combined.c.vector, combined.c.type, combined.c.rank)
+        qs = self.session.query(combined.c.id, combined.c.type, combined.c.rank)
         if sort:
             qs = qs.order_by(desc(combined.c.rank), combined.c.type, combined.c.id)
         return qs

@@ -304,6 +304,39 @@ def test_union_query_combines_every_arm_at_one_level(session):
     )
 
 
+def test_the_union_carries_no_tsvector(session):
+    """No arm may project the vector, and neither may the outer select.
+
+    `tsvector` has no hash opclass, so a tsvector anywhere in the union's
+    select list forces duplicate elimination to sort every matching row --
+    including the full vector of each -- instead of hashing (#159). The
+    projection is pinned by name and position, since the arms correspond
+    positionally; the type sweep then catches a vector reintroduced under any
+    other label.
+    """
+    from sqlalchemy_utils import TSVectorType
+
+    from dispatch.search.fulltext.composite_search import CompositeSearch
+
+    models = _search_type_models()
+    composite = CompositeSearch(session, models)
+    combined = composite.union_query(STEMMED)
+    outer = composite.build_query(STEMMED, sort=True).statement
+
+    for arm in combined.selects:
+        assert [c.name for c in arm.selected_columns] == ["id", "type", "rank"], (
+            f"an arm projects more than the union's consumers read: "
+            f"{[c.name for c in arm.selected_columns]}"
+        )
+    projected = [
+        column
+        for select in (*combined.selects, outer)
+        for column in select.selected_columns
+        if isinstance(column.type, TSVectorType)
+    ]
+    assert not projected, f"the union projects a tsvector: {projected}"
+
+
 def test_composite_search_orders_on_a_column_of_the_outer_query(session):
     """`ORDER BY` must name a column the outer scope actually exports.
 
