@@ -58,7 +58,12 @@ export default {
               if (item.escalated_at) {
                 endTime = item.escalated_at
               }
-              return differenceInHours(parseISO(endTime), parseISO(item.triage_at))
+              // date-fns 4 throws on a null input where 2.x returned Invalid Date.
+              // This field is unset for records that never reached that stage, so
+              // keep the NaN the old behaviour produced rather than crashing.
+              return item.triage_at
+                ? differenceInHours(parseISO(endTime), parseISO(item.triage_at))
+                : NaN
             }) / value.length,
           ),
         )

@@ -11,7 +11,7 @@
 <script>
 import { groupBy, isArray, mergeWith, forEach, map, find, sortBy } from "lodash"
 import { parseISO } from "date-fns"
-import locale from "date-fns/esm/locale/en-US"
+import { enUS as locale } from "date-fns/locale"
 
 import DashboardCard from "@/dashboard/DashboardCard.vue"
 import DashboardUtils from "@/dashboard/utils"
