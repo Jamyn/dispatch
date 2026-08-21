@@ -126,7 +126,7 @@
 </template>
 
 <script>
-import { zonedTimeToUtc, utcToZonedTime, format } from "date-fns-tz"
+import { fromZonedTime, toZonedTime, format } from "date-fns-tz"
 import { fromUnixTime } from "date-fns"
 
 function removeEndingZ(str) {
@@ -223,7 +223,7 @@ export default {
     okHandler() {
       let date = `${this.year}-${this.month}-${this.day}T${this.hour}:${this.minutes}:${this.seconds}`
       if (this.timezone !== "UTC") {
-        let dateInTimeZone = zonedTimeToUtc(date, this.timezone)
+        let dateInTimeZone = fromZonedTime(date, this.timezone)
         date = format(dateInTimeZone, "yyyy-MM-dd'T'HH:mm:ss.SSS")
       }
       this.$emit("update:modelValue", date)
@@ -232,7 +232,7 @@ export default {
     updateUnixTimestamp() {
       // build Date object from fields
       const date = `${this.year}-${this.month}-${this.day}T${this.hour}:${this.minutes}:${this.seconds}`
-      const dateObject = zonedTimeToUtc(date, this.timezone)
+      const dateObject = fromZonedTime(date, this.timezone)
       const timestampInMilliseconds = dateObject.getTime()
       this.unixTimestamp = Math.floor(timestampInMilliseconds)
     },
@@ -253,7 +253,7 @@ export default {
           convertedData = pastedData.slice(0, 10)
         }
         const dateInUtc = fromUnixTime(parseInt(convertedData))
-        const dateInTimeZone = utcToZonedTime(dateInUtc, this.timezone)
+        const dateInTimeZone = toZonedTime(dateInUtc, this.timezone)
         let isoFormatString = format(dateInTimeZone, "yyyy-MM-dd'T'HH:mm:ss")
         if (milliseconds) {
           isoFormatString += `.${milliseconds}`
