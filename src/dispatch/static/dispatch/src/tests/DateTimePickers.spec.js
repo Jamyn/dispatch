@@ -6,7 +6,7 @@
 process.env.TZ = "UTC"
 
 import { mount } from "@vue/test-utils"
-import { expect, test, describe, beforeAll } from "vitest"
+import { expect, test, describe, beforeAll, beforeEach, afterEach } from "vitest"
 import { createVuetify } from "vuetify"
 import * as components from "vuetify/components"
 import * as directives from "vuetify/directives"
@@ -21,19 +21,57 @@ beforeAll(() => {
 
 const mountWith = (component, props) => mount(component, { props, global: { plugins: [vuetify] } })
 
-describe("DateTimePicker renders the instant in the viewer's own zone", () => {
-  // Its `format(..., { timeZone: "UTC" })` does NOT convert: date-fns-tz only
-  // consults `timeZone` for the [xXOz] tokens, and this pattern has none, so
-  // the option is inert and the value is rendered in the host zone. That is
-  // pre-existing -- v1.3.8 behaves identically -- so it is pinned here as-is
-  // rather than corrected under a dependency bump. The suite fixes the zone to
-  // UTC above, which is the only reason these read as UTC.
+describe("DateTimePicker renders the instant in UTC", () => {
   test.each([
     ["midday", "2024-01-15T10:30:00Z", "2024-01-15T10:30"],
-    // Under a +05:30 viewer this same instant renders as 2024-01-16T05:00.
     ["late evening", "2024-01-15T23:30:00Z", "2024-01-15T23:30"],
   ])("%s", (_label, modelValue, expected) => {
     expect(mountWith(DateTimePicker, { modelValue }).vm.selectedDatetime).toBe(expected)
+  })
+})
+
+describe("DateTimePicker renders UTC under a positive-offset host zone", () => {
+  // These are the cases a UTC-only suite cannot see: date-fns-tz's `format`
+  // ignores a `timeZone` option unless the pattern carries an [xXOz] token, so
+  // a pattern without one renders in the host zone whatever the option says.
+  beforeEach(() => {
+    process.env.TZ = "Asia/Kolkata"
+  })
+  afterEach(() => {
+    process.env.TZ = "UTC"
+  })
+
+  test("the host zone really is +05:30 here", () => {
+    // Control: without this, every assertion below would still be running
+    // under UTC and would pass against the unconverted rendering.
+    expect(new Date().getTimezoneOffset()).toBe(-330)
+  })
+
+  test("a late-evening instant keeps its UTC date", () => {
+    expect(
+      mountWith(DateTimePicker, { modelValue: "2024-01-15T23:30:00Z" }).vm.selectedDatetime,
+    ).toBe("2024-01-15T23:30")
+  })
+
+  test("okHandler reads the field back as UTC", () => {
+    // This one also passes before the fix -- the old render and the old
+    // parse-back cancelled out. It guards the second half of the pair.
+    const wrapper = mountWith(DateTimePicker, { modelValue: "2024-01-15T23:30:00Z" })
+    wrapper.vm.okHandler()
+    expect(wrapper.emitted("update:modelValue")[0]).toEqual(["2024-01-15T23:30:00.000Z"])
+  })
+
+  test("a Date prop renders in UTC too", () => {
+    const modelValue = new Date("2024-01-15T23:30:00Z")
+    expect(mountWith(DateTimePicker, { modelValue }).vm.selectedDatetime).toBe("2024-01-15T23:30")
+  })
+
+  test("a string with no zone designator is read as host-local first", () => {
+    // ExpirationInput's shortcut buttons emit exactly this shape. parseISO
+    // resolves it against the host zone, so 05:00+05:30 renders as 23:30 UTC.
+    expect(
+      mountWith(DateTimePicker, { modelValue: "2024-01-16T05:00:00.000" }).vm.selectedDatetime,
+    ).toBe("2024-01-15T23:30")
   })
 })
 
