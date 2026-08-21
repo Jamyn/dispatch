@@ -31,7 +31,7 @@
       <v-expansion-panel>
         <v-expansion-panel-title>Queries ({{ results.queries.length }})</v-expansion-panel-title>
         <v-expansion-panel-text>
-          <query-summary-table :items="results.sources" />
+          <query-summary-table :items="results.queries" />
         </v-expansion-panel-text>
       </v-expansion-panel>
       <v-expansion-panel>
