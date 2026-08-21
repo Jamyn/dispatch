@@ -12,20 +12,6 @@ const toPascalCase = (str) =>
     .replace(new RegExp(/\w/), (s) => s.toUpperCase())
 
 export default {
-  mapQueryParamsToTableOptions(options, queryParams) {
-    forEach(queryParams, function (values, key) {
-      if (Array.isArray(values)) {
-        each(values, function (value) {
-          options[key].push({ name: value })
-        })
-      } else {
-        options[key].push({ name: values })
-      }
-    })
-  },
-  mapTableOptionsToQueryParams(options, queryParams) {
-    return (options, queryParams)
-  },
   createParametersFromTableOptions(options, model, rawFilters) {
     let [sortBy, descending] = this.createSortExpression(options.sortBy, options.descending)
     let expression = this.createFilterExpression(options.filters, model)
