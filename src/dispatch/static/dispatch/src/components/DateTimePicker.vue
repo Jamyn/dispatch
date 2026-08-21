@@ -8,7 +8,7 @@
 </template>
 <script>
 import { parseISO } from "date-fns"
-import { format } from "date-fns-tz"
+import { format, formatInTimeZone, fromZonedTime } from "date-fns-tz"
 
 export default {
   name: "DateTimePicker",
@@ -58,11 +58,15 @@ export default {
         initDateTime = parseISO(this.modelValue)
       }
 
-      this.selectedDatetime = format(initDateTime, "yyyy-MM-dd'T'HH:mm", { timeZone: "UTC" })
+      // modelValue is an instant (Z-suffixed string or Date), not a wall clock.
+      // `format`'s timeZone option only applies to [xXOz] pattern tokens, so it is
+      // inert on a pattern without one. formatInTimeZone converts unconditionally.
+      this.selectedDatetime = formatInTimeZone(initDateTime, "UTC", "yyyy-MM-dd'T'HH:mm")
     },
     okHandler() {
       this.resetPicker()
-      let isoString = parseISO(this.selectedDatetime).toISOString()
+      // The field holds a UTC wall clock; parseISO would read it as host-local.
+      let isoString = fromZonedTime(this.selectedDatetime, "UTC").toISOString()
       this.$emit("update:modelValue", isoString)
     },
     clearHandler() {
