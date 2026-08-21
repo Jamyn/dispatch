@@ -12,6 +12,7 @@
 import { forEach, sumBy } from "lodash"
 import differenceInHours from "date-fns/differenceInHours"
 import parseISO from "date-fns/parseISO"
+import { parseISOOrInvalid } from "@/util/date"
 
 import DashboardCard from "@/dashboard/DashboardCard.vue"
 
@@ -58,7 +59,7 @@ export default {
               if (item.triage_at) {
                 endTime = item.triage_at
               }
-              return differenceInHours(parseISO(endTime), parseISO(item.reported_at))
+              return differenceInHours(parseISO(endTime), parseISOOrInvalid(item.reported_at))
             }) / value.length,
           ),
         )

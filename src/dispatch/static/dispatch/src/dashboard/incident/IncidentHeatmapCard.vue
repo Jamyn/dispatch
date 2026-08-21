@@ -10,7 +10,7 @@
 
 <script>
 import { groupBy, isArray, mergeWith, forEach, map, find, sortBy } from "lodash"
-import { parseISO } from "date-fns"
+import { parseISOOrInvalid } from "@/util/date"
 import { enUS as locale } from "date-fns/locale"
 
 import DashboardCard from "@/dashboard/DashboardCard.vue"
@@ -83,7 +83,9 @@ export default {
         let grouping = key
         let dayCounts = map(
           groupBy(value, function (item) {
-            return parseISO(item.reported_at).toLocaleString("default", { weekday: "short" })
+            return parseISOOrInvalid(item.reported_at).toLocaleString("default", {
+              weekday: "short",
+            })
           }),
           function (value, key) {
             return { name: key, data: [{ y: value.length, x: grouping, items: value }] }

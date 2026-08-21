@@ -109,6 +109,7 @@ import { toNumberString, toUSD } from "@/filters"
 
 import differenceInHours from "date-fns/differenceInHours"
 import parseISO from "date-fns/parseISO"
+import { parseISOOrInvalid } from "@/util/date"
 
 import CaseCostBarChartCard from "@/dashboard/case/CaseCostBarChartCard.vue"
 import CaseDialogFilter from "@/dashboard/case/CaseDialogFilter.vue"
@@ -198,21 +199,21 @@ export default {
 
     casesByYear() {
       return groupBy(this.items, function (item) {
-        return parseISO(item.reported_at).getYear()
+        return parseISOOrInvalid(item.reported_at).getYear()
       })
     },
     casesByMonth() {
       // add year info if necessary
       if (Object.keys(this.casesByYear).length > 1) {
         return groupBy(this.items, function (item) {
-          return parseISO(item.reported_at).toLocaleString("default", {
+          return parseISOOrInvalid(item.reported_at).toLocaleString("default", {
             month: "short",
             year: "numeric",
           })
         })
       } else {
         return groupBy(this.items, function (item) {
-          return parseISO(item.reported_at).toLocaleString("default", {
+          return parseISOOrInvalid(item.reported_at).toLocaleString("default", {
             month: "short",
           })
         })
@@ -220,7 +221,7 @@ export default {
     },
     casesByQuarter() {
       return groupBy(this.items, function (item) {
-        return "Q" + Math.floor(parseISO(item.reported_at).getMonth() + 3) / 3
+        return "Q" + Math.floor(parseISOOrInvalid(item.reported_at).getMonth() + 3) / 3
       })
     },
     groupedItems() {
@@ -259,7 +260,7 @@ export default {
         if (item.closed_at) {
           endTime = item.closed_at
         }
-        return differenceInHours(parseISO(endTime), parseISO(item.reported_at))
+        return differenceInHours(parseISO(endTime), parseISOOrInvalid(item.reported_at))
       })
     },
     totalCasesCostClassic() {

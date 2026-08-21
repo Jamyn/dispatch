@@ -12,6 +12,7 @@
 import { forEach, sumBy } from "lodash"
 import differenceInHours from "date-fns/differenceInHours"
 import parseISO from "date-fns/parseISO"
+import { parseISOOrInvalid } from "@/util/date"
 import DashboardCard from "@/dashboard/DashboardCard.vue"
 export default {
   name: "TaskActiveTimeCard",
@@ -56,7 +57,7 @@ export default {
               if (item.resolved_at) {
                 endTime = item.resolved_at
               }
-              return differenceInHours(parseISO(endTime), parseISO(item.created_at))
+              return differenceInHours(parseISO(endTime), parseISOOrInvalid(item.created_at))
             }) / value.length,
           ),
         )
