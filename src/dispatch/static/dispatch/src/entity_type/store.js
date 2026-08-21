@@ -92,7 +92,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Entity type created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_SELECTED_LOADING", false)
         })
@@ -107,7 +107,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Entity type updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_SELECTED_LOADING", false)
         })
@@ -123,7 +123,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Entity type deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

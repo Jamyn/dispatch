@@ -220,7 +220,7 @@ export default {
     shouldShowSecurityEventButton() {
       // Check if any of the default projects have the security event suggestion enabled
       return this.defaultUserProjects.some(
-        (project) => project.suggest_security_event_over_incident === true
+        (project) => project.suggest_security_event_over_incident === true,
       )
     },
   },

@@ -56,7 +56,7 @@ export default {
           ...this.options,
           // on initial load, pull from localStorage which will always be string values
           ...{ theme: { mode: localStorage.dark_theme == "true" ? "dark" : "light" } },
-        })
+        }),
       ),
     }
   },

@@ -114,7 +114,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Task created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -129,7 +129,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Task updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -145,7 +145,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Task(s) updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_BULK_EDIT_LOADING", false)
       })
@@ -160,7 +160,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Task deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

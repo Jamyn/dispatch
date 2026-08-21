@@ -1,11 +1,9 @@
 import { expect, describe, it } from "vitest"
 import { ESLint } from "eslint"
 
-// eslint-plugin-prettier 5 declares a `prettier: ">=3.0.0"` peer that this
-// project's prettier 2 does not satisfy, so package.json overrides it. The
-// combination works, but the failure mode if it ever stops working is a rule
-// that reports nothing -- and a silent prettier/prettier leaves `npm run lint`
-// green while formatting drifts. These assert the rule is actually enforcing.
+// A prettier/prettier rule that stops reporting -- a plugin/prettier version
+// mismatch, a .prettierrc that no longer resolves -- leaves `npm run lint`
+// green while formatting drifts. These assert it is actually enforcing.
 const lint = async (code, filePath) => {
   const [result] = await new ESLint().lintText(code, { filePath })
   return result.messages.filter((m) => m.ruleId === "prettier/prettier")

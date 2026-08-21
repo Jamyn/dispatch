@@ -224,7 +224,7 @@ export default {
       return sum(
         this.events.map((e) => {
           return this.timeline_filters[eventTypeToFilter[e.type]] || false
-        })
+        }),
       )
     },
     showItem(event) {

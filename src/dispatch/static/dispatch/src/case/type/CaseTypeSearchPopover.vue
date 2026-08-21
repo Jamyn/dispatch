@@ -38,7 +38,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 const selectCaseType = async (caseTypeName: string) => {

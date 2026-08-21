@@ -127,9 +127,9 @@ export default {
         "update:modelValue",
         newVal
           ? items.value.find(
-              (item) => item[props.identifier.value] == newVal[props.identifier.value]
+              (item) => item[props.identifier.value] == newVal[props.identifier.value],
             )
-          : null
+          : null,
       )
     })
 

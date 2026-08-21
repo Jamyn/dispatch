@@ -285,7 +285,7 @@ export default {
         router.replace({
           query: queryParams,
         })
-      }
+      },
     )
   },
 }

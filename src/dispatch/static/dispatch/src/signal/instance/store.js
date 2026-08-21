@@ -90,7 +90,7 @@ const actions = {
     commit("SET_INSTANCE_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.instanceTable.options },
-      "signal"
+      "signal",
     )
     return SignalApi.getAllInstances(params)
       .then((response) => {
@@ -119,7 +119,7 @@ const actions = {
       {
         ...state.entityTable.options,
       },
-      "Entity"
+      "Entity",
     )
     return EntityApi.getAll(params)
       .then(async (response) => {

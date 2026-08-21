@@ -31,7 +31,7 @@ export default {
     return Promise.all(
       forms.map((form_obj) => {
         return this.delete(form_obj.id, 0)
-      })
+      }),
     )
   },
 

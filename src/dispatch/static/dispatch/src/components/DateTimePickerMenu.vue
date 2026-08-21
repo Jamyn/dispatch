@@ -83,7 +83,7 @@ export default {
       this.selectedDatetime = formatInTimeZone(
         initDateTime,
         this.timezone,
-        "yyyy-MM-dd'T'HH:mm:ss.SSS"
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
       )
     },
     okHandler() {
@@ -110,7 +110,7 @@ export default {
       this.selectedDatetime = formatInTimeZone(
         parseISO(this.modelValue),
         this.timezone,
-        "yyyy-MM-dd'T'HH:mm:ss.SSS"
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
       )
     },
   },

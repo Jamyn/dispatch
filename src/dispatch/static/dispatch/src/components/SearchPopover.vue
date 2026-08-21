@@ -26,7 +26,7 @@ watch(
   (newVal) => {
     selectedItem.value = newVal
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 watch(
@@ -34,7 +34,7 @@ watch(
   (newVal) => {
     items.value = newVal
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 useHotKey(props.hotkeys, () => {

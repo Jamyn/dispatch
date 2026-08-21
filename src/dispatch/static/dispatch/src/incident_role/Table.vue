@@ -51,7 +51,7 @@ export default {
       (vm) => [vm.breadCrumbProject],
       () => {
         this.$router.push({ query: { project: this.breadCrumbProject[0].name } })
-      }
+      },
     )
   },
 }

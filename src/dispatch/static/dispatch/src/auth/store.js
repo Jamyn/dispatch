@@ -58,7 +58,7 @@ const actions = {
     // `[{key, order}]` sortBy, which the backend does not read as a sort.
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "DispatchUser"
+      "DispatchUser",
     )
     return UserApi.getAll(params).then((response) => {
       commit("SET_TABLE_LOADING", false)
@@ -85,7 +85,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "User created successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
     } else {
@@ -97,7 +97,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "User updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
     }
@@ -109,7 +109,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "User deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
@@ -192,13 +192,16 @@ const actions = {
     let expire_at = subMinutes(fromUnixTime(state.currentUser.exp), 10)
     let now = new Date()
 
-    setTimeout(function () {
-      commit(
-        "app/SET_REFRESH",
-        { show: true, message: "Your credentials have expired. Please refresh the page." },
-        { root: true }
-      )
-    }, differenceInMilliseconds(expire_at, now))
+    setTimeout(
+      function () {
+        commit(
+          "app/SET_REFRESH",
+          { show: true, message: "Your credentials have expired. Please refresh the page." },
+          { root: true },
+        )
+      },
+      differenceInMilliseconds(expire_at, now),
+    )
   },
 }
 

@@ -221,7 +221,7 @@ const actions = {
               text: `Case '${payload.name}' could not be found.`,
               type: "exception",
             },
-            { root: true }
+            { root: true },
           )
           commit("SET_DIALOG_SHOW_EDIT_SHEET", false)
         }
@@ -357,7 +357,7 @@ const actions = {
                   commit(
                     "notification_backend/addBeNotification",
                     { text: "Resources(s) created successfully.", type: "success" },
-                    { root: true }
+                    { root: true },
                   )
                 })
               }
@@ -389,7 +389,7 @@ const actions = {
                   commit(
                     "notification_backend/addBeNotification",
                     { text: "Conversation channel created successfully.", type: "success" },
-                    { root: true }
+                    { root: true },
                   )
                 })
               }
@@ -417,7 +417,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Case created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_SELECTED_LOADING", false)
         })
@@ -432,7 +432,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Case updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_SELECTED_LOADING", false)
         })
@@ -449,7 +449,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Case(s) updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_BULK_EDIT_LOADING", false)
       })
@@ -465,7 +465,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Case(s) deleted successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_BULK_EDIT_LOADING", false)
       })
@@ -480,21 +480,21 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Case deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
   removeParticipant({ commit, dispatch, state }) {
     return CaseApi.removeParticipant(
       state.selected.id,
-      state.dialogs.participantToRemove.individual.email
+      state.dialogs.participantToRemove.individual.email,
     ).then(function () {
       dispatch("closeRemoveParticipantDialog")
       dispatch("get", state.selected.id)
       commit(
         "notification_backend/addBeNotification",
         { text: "Participant removed successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
@@ -506,7 +506,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "You have successfully joined the case.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
@@ -613,7 +613,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Event created successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_SELECTED_LOADING", false)
       })
@@ -640,7 +640,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Event updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_SELECTED_LOADING", false)
       })
@@ -657,7 +657,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Event deleted successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_SELECTED_LOADING", false)
       })
@@ -687,22 +687,22 @@ const actions = {
       })
   },
   exportDoc({ commit }, timeline_filters) {
-    commit(
+    ;(commit(
       "notification_backend/addBeNotification",
       { text: "Timeline export initiated. This may take a few minutes.", type: "success" },
-      { root: true }
+      { root: true },
     ),
       CaseApi.exportTimeline(state.selected.id, timeline_filters)
         .then(() => {
           commit(
             "notification_backend/addBeNotification",
             { text: "Timeline exported successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
           commit("SET_DIALOG_EDIT_EVENT", false)
-        })
+        }))
   },
 }
 

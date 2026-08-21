@@ -59,7 +59,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "Individual"
+      "Individual",
     )
     return IndividualApi.getAll(params)
       .then((response) => {
@@ -99,7 +99,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Individual created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -114,7 +114,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Individual updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -129,7 +129,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Individual deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

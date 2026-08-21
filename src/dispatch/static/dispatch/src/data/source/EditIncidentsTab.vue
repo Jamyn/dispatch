@@ -70,7 +70,7 @@ export default {
       () => {
         if (!this.selectedIncident) return
         this.add()
-      }
+      },
     )
   },
 }

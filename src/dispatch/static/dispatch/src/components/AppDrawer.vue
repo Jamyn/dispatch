@@ -97,7 +97,7 @@ export default {
       (val) => {
         this.showFilter = val
         if (!val) this.q = ""
-      }
+      },
     )
   },
 
@@ -114,7 +114,7 @@ export default {
     },
     routes() {
       return this.$router.options.routes.filter((route) =>
-        "menu" in route.meta ? route.meta.menu : false
+        "menu" in route.meta ? route.meta.menu : false,
       )
     },
     childrenQueryParams() {
@@ -131,7 +131,7 @@ export default {
     },
     children() {
       let children = this.$router.options.routes.filter(
-        (route) => route.path == this.$route.matched[0].path
+        (route) => route.path == this.$route.matched[0].path,
       )[0].children
 
       // Filter sub-menu children

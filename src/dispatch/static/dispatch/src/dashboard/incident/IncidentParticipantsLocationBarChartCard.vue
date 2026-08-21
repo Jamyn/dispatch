@@ -85,7 +85,7 @@ export default {
       let series = DashboardUtils.createCountedSeriesData(
         this.modelValue,
         "participants_location",
-        [...new Set(allLocations)]
+        [...new Set(allLocations)],
       )
       return series
     },

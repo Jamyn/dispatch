@@ -89,7 +89,7 @@
     "happy-dom": "^20.11.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
-    "prettier": "^2.8.8",
+    "prettier": "^3.9.6",
     "resize-observer-polyfill": "^1.5.1",
     "sass": "^1.102.0",
     "typescript": "^6.0.3",
@@ -123,9 +123,6 @@
     },
     "editorconfig": {
       "minimatch": "9.0.7"
-    },
-    "eslint-plugin-prettier": {
-      "prettier": "$prettier"
     }
   }
 }

@@ -54,7 +54,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "IncidentSeverity"
+      "IncidentSeverity",
     )
     return IncidentSeverityApi.getAll(params)
       .then((response) => {
@@ -95,7 +95,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Incident severity created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -110,7 +110,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Incident severity updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -125,7 +125,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Incident severity deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

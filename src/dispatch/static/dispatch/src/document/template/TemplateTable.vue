@@ -144,7 +144,7 @@ export default {
       (vm) => [vm.page],
       () => {
         this.getAll()
-      }
+      },
     )
 
     this.$watch(
@@ -153,7 +153,7 @@ export default {
         this.page = 1
         this.$router.push({ query: { project: this.project[0].name } })
         this.getAll()
-      }
+      },
     )
   },
 
