@@ -61,12 +61,10 @@ const actions = {
 
     try {
       // See the note in project/store.js: the raw options carry Vuetify 3's
-      // `[{key, order}]` sortBy, which the backend does not read as a sort.
-      // `filters` is dropped rather than passed on, which is what this store
-      // has always done -- the project scoper drives navigation here, not the
-      // query (#170).
+      // `[{key, order}]` sortBy, which the backend does not read as a sort. The
+      // copy matters -- createParametersFromTableOptions deletes what it reads.
       const params = SearchUtils.createParametersFromTableOptions(
-        { ...state.table.options, filters: {}, q: state.table.options.q || undefined },
+        { ...state.table.options, q: state.table.options.q || undefined },
         "Prompt",
       )
 
