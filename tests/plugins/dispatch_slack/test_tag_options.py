@@ -118,8 +118,8 @@ def test_tags_from_other_projects_are_not_offered(session, load_options):
     assert [o["value"] for o in options] == [str(tag.id)]
 
 
-def test_a_type_qualified_query_still_narrows_by_the_name_half(session, load_options):
-    """`type/name` searches on the name half; the type half is inert (#165)."""
+def test_a_type_qualified_query_narrows_by_the_name_half(session, load_options):
+    """`type/name` searches on the name half."""
     project = ProjectFactory()
     tag_type = TagTypeFactory(project=project, name="incident-type")
     wanted = TagFactory(project=project, tag_type=tag_type, name="alpha-one")
@@ -129,6 +129,87 @@ def test_a_type_qualified_query_still_narrows_by_the_name_half(session, load_opt
     options = load_options("incident-type/alpha", project.id)
 
     assert [o["value"] for o in options] == [str(wanted.id)]
+
+
+def test_a_type_qualified_query_excludes_matching_names_of_other_types(session, load_options):
+    """The bug: the type half narrowed nothing, so every type's `alpha*` came back.
+
+    A `TagType` clause makes sqlalchemy-filters auto-join tag_type through
+    project rather than through tag.tag_type_id, so a name that matched any
+    type in the project left every tag in it eligible (#165).
+    """
+    project = ProjectFactory()
+    wanted_type = TagTypeFactory(project=project, name="incident-type")
+    other_type = TagTypeFactory(project=project, name="service")
+    wanted = TagFactory(project=project, tag_type=wanted_type, name="alpha-one")
+    TagFactory(project=project, tag_type=other_type, name="alpha-two")
+    session.commit()
+
+    options = load_options("incident-type/alpha", project.id)
+
+    assert [o["value"] for o in options] == [str(wanted.id)]
+
+
+def test_a_tag_type_name_that_is_only_a_prefix_resolves_to_nothing(session, dispatch_interaction):
+    """Resolution is by exact name: a prefix of a real type is not that type.
+
+    No exact match exists here, so a substring or case-insensitive lookup would
+    resolve `incident-type` to `incident-type-legacy` and offer its tags.
+    """
+    project = ProjectFactory()
+    longer = TagTypeFactory(project=project, name="incident-type-legacy")
+    TagFactory(project=project, tag_type=longer, name="alpha-two")
+    session.commit()
+
+    response = dispatch_interaction(suggestion_payload("incident-type/alpha", project.id))
+
+    assert response.status == 200
+    assert not response.body
+
+
+def test_a_type_qualified_query_offers_every_tag_of_that_type(session, load_options):
+    """With no name half, the type alone scopes the menu.
+
+    `type/` is a real mid-typing state, reached on the keystroke after the
+    slash, so the type must still scope the menu with nothing to search on.
+    """
+    project = ProjectFactory()
+    wanted_type = TagTypeFactory(project=project, name="incident-type")
+    TagTypeFactory(project=project, name="service")
+    tags = [TagFactory(project=project, tag_type=wanted_type, name=f"a-{i}") for i in range(3)]
+    TagFactory(project=project, name="elsewhere")
+    session.commit()
+
+    options = load_options("incident-type/", project.id)
+
+    assert sorted(o["value"] for o in options) == sorted(str(t.id) for t in tags)
+
+
+def test_an_unknown_tag_type_is_acked_with_nothing(session, dispatch_interaction):
+    """No such type: the same empty menu a query matching nothing produces."""
+    project = ProjectFactory()
+    tag_type = TagTypeFactory(project=project, name="incident-type")
+    TagFactory(project=project, tag_type=tag_type, name="alpha-one")
+    session.commit()
+
+    response = dispatch_interaction(suggestion_payload("no-such-type/alpha", project.id))
+
+    assert response.status == 200
+    assert not response.body
+
+
+def test_a_tag_type_from_another_project_is_not_honoured(session, dispatch_interaction):
+    """Type names are resolved within the subject project, not globally."""
+    project = ProjectFactory()
+    other = ProjectFactory()
+    TagTypeFactory(project=other, name="incident-type")
+    TagFactory(project=project, name="alpha-one")
+    session.commit()
+
+    response = dispatch_interaction(suggestion_payload("incident-type/alpha", project.id))
+
+    assert response.status == 200
+    assert not response.body
 
 
 def test_a_query_with_more_than_one_slash_is_acked_with_nothing(

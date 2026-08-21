@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from dispatch.database.service import search_filter_sort_paginate
 from dispatch.project import service as project_service
+from dispatch.tag_type import service as tag_type_service
 
 from .bolt import listeners
 from .config import MAX_SELECT_OPTIONS
@@ -116,17 +117,9 @@ def handle_tag_search_action(
     indication to the user that more existed (#141).
     """
     query_str = payload["value"]
+    project_id = int(context["subject"].project_id)
 
-    filter_spec = {
-        "and": [
-            {
-                "model": "Project",
-                "op": "==",
-                "field": "id",
-                "value": int(context["subject"].project_id),
-            }
-        ]
-    }
+    filter_spec = {"and": [{"model": "Project", "op": "==", "field": "id", "value": project_id}]}
 
     if "/" in query_str:
         # first check to make sure there's only one slash
@@ -134,9 +127,19 @@ def handle_tag_search_action(
             ack()
             return
 
-        tag_type, query_str = query_str.split("/")
+        tag_type_name, query_str = query_str.split("/")
+        tag_type = tag_type_service.get_by_name(
+            db_session=db_session, project_id=project_id, name=tag_type_name
+        )
+        if not tag_type:
+            ack()
+            return
+
+        # A TagType-model clause auto-joins tag_type through project, not
+        # through tag.tag_type_id, leaving every tag in the project eligible
+        # (#165).
         filter_spec["and"].append(
-            {"model": "TagType", "op": "==", "field": "name", "value": tag_type}
+            {"model": "Tag", "op": "==", "field": "tag_type_id", "value": tag_type.id}
         )
 
     tags = search_filter_sort_paginate(
