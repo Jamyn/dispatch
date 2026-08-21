@@ -55,7 +55,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "EmailTemplates"
+      "EmailTemplates",
     )
     return EmailTemplatesApi.getAll(params)
       .then((response) => {
@@ -95,7 +95,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Email template created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -110,7 +110,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Email template updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -125,7 +125,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Email template deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

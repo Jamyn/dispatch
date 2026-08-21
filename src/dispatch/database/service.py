@@ -802,7 +802,11 @@ def search_filter_sort_paginate(
             query, pagination = apply_pagination(query, page_number=page, page_size=items_per_page)
 
     except ProgrammingError as e:
-        log.debug(e)
+        # Postgres aborts the transaction on a syntax error -- most often an
+        # unparseable search string reaching tsq_parse -- so it has to be rolled
+        # back here or every statement after this one in the request fails too.
+        db_session.rollback()
+        log.warning(f"Returning no results: the search query could not be run. {e}")
         return {
             "items": [],
             "itemsPerPage": items_per_page,

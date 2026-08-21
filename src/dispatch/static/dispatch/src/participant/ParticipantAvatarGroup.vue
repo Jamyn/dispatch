@@ -30,10 +30,10 @@ watch(
   (newVal) => {
     if (newVal) {
       const assignee = newVal.find((participant) =>
-        props.highlightedParticipants.includes(participant.individual.name)
+        props.highlightedParticipants.includes(participant.individual.name),
       )
       const otherParticipants = newVal.filter(
-        (participant) => !props.highlightedParticipants.includes(participant.individual.name)
+        (participant) => !props.highlightedParticipants.includes(participant.individual.name),
       )
       if (assignee) {
         orderedParticipants.value = [assignee, ...otherParticipants]
@@ -42,7 +42,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 const visibleParticipants = computed(() => orderedParticipants.value.slice(0, 3))
@@ -60,7 +60,7 @@ const filteredParticipants = computed(() => {
   // If searching, only include participants that match the query
   if (lowerCaseQuery) {
     return orderedParticipants.value.filter((p) =>
-      p.individual.name.toLowerCase().includes(lowerCaseQuery)
+      p.individual.name.toLowerCase().includes(lowerCaseQuery),
     )
   }
 

@@ -53,7 +53,7 @@ const actions = {
     // them from the state every table in the app reads them back out of.
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "Definition"
+      "Definition",
     )
     return DefinitionApi.getAll(params)
       .then((response) => {
@@ -94,7 +94,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Definition created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -109,7 +109,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Definition updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -124,7 +124,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Definition deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

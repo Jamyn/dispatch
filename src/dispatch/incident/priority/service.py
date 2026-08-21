@@ -36,13 +36,16 @@ def get_default_or_raise(*, db_session, project_id: int) -> IncidentPriority:
     incident_priority = get_default(db_session=db_session, project_id=project_id)
 
     if not incident_priority:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "IncidentPriorityRead",
             [
                 {
-                    "msg": "No default incident priority defined.",
-                    "loc": "incident_priority",
+                    "type": "value_error",
+                    "loc": ("incident_priority",),
+                    "input": None,
+                    "ctx": {"error": ValueError("No default incident priority defined.")},
                 }
-            ]
+            ],
         )
     return incident_priority
 
@@ -66,14 +69,16 @@ def get_by_name_or_raise(
     )
 
     if not incident_priority:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "IncidentPriorityRead",
             [
                 {
-                    "msg": "Incident priority not found.",
-                    "loc": "incident_priority",
-                    "incident_priority": incident_priority_in.name,
+                    "type": "value_error",
+                    "loc": ("incident_priority",),
+                    "input": incident_priority_in.name,
+                    "ctx": {"error": ValueError("Incident priority not found.")},
                 }
-            ]
+            ],
         )
 
     return incident_priority

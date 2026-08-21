@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/github/license/Jamyn/dispatch)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/Jamyn/dispatch)](https://github.com/Jamyn/dispatch/releases)
 [![Last commit](https://img.shields.io/github/last-commit/Jamyn/dispatch)](https://github.com/Jamyn/dispatch/commits/main)
+[![Coverage](https://codecov.io/github/Jamyn/dispatch/badge.svg?branch=main)](https://codecov.io/github/Jamyn/dispatch)
 
 ### What's Dispatch?
 

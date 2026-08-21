@@ -71,15 +71,16 @@ def get_by_name_or_raise(
     )
 
     if not incident_severity:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "IncidentSeverityRead",
             [
                 {
-                    "msg": "Incident severity not found.",
+                    "type": "value_error",
                     "loc": ("incident_severity",),
-                    "type": "value_error.not_found",
-                    "incident_severity": incident_severity_in.name,
+                    "input": incident_severity_in.name,
+                    "ctx": {"error": ValueError("Incident severity not found.")},
                 }
-            ]
+            ],
         )
 
     return incident_severity

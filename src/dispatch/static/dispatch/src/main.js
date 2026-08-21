@@ -3,6 +3,9 @@ import App from "./App.vue"
 import { vuetifyPlugin } from "./vuetify/"
 import router from "./router/"
 import store from "./store"
+// Resolves @formkit/themes 2.x, while @formkit/vue pins 1.x of the same package
+// for the markup it emits. A @formkit/vue bump has to keep the two generating
+// and styling the same classes -- formkitGenesisTheme.spec.js guards that.
 import "@formkit/themes/genesis"
 
 // import.meta.env.VITE_FORMKIT_PRO_PROJECT_KEY

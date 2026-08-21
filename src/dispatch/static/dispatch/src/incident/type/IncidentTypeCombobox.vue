@@ -116,7 +116,7 @@ export default {
       (vm) => [vm.project],
       () => {
         this.fetchData()
-      }
+      },
     )
   },
 
@@ -158,7 +158,7 @@ export default {
       filterOptions = SearchUtils.createParametersFromTableOptions(
         { ...filterOptions },
         "IncidentType",
-        enabledFilter
+        enabledFilter,
       )
 
       IncidentTypeApi.getAll(filterOptions).then((response) => {

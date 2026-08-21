@@ -53,7 +53,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "ServiceFeedback"
+      "ServiceFeedback",
     )
     return ServiceFeedbackApi.getAll(params)
       .then((response) => {
@@ -95,9 +95,9 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Feedback deleted successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
-      }
+      },
     )
   },
 }

@@ -220,7 +220,7 @@ watch(
   () => tab.value,
   (tabValue) => {
     emit("update:activeTab", tabValue)
-  }
+  },
 )
 
 watch(
@@ -240,7 +240,7 @@ watch(
         params: { signal_id: signalInstances.value[0].raw.id },
       })
     }
-  }
+  },
 )
 
 watch(
@@ -254,7 +254,7 @@ watch(
       tab.value = "main"
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 watch(
@@ -265,7 +265,7 @@ watch(
       tab.value = "signals"
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true, deep: true },
 )
 
 const editPageUrl = () => {

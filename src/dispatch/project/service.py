@@ -62,14 +62,16 @@ def get_default_or_raise(*, db_session: Session) -> Project:
     project = get_default(db_session=db_session)
 
     if not project:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ProjectRead",
             [
                 {
-                    "loc": ("project",),
-                    "msg": "No default project defined.",
                     "type": "value_error",
+                    "loc": ("project",),
+                    "input": None,
+                    "ctx": {"error": ValueError("No default project defined.")},
                 }
-            ]
+            ],
         )
     return project
 
@@ -84,14 +86,16 @@ def get_by_name_or_raise(*, db_session: Session, project_in: ProjectRead) -> Pro
     project = get_by_name(db_session=db_session, name=project_in.name)
 
     if not project:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "ProjectRead",
             [
                 {
-                    "msg": "Project not found.",
-                    "name": project_in.name,
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": project_in.name,
+                    "ctx": {"error": ValueError("Project not found.")},
                 }
-            ]
+            ],
         )
 
     return project

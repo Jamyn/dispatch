@@ -53,7 +53,7 @@ watch(
   (newVal) => {
     visibility.value = newVal
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 async function updateVisibility() {
@@ -78,7 +78,7 @@ async function updateVisibility() {
         text: `Failed to update ${props.subjectType} visibility`,
         type: "exception",
       },
-      { root: true }
+      { root: true },
     )
   }
 }

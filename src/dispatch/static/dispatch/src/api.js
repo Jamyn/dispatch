@@ -29,7 +29,7 @@ instance.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error)
-  }
+  },
 )
 
 instance.interceptors.request.use(function (config) {
@@ -73,7 +73,7 @@ instance.interceptors.response.use(
             text: errorText,
             type: "exception",
           },
-          { root: true }
+          { root: true },
         )
       }
 
@@ -85,7 +85,7 @@ instance.interceptors.response.use(
             text: errorText,
             type: "exception",
           },
-          { root: true }
+          { root: true },
         )
       }
 
@@ -97,7 +97,7 @@ instance.interceptors.response.use(
             text: errorText,
             type: "exception",
           },
-          { root: true }
+          { root: true },
         )
       }
 
@@ -118,12 +118,12 @@ instance.interceptors.response.use(
             text: errorText,
             type: "exception",
           },
-          { root: true }
+          { root: true },
         )
       }
       return Promise.reject(err)
     }
-  }
+  },
 )
 
 export default instance

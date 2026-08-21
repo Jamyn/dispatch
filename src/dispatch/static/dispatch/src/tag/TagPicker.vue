@@ -416,7 +416,7 @@ function validateTags(value) {
           .filter((tag_type) => tag_type.isRequired)
           .map((tag_type) => tag_type.label)
         error.value = `Please select at least one tag from each required category (${required_tag_types.join(
-          ", "
+          ", ",
         )})`
       } else {
         error.value = null
@@ -510,7 +510,7 @@ const performSearch = () => {
   filteredMenuItems.value = []
   groups.value.forEach((group) => {
     const filteredItems = group.menuItems.filter((item) =>
-      item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+      item.name.toLowerCase().includes(searchQuery.value.toLowerCase()),
     )
     filteredMenuItems.value.push(...filteredItems)
   })
@@ -518,7 +518,7 @@ const performSearch = () => {
 
 const isItemDisabled = (group, item) => {
   const isItemSelectedInGroup = selectedItems.value.some(
-    (selectedItem) => selectedItem.tag_type.id === group.id
+    (selectedItem) => selectedItem.tag_type.id === group.id,
   )
   return (
     isItemSelectedInGroup &&
@@ -541,7 +541,7 @@ watch(
       // Validate after project changes
       validateTags(selectedItems.value)
     }
-  }
+  },
 )
 
 // Watch for groups to be loaded and validate
@@ -552,7 +552,7 @@ watch(
       validateTags(selectedItems.value)
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 // When suggestions are generated, expand the suggestions box by default
@@ -562,7 +562,7 @@ watch(
     if (newVal) {
       suggestionsExpanded.value = true
     }
-  }
+  },
 )
 
 // Reset suggestions when the incident/model changes
@@ -573,7 +573,7 @@ watch(
       store.dispatch("tag/resetSuggestions")
       suggestionsExpanded.value = false
     }
-  }
+  },
 )
 
 // Click outside directive

@@ -152,13 +152,20 @@ def update_instance(
                 db_session=db_session, service_type=plugin_instance.plugin.slug, is_active=True
             )
             if oncall_services:
-                raise ValidationError(
+                raise ValidationError.from_exception_data(
+                    "PluginInstanceUpdate",
                     [
                         {
-                            "msg": "Cannot disable plugin instance: {plugin_instance.plugin.title}. One or more oncall services depend on it. ",
-                            "loc": "plugin_instance",
+                            "type": "value_error",
+                            "loc": ("plugin_instance",),
+                            "input": plugin_instance.plugin.title,
+                            "ctx": {
+                                "error": ValueError(
+                                    f"Cannot disable plugin instance: {plugin_instance.plugin.title}. One or more oncall services depend on it. "
+                                )
+                            },
                         }
-                    ]
+                    ],
                 )
 
     for field in plugin_instance_data:
@@ -169,6 +176,40 @@ def update_instance(
 
     db_session.commit()
     return plugin_instance
+
+
+def delete(*, db_session: Session, plugin_id: int):
+    """Removes a plugin and the events registered for it.
+
+    Refuses while a project still has an instance configured: that instance
+    holds the project's encrypted credentials for the provider, which removing
+    the plugin definition must not quietly destroy. Events carry no
+    configuration and `dispatch plugins install` rebuilds them.
+    """
+    in_use = db_session.query(PluginInstance).filter(PluginInstance.plugin_id == plugin_id).all()
+    if in_use:
+        projects = sorted({i.project.name for i in in_use if i.project})
+        raise ValidationError.from_exception_data(
+            "PluginInstanceRead",
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("plugin",),
+                    "input": plugin_id,
+                    "ctx": {
+                        "error": ValueError(
+                            "Plugin is still configured by "
+                            f"{', '.join(projects) or 'a project'}. "
+                            "Remove the plugin instance first."
+                        )
+                    },
+                }
+            ],
+        )
+
+    db_session.query(PluginEvent).filter(PluginEvent.plugin_id == plugin_id).delete()
+    db_session.query(Plugin).filter(Plugin.id == plugin_id).delete()
+    db_session.commit()
 
 
 def delete_instance(*, db_session: Session, plugin_instance_id: int):

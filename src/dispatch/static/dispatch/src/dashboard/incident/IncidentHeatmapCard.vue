@@ -87,7 +87,7 @@ export default {
           }),
           function (value, key) {
             return { name: key, data: [{ y: value.length, x: grouping, items: value }] }
-          }
+          },
         )
 
         // fill in any gaps

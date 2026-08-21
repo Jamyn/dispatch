@@ -39,7 +39,7 @@ export default {
         editorOptions,
         {
           model,
-        }
+        },
       )
       // Store the references to the model and editor
       this.model = model
@@ -187,8 +187,8 @@ export default {
                 el.value.loc.start.line,
                 el.value.loc.start.column + alignIndex,
                 el.value.loc.end.line,
-                el.value.loc.end.column - alignIndex
-              )
+                el.value.loc.end.column - alignIndex,
+              ),
             )
           } else {
             const matches = valueToMatch.matchAll(regex)
@@ -198,8 +198,8 @@ export default {
                   el.value.loc.start.line,
                   el.value.loc.start.column + match.index + alignIndex,
                   el.value.loc.start.line,
-                  el.value.loc.start.column + match.index + match[0].length + alignIndex
-                )
+                  el.value.loc.start.column + match.index + match[0].length + alignIndex,
+                ),
               )
             }
           }
@@ -248,7 +248,7 @@ export default {
         startPos.lineNumber,
         startPos.column,
         endPos.lineNumber,
-        endPos.column
+        endPos.column,
       )
     },
     /**
@@ -344,7 +344,7 @@ export default {
                 className: "highlight",
               },
             }
-          })
+          }),
         )
       } catch (error) {
         console.error(error)

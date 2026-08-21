@@ -117,7 +117,7 @@ export default {
       filterOptions = SearchUtils.createParametersFromTableOptions(
         { ...filterOptions },
         "IncidentSeverity",
-        enabledFilter
+        enabledFilter,
       )
 
       IncidentSeverityApi.getAll(filterOptions).then((response) => {
@@ -135,7 +135,7 @@ export default {
         this.fetchData()
         this.validateSeverity()
         this.$emit("update:modelValue", this.incidentSeverity)
-      }
+      },
     )
   },
 }

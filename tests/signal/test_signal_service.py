@@ -824,3 +824,21 @@ def test_canary_signals_not_deduplicated(session, signal, project):
     # Check that the canary signal instance is not deduplicated (should have same case_id as before)
     assert canary_signal_instance.case_id == initial_case_id
     assert canary_signal_instance.filter_action != SignalFilterAction.deduplicate
+
+
+def test_an_unknown_signal_engagement_name_is_reported_as_a_validation_error(session, project):
+    """Given a name no engagement has, when resolving it, then a 422-able error is raised."""
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.signal.models import SignalEngagementRead
+    from dispatch.signal.service import get_signal_engagement_by_name_or_raise
+
+    engagement_in = SignalEngagementRead(id=1, name="no such engagement", message="m")
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_signal_engagement_by_name_or_raise(
+            db_session=session, project_id=project.id, signal_engagement_in=engagement_in
+        )
+
+    assert "Signal engagement not found." in str(exc_info.value.errors())

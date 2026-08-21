@@ -109,7 +109,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Tag created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -124,7 +124,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Tag updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -139,7 +139,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Tag deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },
@@ -227,8 +227,8 @@ const actions = {
         commit(
           "SET_VALIDATION_ERROR",
           `Please select at least one tag from each required category (${required_tag_types.join(
-            ", "
-          )})`
+            ", ",
+          )})`,
         )
       } else {
         commit("SET_VALIDATION_ERROR", null)
@@ -441,7 +441,7 @@ const actions = {
       console.error("Error generating AI suggestions:", error)
       commit(
         "SET_SUGGESTIONS_ERROR",
-        "Failed to generate AI tag suggestions. Please try again later."
+        "Failed to generate AI tag suggestions. Please try again later.",
       )
       commit("SET_TAG_SUGGESTIONS", [])
     } finally {

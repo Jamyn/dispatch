@@ -29,13 +29,16 @@ def create_team(db_session: DbSession, team_contact_in: TeamContactCreate):
         db_session=db_session, email=team_contact_in.email, project_id=team_contact_in.project.id
     )
     if team:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "TeamContactCreate",
             [
                 {
-                    "msg": "A team with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": team_contact_in.name,
+                    "ctx": {"error": ValueError("A team with this name already exists.")},
                 }
-            ]
+            ],
         )
     return create(db_session=db_session, team_contact_in=team_contact_in)
 

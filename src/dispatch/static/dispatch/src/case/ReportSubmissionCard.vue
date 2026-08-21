@@ -196,7 +196,7 @@ export default {
             {
               text: "View copied to clipboard.",
             },
-            { root: true }
+            { root: true },
           )
         },
         function () {
@@ -206,9 +206,9 @@ export default {
               text: "Failed to copy view to clipboard.",
               color: "red",
             },
-            { root: true }
+            { root: true },
           )
-        }
+        },
       )
     },
     checkFormValidity() {
@@ -277,7 +277,7 @@ export default {
       (vm) => [vm.project],
       () => {
         this.getFAQ()
-      }
+      },
     )
 
     this.$watch(
@@ -294,7 +294,7 @@ export default {
         router.replace({
           query: queryParams,
         })
-      }
+      },
     )
   },
 }

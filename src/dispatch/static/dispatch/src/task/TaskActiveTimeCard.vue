@@ -57,8 +57,8 @@ export default {
                 endTime = item.resolved_at
               }
               return differenceInHours(parseISO(endTime), parseISO(item.created_at))
-            }) / value.length
-          )
+            }) / value.length,
+          ),
         )
       })
 

@@ -116,7 +116,7 @@ export default {
       filterOptions = SearchUtils.createParametersFromTableOptions(
         { ...filterOptions },
         "IncidentPriority",
-        enabledFilter
+        enabledFilter,
       )
 
       IncidentPriorityApi.getAll(filterOptions).then((response) => {

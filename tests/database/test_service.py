@@ -741,3 +741,186 @@ def test_get_query_models_includes_joined_entities(session):
     assert "Incident" in models
     assert "Participant" in models
     assert "IndividualContact" in models
+
+
+def test_an_unknown_model_name_in_a_filter_is_reported_as_a_validation_error(session):
+    """Given a filter naming no model, when resolving it, then a 422-able error is raised.
+
+    Search filters carry user-supplied model names, so this is reachable from
+    the API and has to answer 422 rather than an opaque 500.
+    """
+    import pytest
+    from pydantic import ValidationError
+
+    from dispatch.database.core import get_class_by_tablename
+
+    with pytest.raises(ValidationError) as exc_info:
+        get_class_by_tablename("NoSuchModel")
+
+    assert "Model not found." in str(exc_info.value.errors())
+
+
+# --- "Tag All" and "Not Case Type" -----------------------------------------
+#
+# Both rewrite the caller's filter spec before it becomes SQL, and neither was
+# exercised. They decide which records a user is shown, so a regression that
+# quietly turns "all of these tags" into "any of these tags" widens every saved
+# search built on one without failing anything.
+
+
+def tag_all_spec(*tags):
+    """The spec the UI sends for a Tag All selection: one or-list, every tag in it."""
+    return {
+        "and": [
+            {
+                "or": [
+                    {"model": "TagAll", "field": "id", "op": "==", "value": tag.id} for tag in tags
+                ]
+            }
+        ]
+    }
+
+
+def test_tag_all_requires_every_tag_not_merely_one(session, admin_user, project):
+    """Given two tags, when filtering on both, then only records carrying both match.
+
+    The filter is split into one query per tag and the results intersected. If
+    that ever collapses into a single or-query the filter silently becomes "any
+    tag", and every saved search using it starts returning more than it should.
+    """
+    from tests.factories import IncidentFactory, TagFactory
+
+    hot, cold = TagFactory(project=project), TagFactory(project=project)
+    both = IncidentFactory(project=project, tags=[hot, cold])
+    only_one = IncidentFactory(project=project, tags=[hot])
+    session.commit()
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Incident",
+        filter_spec=json.dumps(tag_all_spec(hot, cold)),
+        current_user=admin_user,
+        role=UserRoles.admin,
+    )
+
+    names = {incident.name for incident in result["items"]}
+    assert both.name in names
+    assert only_one.name not in names, "an incident with only one of the tags matched"
+
+
+def test_tag_all_with_a_single_tag_still_matches(session, admin_user, project):
+    """Given one tag, when filtering on it, then records carrying it match.
+
+    The single-tag case goes down the same intersect path, so it is worth
+    separating from the two-tag case.
+    """
+    from tests.factories import IncidentFactory, TagFactory
+
+    tag = TagFactory(project=project)
+    tagged = IncidentFactory(project=project, tags=[tag])
+    untagged = IncidentFactory(project=project, tags=[])
+    session.commit()
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Incident",
+        filter_spec=json.dumps(tag_all_spec(tag)),
+        current_user=admin_user,
+        role=UserRoles.admin,
+    )
+
+    names = {incident.name for incident in result["items"]}
+    assert tagged.name in names
+    assert untagged.name not in names
+
+
+def not_case_type_spec(case_type):
+    """The spec the UI sends to exclude a case type."""
+    return {
+        "and": [
+            {"or": [{"model": "NotCaseType", "field": "id", "op": "==", "value": case_type.id}]}
+        ]
+    }
+
+
+def test_not_case_type_excludes_only_that_type(session, admin_user, project):
+    """Given a case type to exclude, when filtering, then only other types come back.
+
+    The spec arrives with `==` and is rewritten to `!=`. Losing that rewrite
+    inverts the filter into the exact opposite of what was asked for.
+    """
+    from tests.factories import CaseFactory, CaseTypeFactory
+
+    unwanted = CaseTypeFactory(project=project)
+    wanted = CaseTypeFactory(project=project)
+    excluded = CaseFactory(project=project, case_type=unwanted)
+    kept = CaseFactory(project=project, case_type=wanted)
+    session.commit()
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Case",
+        filter_spec=json.dumps(not_case_type_spec(unwanted)),
+        current_user=admin_user,
+        role=UserRoles.admin,
+    )
+
+    names = {case.name for case in result["items"]}
+    assert kept.name in names
+    assert excluded.name not in names, "the excluded case type came back anyway"
+
+
+def test_a_null_check_is_a_filter_in_its_own_right(session, admin_user, project):
+    """Given `is_null`, when filtering, then only records missing that value match.
+
+    `is_null` and `is_not_null` take no value, so they go down a separate
+    single-argument path that nothing else in the filter code exercises.
+    """
+    from tests.factories import IncidentFactory
+
+    from datetime import datetime
+
+    never_stable = IncidentFactory(project=project, stable_at=None)
+    went_stable = IncidentFactory(project=project, stable_at=datetime(2026, 1, 1))
+    session.commit()
+
+    def names_for(op):
+        result = search_filter_sort_paginate(
+            db_session=session,
+            model="Incident",
+            filter_spec=json.dumps({"field": "stable_at", "op": op}),
+            current_user=admin_user,
+            role=UserRoles.admin,
+        )
+        return {incident.name for incident in result["items"]}
+
+    missing = names_for("is_null")
+    assert never_stable.name in missing
+    assert went_stable.name not in missing
+
+    present = names_for("is_not_null")
+    assert went_stable.name in present
+    assert never_stable.name not in present
+
+
+def test_an_unparseable_search_leaves_the_session_usable(session, incidents, admin_user):
+    """Given a search Postgres cannot parse, when it fails, then the session still works.
+
+    Search strings come straight from a user, and `tsq_parse` rejects stray
+    tsquery operators. Postgres aborts the transaction on that error, so
+    returning empty without rolling back left everything later in the request
+    failing with InFailedSqlTransaction.
+    """
+    from dispatch.incident.models import Incident
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Incident",
+        query_str="foo & | bar",
+        current_user=admin_user,
+        role=UserRoles.admin,
+    )
+    assert result["total"] == 0
+
+    # the request is not over: whatever runs next must still be able to query
+    assert session.query(Incident).count() >= 0, "the session was left in an aborted transaction"

@@ -369,7 +369,7 @@ export default {
       (vm) => [vm.subject],
       () => {
         this.resetFilters()
-      }
+      },
     )
 
     this.$watch(
@@ -390,7 +390,7 @@ export default {
           this.expression = SearchUtils.createFilterExpression(this.filters, "Case")
         }
         this.getPreviewData()
-      }
+      },
     )
   },
 }

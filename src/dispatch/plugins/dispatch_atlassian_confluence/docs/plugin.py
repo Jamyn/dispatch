@@ -1,30 +1,18 @@
 from dispatch.plugins.dispatch_atlassian_confluence import docs as confluence_doc_plugin
 from dispatch.plugins.bases import DocumentPlugin
 from dispatch.plugins.dispatch_atlassian_confluence.config import ConfluenceConfigurationBase
-from atlassian import Confluence
+from dispatch.plugins.dispatch_atlassian_confluence.client import ConfluenceApi, confluence_api
 
 
-def replace_content(client: Confluence, document_id: str, replacements: list[str]) -> {}:
+def replace_content(api: ConfluenceApi, document_id: str, replacements: dict[str, str]) -> dict:
     # read content based on document_id
-    current_content = client.get_page_by_id(
-        document_id, expand="body.storage", status=None, version=None
-    )
+    current_content = api.get_page(document_id)
     current_content_body = current_content["body"]["storage"]["value"]
     for k, v in replacements.items():
         if v:
             current_content_body = current_content_body.replace(k, v)
 
-    updated_content = client.update_page(
-        page_id=document_id,
-        title=current_content["title"],
-        body=current_content_body,
-        representation="storage",
-        type="page",
-        parent_id=None,
-        minor_edit=False,
-        full_width=False,
-    )
-    return updated_content
+    return api.update_page(page=current_content, body=current_content_body)
 
 
 class ConfluencePageDocPlugin(DocumentPlugin):
@@ -42,10 +30,4 @@ class ConfluencePageDocPlugin(DocumentPlugin):
     def update(self, document_id: str, **kwargs):
         """Replaces text in document."""
         kwargs = {"{{" + k + "}}": v for k, v in kwargs.items()}
-        confluence_client = Confluence(
-            url=str(self.configuration.api_url),
-            username=self.configuration.username,
-            password=self.configuration.password.get_secret_value(),
-            cloud=self.configuration.hosting_type,
-        )
-        return replace_content(confluence_client, document_id, kwargs)
+        return replace_content(confluence_api(self.configuration), document_id, kwargs)

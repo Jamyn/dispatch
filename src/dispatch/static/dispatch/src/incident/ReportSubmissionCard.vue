@@ -246,7 +246,7 @@ export default {
             {
               text: "View copied to clipboard.",
             },
-            { root: true }
+            { root: true },
           )
         },
         function () {
@@ -256,9 +256,9 @@ export default {
               text: "Failed to copy view to clipboard.",
               color: "red",
             },
-            { root: true }
+            { root: true },
           )
-        }
+        },
       )
     },
     ...mapActions("incident", ["report", "get", "resetSelected"]),
@@ -335,7 +335,7 @@ export default {
       (vm) => [vm.project],
       () => {
         this.getFAQ()
-      }
+      },
     )
 
     this.$watch(
@@ -375,7 +375,7 @@ export default {
             // rethrow error
             return Promise.reject(err)
           })
-      }
+      },
     )
   },
 }

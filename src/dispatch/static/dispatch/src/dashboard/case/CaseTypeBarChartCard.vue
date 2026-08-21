@@ -49,7 +49,7 @@ export default {
         filter(response.data.items, function (item) {
           return !item.exclude_from_metrics
         }),
-        "name"
+        "name",
       )
     })
   },

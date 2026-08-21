@@ -58,7 +58,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Signal filter created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_SELECTED_LOADING", false)
           commit("RESET_SELECTED")
@@ -70,7 +70,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: `Error trying to save: ${errorText}`, type: "exception" },
-            { root: true }
+            { root: true },
           )
           commit("RESET_SELECTED")
           commit("SET_SELECTED_LOADING", false)
@@ -81,7 +81,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Signal filter updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_SELECTED_LOADING", false)
         })
@@ -90,7 +90,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: `Error trying to save: ${errorText}`, type: "exception" },
-            { root: true }
+            { root: true },
           )
           commit("RESET_SELECTED")
           commit("SET_SELECTED_LOADING", false)

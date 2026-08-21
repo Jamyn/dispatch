@@ -56,7 +56,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "CasePriority"
+      "CasePriority",
     )
     return CasePriorityApi.getAll(params)
       .then((response) => {
@@ -97,7 +97,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Case priority created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -112,7 +112,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Case priority updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -127,7 +127,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Case priority deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

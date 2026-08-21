@@ -7,7 +7,6 @@ from slack_sdk.web.client import WebClient
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import drop_database, database_exists
 from starlette.config import environ
-from fastapi.testclient import TestClient
 
 # DATABASE_NAME is forced, never taken from the environment. This suite drops
 # its database before and after the run, and docker/.env sets
@@ -133,18 +132,6 @@ def pytest_runtest_makereport(item, call):
 
 
 @pytest.fixture(scope="session")
-def testapp():
-    # we only want to use test plugins so unregister everybody else
-    from dispatch.main import api
-    from dispatch.plugins.base import plugins, unregister
-
-    for p in plugins.all():
-        unregister(p.__class__)
-
-    yield api
-
-
-@pytest.fixture(scope="session")
 def db():
     if database_exists(str(config.SQLALCHEMY_DATABASE_URI)):
         drop_database(str(config.SQLALCHEMY_DATABASE_URI))
@@ -225,11 +212,6 @@ def real_engine():
     test's own connection cannot tell a commit from an open transaction.
     """
     return engine
-
-
-@pytest.fixture(scope="function")
-def client(testapp, session):
-    yield TestClient(testapp)
 
 
 @pytest.fixture

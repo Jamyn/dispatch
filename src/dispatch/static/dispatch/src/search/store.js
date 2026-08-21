@@ -87,7 +87,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "SearchFilter"
+      "SearchFilter",
     )
     return SearchApi.getAllFilters(params)
       .then((response) => {
@@ -129,7 +129,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Search filter created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_LOADING", false)
           commit("SET_DIALOG_SHOW_CREATE", false)
@@ -146,7 +146,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Search filter updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
           commit("SET_LOADING", false)
         })
@@ -170,7 +170,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Search filter deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

@@ -129,7 +129,7 @@ export default {
             {
               text: "View copied to clipboard.",
             },
-            { root: true }
+            { root: true },
           )
         },
         function () {
@@ -139,9 +139,9 @@ export default {
               text: "Failed to copy view to clipboard.",
               color: "red",
             },
-            { root: true }
+            { root: true },
           )
-        }
+        },
       )
     },
   },

@@ -104,7 +104,7 @@ export default {
       () => {
         // create a copy of the workflow params
         this.parameters = this.workflow.parameters
-      }
+      },
     )
   },
 }

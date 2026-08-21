@@ -37,7 +37,7 @@ watch(
   (newVal) => {
     modelValue.value = newVal
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 watchEffect(() => {

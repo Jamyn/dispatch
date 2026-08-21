@@ -28,7 +28,12 @@ from dispatch.config import (
     DISPATCH_AUTHENTICATION_PROVIDER_AWS_ALB_EMAIL_CLAIM,
     DISPATCH_AUTHENTICATION_PROVIDER_AWS_ALB_PUBLIC_KEY_CACHE_SECONDS,
     DISPATCH_AUTHENTICATION_PROVIDER_HEADER_NAME,
+    DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER,
     DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS,
+    DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_CACHE_SECONDS,
+    DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_TIMEOUT_SECONDS,
+    DISPATCH_AUTHENTICATION_PROVIDER_PKCE_LEEWAY_SECONDS,
+    DISPATCH_JWT_ALG,
     DISPATCH_JWT_AUDIENCE,
     DISPATCH_JWT_EMAIL_OVERRIDE,
     DISPATCH_JWT_SECRET,
@@ -80,16 +85,18 @@ class BasicAuthProviderPlugin(AuthenticationProviderPlugin):
     def get_current_user(self, request: Request, **kwargs):
         authorization: str = request.headers.get("Authorization")
         scheme, param = get_authorization_scheme_param(authorization)
-        if not authorization or scheme.lower() != "bearer":
-            log.exception(
-                f"Malformed authorization header. Scheme: {scheme} Param: {param} Authorization: {authorization}"
+        # `param` is the parsed token; re-splitting the header IndexErrors on a
+        # bearer scheme with an empty token, i.e. an unauthenticated 500.
+        if not authorization or scheme.lower() != "bearer" or not param:
+            log.warning(
+                f"Malformed authorization header. Scheme: {scheme} Authorization: {authorization}"
             )
             return
 
-        token = authorization.split()[1]
-
         try:
-            data = jwt.decode(token, DISPATCH_JWT_SECRET)
+            # algorithms is required: unset, python-jose honours whatever the
+            # token declares, which is the opening for algorithm confusion.
+            data = jwt.decode(param, DISPATCH_JWT_SECRET, algorithms=[DISPATCH_JWT_ALG])
         except (JWKError, JWTError):
             raise HTTPException(
                 status_code=HTTP_401_UNAUTHORIZED,
@@ -98,10 +105,92 @@ class BasicAuthProviderPlugin(AuthenticationProviderPlugin):
         return data["email"]
 
 
+# Floor between repeated fetches of the same key set, whether an unknown kid
+# asked for one or a previous fetch failed. Key rotation still lands within this
+# window; a token replaying junk kids cannot amplify past it.
+JWKS_MIN_REFRESH_INTERVAL_SECONDS = 30
+
+_NEVER = float("-inf")
+
+
+class JwksUnavailableError(Exception):
+    """The identity provider's signing keys could not be retrieved."""
+
+
+class JwksCache:
+    """Caches an OIDC provider's signing keys, refreshing on an unknown `kid`.
+
+    Every authenticated request decodes a token, so an uncached fetch here puts
+    a synchronous call to the identity provider on Dispatch's hottest path.
+    Refreshing on an unknown kid, and not only on expiry, is what keeps a
+    rotated signing key from 401ing every request until the TTL runs out.
+
+    Each entry carries three stamps because each throttles a different thing:
+    `fetched_at` ages the keys, `missed_at` bounds how often an unknown kid can
+    force a refetch, and `failed_at` bounds retries while the provider is down.
+    Collapsing them into one stamp makes the successful fetch that populates the
+    cache throttle the rotation refetch that should follow it.
+    """
+
+    def __init__(self):
+        self._entries: dict[str, dict] = {}
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+    def get_key(self, url: str, kid: str, *, ttl: int, timeout: int) -> dict | None:
+        """Returns the published key with this kid, or None if there is no such key."""
+        now = time.monotonic()
+        entry = self._entries.get(url)
+        if entry is None:
+            entry = self._fetch(url, None, now, timeout, missed=False)
+
+        # Never longer than the TTL: a short TTL is an explicit request for
+        # fresher keys and must not be held back by the refresh floor.
+        refresh_interval = min(JWKS_MIN_REFRESH_INTERVAL_SECONDS, ttl)
+        retry_allowed = now - entry["failed_at"] >= refresh_interval
+
+        if retry_allowed and now - entry["fetched_at"] >= ttl:
+            entry = self._fetch(url, entry, now, timeout, missed=False)
+        elif (
+            retry_allowed
+            and kid not in entry["keys"]
+            and now - entry["missed_at"] >= refresh_interval
+        ):
+            entry = self._fetch(url, entry, now, timeout, missed=True)
+
+        return entry["keys"].get(kid)
+
+    def _fetch(self, url: str, entry: dict | None, now: float, timeout: int, *, missed: bool):
+        missed_at = now if missed else (entry["missed_at"] if entry else _NEVER)
+        try:
+            response = requests.get(url, timeout=timeout)
+            response.raise_for_status()
+            keys = {key["kid"]: key for key in response.json()["keys"] if key.get("kid")}
+        except (requests.RequestException, AttributeError, KeyError, TypeError, ValueError) as err:
+            if entry is None:
+                raise JwksUnavailableError(f"Unable to fetch signing keys from {url}") from err
+            # Serving the keys already held beats failing every request for the
+            # length of the provider's outage. The successful-fetch stamp is
+            # deliberately not moved, so the next retry past the floor tries
+            # again rather than settling on stale keys.
+            log.warning("Unable to refresh signing keys from %s, using cached keys: %s", url, err)
+            entry["failed_at"] = now
+            entry["missed_at"] = missed_at
+            return entry
+
+        entry = {"keys": keys, "fetched_at": now, "missed_at": missed_at, "failed_at": _NEVER}
+        self._entries[url] = entry
+        return entry
+
+
+jwks_cache = JwksCache()
+
+
 class PKCEAuthProviderPlugin(AuthenticationProviderPlugin):
     title = "Dispatch Plugin - PKCE Authentication Provider"
     slug = "dispatch-auth-provider-pkce"
-    description = "Generic PCKE authentication provider."
+    description = "Generic OpenID Connect (PKCE) authentication provider."
     version = dispatch_plugin.__version__
 
     author = "Netflix"
@@ -113,42 +202,104 @@ class PKCEAuthProviderPlugin(AuthenticationProviderPlugin):
             status_code=HTTP_401_UNAUTHORIZED, detail=[{"msg": "Could not validate credentials"}]
         )
 
+        if not DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS:
+            log.error(
+                "Unable to authenticate. DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS is not set."
+            )
+            raise credentials_exception
+
         authorization: str = request.headers.get(
             "Authorization", request.headers.get("authorization")
         )
-        scheme, param = get_authorization_scheme_param(authorization)
-        if not authorization or scheme.lower() != "bearer":
+        scheme, token = get_authorization_scheme_param(authorization)
+        # `token` is the parsed parameter; re-splitting the header IndexErrors
+        # on a bearer scheme with an empty token, i.e. an unauthenticated 500.
+        if not authorization or scheme.lower() != "bearer" or not token:
+            log.warning("Unable to authenticate. Malformed authorization header.")
             raise credentials_exception
 
-        token = authorization.split()[1]
-
-        # Parse out the Key information. Add padding just in case
-        key_info = json.loads(base64.b64decode(token.split(".")[0] + "=========").decode("utf-8"))
-
-        # Grab all possible keys to account for key rotation and find the right key
-        keys = requests.get(DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS).json()["keys"]
-        for potential_key in keys:
-            if potential_key["kid"] == key_info["kid"]:
-                key = potential_key
-
         try:
-            jwt_opts = {}
-            if DISPATCH_PKCE_DONT_VERIFY_AT_HASH:
-                jwt_opts = {"verify_at_hash": False}
-            # If DISPATCH_JWT_AUDIENCE is defined, the we must include audience in the decode
-            if DISPATCH_JWT_AUDIENCE:
-                data = jwt.decode(token, key, audience=DISPATCH_JWT_AUDIENCE, options=jwt_opts)
-            else:
-                data = jwt.decode(token, key, options=jwt_opts)
-        except JWTError as err:
-            log.debug("JWT Decode error: {}".format(err))
+            # The library parser, not a hand-rolled base64 decode: the header is
+            # base64url and attacker-supplied, so anything that is not a JWT has
+            # to come back as a rejection rather than an unhandled 500.
+            kid = jwt.get_unverified_header(token).get("kid")
+        except (JWTError, JWKError) as err:
+            log.warning("Unable to authenticate. Unreadable token header: %s", err)
             raise credentials_exception from err
 
-        # Support overriding where email is returned in the id token
-        if DISPATCH_JWT_EMAIL_OVERRIDE:
-            return data[DISPATCH_JWT_EMAIL_OVERRIDE]
-        else:
-            return data["email"]
+        if not kid:
+            log.warning("Unable to authenticate. Token header carries no kid.")
+            raise credentials_exception
+
+        try:
+            key = jwks_cache.get_key(
+                DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS,
+                kid,
+                ttl=DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_CACHE_SECONDS,
+                timeout=DISPATCH_AUTHENTICATION_PROVIDER_PKCE_JWKS_TIMEOUT_SECONDS,
+            )
+        except JwksUnavailableError as err:
+            log.error("Unable to authenticate. %s", err)
+            raise credentials_exception from err
+
+        if key is None:
+            log.warning("Unable to authenticate. No JWKS key matches the token's kid: %s", kid)
+            raise credentials_exception
+
+        # The key's own alg, else the asymmetric families a JWKS can serve.
+        # Never HMAC -- that is what lets a token ask for the public key to be
+        # verified against as a shared secret.
+        algorithms = (
+            [key["alg"]]
+            if key.get("alg")
+            else ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
+        )
+
+        # require_exp: an id token without one never expires, and OpenID Connect
+        # makes the claim mandatory, so its absence is a malformed token rather
+        # than a token that opted out of expiry.
+        jwt_opts = {
+            "leeway": DISPATCH_AUTHENTICATION_PROVIDER_PKCE_LEEWAY_SECONDS,
+            "require_exp": True,
+        }
+        if DISPATCH_JWT_AUDIENCE:
+            # python-jose skips the audience check entirely when the token has
+            # no aud, so expecting one has to be stated as a requirement too.
+            jwt_opts["require_aud"] = True
+        if DISPATCH_PKCE_DONT_VERIFY_AT_HASH:
+            jwt_opts["verify_at_hash"] = False
+
+        try:
+            # audience/issuer are passed only when configured, but neither is
+            # fail-open: python-jose rejects a token whose aud is present while
+            # none is expected, and rejects a missing iss once one is expected.
+            data = jwt.decode(
+                token,
+                key,
+                algorithms=algorithms,
+                audience=DISPATCH_JWT_AUDIENCE,
+                issuer=DISPATCH_AUTHENTICATION_PROVIDER_PKCE_ISSUER,
+                options=jwt_opts,
+            )
+        except (JWTError, JWKError) as err:
+            log.warning("Unable to authenticate. Token rejected: %s", err)
+            raise credentials_exception from err
+
+        # Support overriding where email is returned in the id token.
+        email_claim = DISPATCH_JWT_EMAIL_OVERRIDE or "email"
+        email = data.get(email_claim)
+        # isinstance, not just truthiness: this value becomes a user identity,
+        # and a claim that is a list or an object would otherwise be carried all
+        # the way to the pydantic model that provisions the account.
+        if not isinstance(email, str) or not email:
+            log.warning(
+                "Unable to authenticate. Token carries no usable '%s' claim. Set "
+                "DISPATCH_JWT_EMAIL_OVERRIDE to the claim your provider issues.",
+                email_claim,
+            )
+            raise credentials_exception
+
+        return email
 
 
 class HeaderAuthProviderPlugin(AuthenticationProviderPlugin):

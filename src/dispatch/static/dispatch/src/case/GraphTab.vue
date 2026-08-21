@@ -77,7 +77,7 @@ watchEffect(() => {
         "link",
         forceLink(elementsTemp.filter((el) => !isNode(el)))
           .id((d) => d.id)
-          .distance(200) // This increases the link distance
+          .distance(200), // This increases the link distance
       )
       .force("charge", forceManyBody().strength(-900)) // This decreases the charge strength
       .force("center", forceCenter())

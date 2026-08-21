@@ -66,11 +66,14 @@ def create_forms(
     try:
         return create(db_session=db_session, creator=current_user, forms_in=forms_in)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "FormsCreate",
             [
                 {
-                    "msg": "A search filter with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": forms_in.id,
+                    "ctx": {"error": ValueError("A search filter with this name already exists.")},
                 }
             ],
         ) from None
@@ -109,11 +112,14 @@ def update_forms(
     try:
         forms = update(db_session=db_session, forms=forms, forms_in=forms_in)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "FormsUpdate",
             [
                 {
-                    "msg": "A form with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": forms_in.id,
+                    "ctx": {"error": ValueError("A form with this name already exists.")},
                 }
             ],
         ) from None

@@ -96,7 +96,7 @@ function save({ commit, dispatch }) {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form type created successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
       .catch(() => {
@@ -106,7 +106,7 @@ function save({ commit, dispatch }) {
     return FormsApi.update(
       state.selected.id,
       state.selected.creator.id,
-      createPayload(state.selected)
+      createPayload(state.selected),
     )
       .then(() => {
         commit("SET_DIALOG_CREATE_EDIT", false)
@@ -115,7 +115,7 @@ function save({ commit, dispatch }) {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form type updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
       .catch(() => {
@@ -206,7 +206,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form type deleted successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       })
       .catch(() => {
@@ -225,7 +225,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Form type deleted successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
         commit("SET_BULK_EDIT_LOADING", false)
       })

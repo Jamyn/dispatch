@@ -95,13 +95,16 @@ def get_by_name_or_raise(
     incident = get_by_name(db_session=db_session, project_id=project_id, name=incident_in.name)
 
     if not incident:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "IncidentRead",
             [
                 {
-                    "msg": "Incident not found.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": incident_in.name,
+                    "ctx": {"error": ValueError("Incident not found.")},
                 }
-            ]
+            ],
         )
     return incident
 

@@ -23,7 +23,7 @@ export default {
     return Promise.all(
       tasks.map((task) => {
         return this.update(task.id, { ...task, ...payload })
-      })
+      }),
     )
   },
 

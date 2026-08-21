@@ -67,7 +67,7 @@ const actions = {
       // query (#170).
       const params = SearchUtils.createParametersFromTableOptions(
         { ...state.table.options, filters: {}, q: state.table.options.q || undefined },
-        "Prompt"
+        "Prompt",
       )
 
       const response = await PromptApi.getAll(params)
@@ -129,7 +129,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Prompt created successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       } else {
         // Update existing prompt
@@ -137,7 +137,7 @@ const actions = {
         commit(
           "notification_backend/addBeNotification",
           { text: "Prompt updated successfully.", type: "success" },
-          { root: true }
+          { root: true },
         )
       }
 
@@ -162,7 +162,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: errorMessage, type: "exception" },
-        { root: true }
+        { root: true },
       )
 
       // Keep dialog open on error so user can see the notification
@@ -182,7 +182,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Prompt deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     } catch (error) {
       commit("SET_SELECTED_LOADING", false)
@@ -190,7 +190,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Error deleting prompt.", type: "exception" },
-        { root: true }
+        { root: true },
       )
     }
   },

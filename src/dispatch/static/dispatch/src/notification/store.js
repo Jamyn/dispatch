@@ -61,7 +61,7 @@ const actions = {
     commit("SET_TABLE_LOADING", "primary")
     let params = SearchUtils.createParametersFromTableOptions(
       { ...state.table.options },
-      "Notification"
+      "Notification",
     )
     ProjectApi.getAll({ q: state.table.options.filters.project[0].name }).then((response) => {
       const project = response.data.items[0]
@@ -81,7 +81,7 @@ const actions = {
         commit("SET_TABLE_ROWS", response.data)
         commit(
           "SET_NOTIFICATION_TYPES",
-          response.data.items.map((item) => item.name)
+          response.data.items.map((item) => item.name),
         )
       })
       .catch(() => {
@@ -110,7 +110,7 @@ const actions = {
               text: `Project setting updated.`,
               type: "success",
             },
-            { root: true }
+            { root: true },
           )
         })
       }
@@ -128,7 +128,7 @@ const actions = {
               text: `Project setting updated.`,
               type: "success",
             },
-            { root: true }
+            { root: true },
           )
         })
       }
@@ -146,7 +146,7 @@ const actions = {
               text: `Project setting updated.`,
               type: "success",
             },
-            { root: true }
+            { root: true },
           )
         })
       }
@@ -171,7 +171,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Notification created successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -186,7 +186,7 @@ const actions = {
           commit(
             "notification_backend/addBeNotification",
             { text: "Notification updated successfully.", type: "success" },
-            { root: true }
+            { root: true },
           )
         })
         .catch(() => {
@@ -201,7 +201,7 @@ const actions = {
       commit(
         "notification_backend/addBeNotification",
         { text: "Notification deleted successfully.", type: "success" },
-        { root: true }
+        { root: true },
       )
     })
   },

@@ -261,7 +261,7 @@ watch(
   (newVal) => {
     showEditSheet.value = newVal.meta && newVal.meta.showEditSheet
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 const q = ref(caseManagement.value.table.options.q)
@@ -270,7 +270,7 @@ watch(
   (newValue) => {
     caseManagement.value.table.options.q = newValue
     getAll()
-  }
+  },
 )
 
 // Deserialize the URL filters and apply them to the local filters
@@ -291,6 +291,6 @@ watch(
       getAll()
     }
   },
-  { deep: true } // Required to watch object properties inside filters
+  { deep: true }, // Required to watch object properties inside filters
 )
 </script>

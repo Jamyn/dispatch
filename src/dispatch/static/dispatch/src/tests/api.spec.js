@@ -41,26 +41,26 @@ function axiosError(status, data, config = {}) {
 test("403 response pushes a notification with the joined detail messages", async () => {
   const rejected = getResponseRejectedHandler()
   await expect(
-    rejected(axiosError(403, { detail: [{ msg: "forbidden" }, { msg: "try again" }] }))
+    rejected(axiosError(403, { detail: [{ msg: "forbidden" }, { msg: "try again" }] })),
   ).rejects.toBeTruthy()
 
   expect(commitMock).toHaveBeenCalledWith(
     "notification_backend/addBeNotification",
     { text: "forbidden try again", type: "exception" },
-    { root: true }
+    { root: true },
   )
 })
 
 test("422 response pushes a notification with the joined detail messages", async () => {
   const rejected = getResponseRejectedHandler()
   await expect(
-    rejected(axiosError(422, { detail: [{ msg: "invalid field" }] }))
+    rejected(axiosError(422, { detail: [{ msg: "invalid field" }] })),
   ).rejects.toBeTruthy()
 
   expect(commitMock).toHaveBeenCalledWith(
     "notification_backend/addBeNotification",
     { text: "invalid field", type: "exception" },
-    { root: true }
+    { root: true },
   )
 })
 
@@ -74,7 +74,7 @@ test("500 response with no detail falls back to a generic message", async () => 
       text: "Something has gone wrong. Please, retry or let your admin know that you received this error.",
       type: "exception",
     },
-    { root: true }
+    { root: true },
   )
 })
 
@@ -88,7 +88,7 @@ test("401 response on the basic auth provider redirects to login", async () => {
 test("errorHandle: false on the request config bypasses notification handling", async () => {
   const rejected = getResponseRejectedHandler()
   await expect(
-    rejected(axiosError(403, { detail: [{ msg: "should not notify" }] }, { errorHandle: false }))
+    rejected(axiosError(403, { detail: [{ msg: "should not notify" }] }, { errorHandle: false })),
   ).rejects.toBeTruthy()
 
   expect(commitMock).not.toHaveBeenCalled()

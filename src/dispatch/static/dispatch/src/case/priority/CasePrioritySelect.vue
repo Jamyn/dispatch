@@ -119,7 +119,7 @@ export default {
       filterOptions = SearchUtils.createParametersFromTableOptions(
         { ...filterOptions },
         "CasePriority",
-        enabledFilter
+        enabledFilter,
       )
 
       CasePriorityApi.getAll(filterOptions)

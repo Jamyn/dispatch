@@ -1,5 +1,7 @@
 import datetime
 from uuid import uuid4
+
+import pytest
 from dispatch.enums import EventType
 
 
@@ -108,3 +110,51 @@ def test_log_case_event(session, case):
     )
     assert event.source == source
     assert event.case_id == case.id
+
+
+# --- Editing a timeline entry that is not there ----------------------------
+#
+# These run as background tasks, so the response has already gone out. What the
+# operator gets is whatever lands in the log, and an AttributeError on None does
+# not say which event was meant or that it was simply missing.
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["update_incident_event", "delete_incident_event", "update_case_event", "delete_case_event"],
+)
+def test_editing_an_event_that_does_not_exist_says_so(session, operation):
+    """Given an unknown event uuid, when editing or deleting it, then the error names it."""
+    from datetime import datetime
+    from uuid import uuid4
+
+    from pydantic import ValidationError
+
+    from dispatch.event import service as event_service
+    from dispatch.event.models import EventUpdate
+
+    missing = str(uuid4())
+    now = datetime.utcnow()
+
+    with pytest.raises(ValidationError) as exc_info:
+        if operation.startswith("update"):
+            getattr(event_service, operation)(
+                db_session=session,
+                event_in=EventUpdate(
+                    uuid=missing,
+                    source="Case Participant",
+                    description="does not matter",
+                    started_at=now,
+                    ended_at=now,
+                    type="Custom event",
+                    details={},
+                    owner="",
+                    pinned=False,
+                ),
+            )
+        else:
+            getattr(event_service, operation)(db_session=session, uuid=missing)
+
+    rendered = str(exc_info.value.errors())
+    assert "Event not found." in rendered
+    assert missing in rendered, "the log does not say which event was meant"

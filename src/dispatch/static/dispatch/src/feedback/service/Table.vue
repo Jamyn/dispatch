@@ -188,7 +188,7 @@ export default {
       (vm) => [vm.page],
       () => {
         this.getAll()
-      }
+      },
     )
 
     this.$watch(
@@ -197,7 +197,7 @@ export default {
         this.page = 1
         RouterUtils.updateURLFilters(this.filters)
         this.getAll()
-      }
+      },
     )
   },
 }

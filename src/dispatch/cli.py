@@ -141,11 +141,18 @@ def install_plugins(force):
 @click.argument("plugins", nargs=-1)
 def uninstall_plugins(plugins):
     """Uninstalls all plugins, or only one."""
+    from pydantic import ValidationError
+    from sqlalchemy.exc import IntegrityError
+
     from dispatch.database.core import SessionLocal
     from dispatch.plugin import service as plugin_service
 
     db_session = SessionLocal()
 
+    # `plugin` is global but `plugin_instance` is per-organization, so this only
+    # sees the default organization's instances; another tenant's are caught by
+    # the foreign key instead.
+    failed = []
     for plugin_slug in plugins:
         plugin = plugin_service.get_by_slug(db_session=db_session, slug=plugin_slug)
         if not plugin:
@@ -153,8 +160,27 @@ def uninstall_plugins(plugins):
                 f"Plugin slug {plugin_slug} does not exist. Make sure you're passing the plugin's slug.",
                 fg="red",
             )
+            # Skip rather than fall through: reading `plugin.id` below turned
+            # the message above into an AttributeError, and abandoned every
+            # slug still to come.
+            failed.append(plugin_slug)
+            continue
 
-        plugin_service.delete(db_session=db_session, plugin_id=plugin.id)
+        try:
+            plugin_service.delete(db_session=db_session, plugin_id=plugin.id)
+        except ValidationError as e:
+            click.secho(f"{plugin_slug}: {e.errors()[0]['msg']}", fg="red")
+            failed.append(plugin_slug)
+        except IntegrityError:
+            db_session.rollback()
+            click.secho(
+                f"{plugin_slug}: still configured in another organization.",
+                fg="red",
+            )
+            failed.append(plugin_slug)
+
+    if failed:
+        raise click.exceptions.Exit(1)
 
 
 @dispatch_cli.group("user")
@@ -220,19 +246,26 @@ def update_user(email: str, role: str, organization: str):
     from dispatch.auth import service as user_service
     from dispatch.auth.models import UserOrganization, UserUpdate
     from dispatch.database.core import SessionLocal
+    from pydantic import ValidationError
 
     db_session = SessionLocal()
     user = user_service.get_by_email(email=email, db_session=db_session)
     if not user:
+        # Exit non-zero: an install script granting a role to a mistyped
+        # address would otherwise report success having granted nothing.
         click.secho(f"No user found. Email: {email}", fg="red")
-        return
+        raise click.exceptions.Exit(1)
 
     organization = UserOrganization(role=role, organization={"name": organization})
-    user_service.update(
-        user=user,
-        user_in=UserUpdate(id=user.id, organizations=[organization]),
-        db_session=db_session,
-    )
+    try:
+        user_service.update(
+            user=user,
+            user_in=UserUpdate(id=user.id, organizations=[organization]),
+            db_session=db_session,
+        )
+    except ValidationError as e:
+        click.secho(f"Could not update user: {e.errors()[0]['msg']}", fg="red")
+        raise click.exceptions.Exit(1) from None
     click.secho("User successfully updated.", fg="green")
 
 
@@ -704,7 +737,7 @@ def dispatch_scheduler():
     from .incident_cost.scheduled import calculate_incidents_response_cost  # noqa
     from .monitor.scheduled import sync_active_stable_monitors  # noqa
     from .report.scheduled import incident_report_reminders  # noqa
-    from .tag.scheduled import build_tag_models, sync_tags  # noqa
+    from .tag.scheduled import sync_tags  # noqa
     from .task.scheduled import (
         create_incident_tasks_reminders,  # noqa
     )
@@ -719,9 +752,12 @@ def list_tasks():
 
     table = []
     for task in scheduler.registered_tasks:
-        table.append([task["name"], task["job"].period, task["job"].at_time])
+        job = task["job"]
+        # `schedule` describes an interval as a count and a unit; `Job.period`
+        # is not part of its API, so reading one raised for every invocation.
+        table.append([task["name"], f"{job.interval} {job.unit}", job.at_time, job.next_run])
 
-    click.secho(tabulate(table, headers=["Task Name", "Period", "At Time"]), fg="blue")
+    click.secho(tabulate(table, headers=["Task Name", "Period", "At Time", "Next Run"]), fg="blue")
 
 
 @dispatch_scheduler.command("start")

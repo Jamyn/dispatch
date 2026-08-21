@@ -57,11 +57,16 @@ def create_email_template(
     try:
         return create(db_session=db_session, email_template_in=email_template_in)
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "EmailTemplatesCreate",
             [
                 {
-                    "msg": "An email template with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": email_template_in.email_template_type,
+                    "ctx": {
+                        "error": ValueError("An email template with this name already exists.")
+                    },
                 }
             ],
         ) from None
@@ -91,11 +96,16 @@ def update_email_template(
             email_template_in=email_template_in,
         )
     except IntegrityError:
-        raise ValidationError(
+        raise ValidationError.from_exception_data(
+            "EmailTemplatesUpdate",
             [
                 {
-                    "msg": "An email template with this name already exists.",
-                    "loc": "name",
+                    "type": "value_error",
+                    "loc": ("name",),
+                    "input": email_template_in.email_template_type,
+                    "ctx": {
+                        "error": ValueError("An email template with this name already exists.")
+                    },
                 }
             ],
         ) from None
