@@ -89,7 +89,7 @@ export default {
     ...mapActions("signal", ["save", "closeHistory"]),
     iconItem(event) {
       if (event.description == "Signal created") return "mdi-alert-plus-outline"
-      if (event.description == "Signal deleted") return "mdi-alert-minute-outline"
+      if (event.description == "Signal deleted") return "mdi-alert-minus-outline"
       return "mdi-swap-horizontal"
     },
   },

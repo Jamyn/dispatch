@@ -3,7 +3,7 @@
     <new-edit-sheet />
     <v-divider />
     <v-list>
-      <v-list-group prepend-icon="mdi-person" color="info">
+      <v-list-group prepend-icon="mdi-account" color="info">
         <template #activator="{ props }">
           <v-list-item v-bind="props">
             <v-list-item-title>Individuals ({{ items.length }})</v-list-item-title>
