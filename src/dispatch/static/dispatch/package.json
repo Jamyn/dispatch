@@ -19,7 +19,7 @@
     "serve": "cross-env NODE_ENV=dev NODE_OPTIONS='--max-http-header-size=100000' vite",
     "test": "vitest --dom",
     "preinstall": "node preinstall.js",
-    "prepare": "cd ../../../.. && husky src/dispatch/static/dispatch/.husky && [ \"$HUSKY\" = \"0\" ] || git config core.hooksPath src/dispatch/static/dispatch/.husky || true"
+    "prepare": "cd ../../../.. && husky src/dispatch/static/dispatch/.husky && [ \"$HUSKY\" = \"0\" ] || ! [ -e .git ] || git config core.hooksPath src/dispatch/static/dispatch/.husky"
   },
   "dependencies": {
     "@formkit/pro": "^0.130.0",
