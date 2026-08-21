@@ -45,6 +45,12 @@ jobs:
       # pre-existing and not asserted here -- doing so would fail on main.
       - run: npm run build
 
+      # vite-plugin-monaco-editor declares no vite peer range and emits the
+      # worker from writeBundle, so a vite major can stop firing that hook and
+      # still exit 0 -- leaving the JSON editor to load no worker at runtime.
+      - name: Assert the monaco worker was emitted
+        run: test -s dist/monacoeditorwork/json.worker.bundle.js
+
       # lcov records SF: paths relative to this package (SF:src/App.vue) and the
       # repository root has its own src/, so Codecov files them at paths that do
       # not exist and no diff maps to them. The action's working-directory does

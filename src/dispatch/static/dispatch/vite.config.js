@@ -9,8 +9,15 @@ import path from "path"
 
 export default defineConfig({
   plugins: [
-    vue(),
+    // `include` is redundant for plugin-vue itself -- it is that plugin's own
+    // default -- but vite-plugin-vuetify derives its filter from
+    // `api.options.include`, which plugin-vue 6 leaves unset unless passed.
+    // Without it the vuetify transform runs on every module, not just SFCs.
+    vue({ include: /\.vue$/ }),
     vuetify(),
+    // Bundles the worker with its own `require("esbuild")`, which resolves to
+    // the root esbuild devDependency -- vite 8 declares esbuild a peer and no
+    // longer nests one. Removing that devDependency breaks this plugin.
     monacoEditorPlugin({ languageWorkers: ["json"] }),
     Components(),
     {
