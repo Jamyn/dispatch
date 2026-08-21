@@ -177,6 +177,9 @@ class FakeConfluence:
         self.failure = None
         self.failing_methods = ()
         self.omit_webui = False
+        # None serves a child listing whole. A size makes it paginate, which
+        # is the only way to reach the client's next-link handling.
+        self.child_page_size = None
         self.next_id = 900001
         self.deleted = []
         self.pages = {
@@ -232,9 +235,9 @@ class FakeConfluence:
         path, method = request.path, request.method
 
         if path.endswith("/children") and method == "GET":
-            return self._children(path.split("/")[-2])
+            return self._children(request, path.split("/")[-2], cursor=True)
         if path.endswith("/child/page") and method == "GET":
-            return self._children(path.split("/")[-3])
+            return self._children(request, path.split("/")[-3], cursor=False)
         if "/api/v2/pages/" in path and method == "DELETE":
             return self._delete(path.rsplit("/", 1)[1], reparent=True)
         if "/rest/api/content/" in path and method == "DELETE":
@@ -266,11 +269,41 @@ class FakeConfluence:
 
         return 404, {"message": f"no route for {method} {path}"}
 
-    def _children(self, page_id):
+    def _children(self, request, page_id, *, cursor: bool):
         if page_id not in self.pages:
             return 404, {"message": "page not found"}
         kids = [page for page in self.pages.values() if page.parent_id == page_id]
-        return 200, {"results": [{"id": page.id, "title": page.title} for page in kids]}
+        results = [{"id": page.id, "title": page.title} for page in kids]
+
+        if self.child_page_size is None:
+            return 200, {"results": results}
+
+        # Cloud pages by opaque cursor and Server by offset; the fake uses the
+        # offset as the cursor token, which the client is not entitled to read.
+        size = self.child_page_size
+        start = int(request.params.get("cursor" if cursor else "start") or 0)
+        body = {"results": results[start : start + size]}
+        if start + size < len(results):
+            token = f"cursor={start + size}" if cursor else f"start={start + size}"
+            # Relative and carrying the full context path, as Confluence sends
+            # it, alongside the `base` a client may be tempted to prefix it
+            # with -- doing so is what duplicates the context path.
+            body["_links"] = {
+                "next": f"{request.path}?limit={size}&{token}",
+                "base": self._reported_base(request),
+            }
+        return 200, body
+
+    @staticmethod
+    def _reported_base(request) -> str:
+        """The instance root Confluence reports beside a paged listing."""
+        parsed = urlparse(request.url)
+        path = request.path
+        for marker in ("/api/v2", "/rest/api"):
+            if marker in path:
+                path = path.split(marker)[0]
+                break
+        return f"{parsed.scheme}://{parsed.netloc}{path}"
 
     def _delete(self, page_id, *, reparent: bool):
         """Removes one page, as Confluence removes one page.
