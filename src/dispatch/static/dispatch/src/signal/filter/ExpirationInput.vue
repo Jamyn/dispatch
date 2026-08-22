@@ -112,17 +112,16 @@ export default {
 
   methods: {
     setExpiration: function (value) {
-      this.expiration = this.toLocalISOString(value)
+      // The backend stores expiration in a naive column it reads back as UTC
+      // (signal/service.py compares it against datetime.now(timezone.utc)), so
+      // the shortcuts must emit the instant itself, not a host wall clock.
+      this.expiration = value.toISOString()
     },
     clearExpiration: function () {
       this.expiration = null
     },
     closeMenu: function () {
       this.menu = false
-    },
-    toLocalISOString: function (date) {
-      let tzOffset = date.getTimezoneOffset() * 60000 // offset in milliseconds
-      return new Date(date - tzOffset).toISOString().slice(0, -1)
     },
   },
 }
