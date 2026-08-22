@@ -119,7 +119,7 @@ export default {
       (vm) => [vm.q, vm.itemsPerPage, vm.sortBy, vm.descending, vm.project],
       () => {
         this.page = 1
-        this.$router.push({ query: { project: this.project[0].name } })
+        this.$router.push({ query: { project: this.project[0]?.name } })
         this.getAll()
       },
     )

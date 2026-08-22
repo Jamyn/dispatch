@@ -63,18 +63,24 @@ const actions = {
       { ...state.table.options },
       "Notification",
     )
-    ProjectApi.getAll({ q: state.table.options.filters.project[0].name }).then((response) => {
-      const project = response.data.items[0]
-      if (project) {
-        commit("SET_DAILY_REPORT_STATE", project.send_daily_reports ?? true)
-        commit("SET_WEEKLY_REPORT_STATE", project.send_weekly_reports ?? true)
-        if (project.weekly_report_notification_id) {
-          NotificationApi.get(project.weekly_report_notification_id).then((response) => {
-            commit("SET_WEEKLY_REPORT_TARGET", response.data)
-          })
+    // No project selected means there are no per-project report settings to
+    // show. Looking one up with an undefined `q` would match every project and
+    // display the first one's settings as if they were the selected project's.
+    const projectName = state.table.options.filters.project[0]?.name
+    if (projectName) {
+      ProjectApi.getAll({ q: projectName }).then((response) => {
+        const project = response.data.items[0]
+        if (project) {
+          commit("SET_DAILY_REPORT_STATE", project.send_daily_reports ?? true)
+          commit("SET_WEEKLY_REPORT_STATE", project.send_weekly_reports ?? true)
+          if (project.weekly_report_notification_id) {
+            NotificationApi.get(project.weekly_report_notification_id).then((response) => {
+              commit("SET_WEEKLY_REPORT_TARGET", response.data)
+            })
+          }
         }
-      }
-    })
+      })
+    }
     return NotificationApi.getAll(params)
       .then((response) => {
         commit("SET_TABLE_LOADING", false)
