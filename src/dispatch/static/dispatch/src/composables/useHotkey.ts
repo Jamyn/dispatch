@@ -1,7 +1,8 @@
 import { Ref, ref } from "vue"
 import { useEventListener } from "@/composables/useEventListener"
 
-type Key = keyof typeof KeyboardEvent.prototype
+// Callers pass key values ("Meta", "Shift", "p"), not KeyboardEvent property names.
+type Key = KeyboardEvent["key"]
 
 /**
  * A composable function to handle hotkeys.

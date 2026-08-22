@@ -61,7 +61,7 @@ function simpleDeepEqual(a: any, b: any): boolean {
  * const lineContent = '"key": "value",';
  * const { key, value } = extractKeyValueRegex(lineContent); // Returns { key: 'key', value: 'value' }
  */
-export function extractKeyValue(lineContent: string): { key: string; value: any } {
+export function extractKeyValue(lineContent: string): { key: string | null; value: any } {
   // Remove trailing comma if it exists to make it a valid JSON object
   const trimmedLine = lineContent.trim().replace(/,\s*$/, "")
   // Add curly braces to make it a valid JSON string

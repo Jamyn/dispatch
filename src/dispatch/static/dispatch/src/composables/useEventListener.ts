@@ -18,7 +18,11 @@ import { onMounted, onUnmounted } from "vue"
  * })
  * ```
  */
-export function useEventListener(target: Window, event: string, callback: (e: Event) => void) {
+export function useEventListener<K extends keyof WindowEventMap>(
+  target: Window,
+  event: K,
+  callback: (e: WindowEventMap[K]) => void,
+) {
   // On component mount, add the event listener to the target
   onMounted(() => target.addEventListener(event, callback))
 

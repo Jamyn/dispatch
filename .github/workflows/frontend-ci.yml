@@ -32,6 +32,11 @@ jobs:
           cache-dependency-path: src/dispatch/static/dispatch/package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run lint
+      # tsc covers the .ts files only. The 24 SFCs using `<script lang="ts">`
+      # need vue-tsc, which resolves typescript/lib/tsc -- a subpath TypeScript
+      # 6 dropped from its exports map -- so it crashes on the pinned compiler
+      # despite advertising `typescript: >=5.0.0`.
+      - run: npm run typecheck
       - run: npx vitest run --dom --coverage
       # The production vite build. Neither lint nor vitest resolves the
       # `exports` maps that a bundler enforces, so a dependency bump can pass

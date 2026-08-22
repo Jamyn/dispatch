@@ -402,7 +402,7 @@ describe("findPath", () => {
     const value = "arn:aws:ec2:us-west-2:133711111111:instance/i-133711111111"
     const result = findPath(guarddutyAlert, key, value)
     expect(result).toBe("$.asset[*].id")
-    const evaluated = jsonpath.query(guarddutyAlert, result)
+    const evaluated = jsonpath.query(guarddutyAlert, result!)
     expect(evaluated.includes(value)).toBe(true)
   })
 
@@ -415,7 +415,7 @@ describe("findPath", () => {
     }
     const result = findPath(guarddutyAlert, key, value)
     expect(result).toBe("$.asset[*].details.devLead")
-    const evaluated = jsonpath.query(guarddutyAlert, result)
+    const evaluated = jsonpath.query(guarddutyAlert, result!)
     expect(evaluated[0]).toEqual(value)
   })
 
@@ -424,7 +424,7 @@ describe("findPath", () => {
     const value = false
     const result = findPath(guarddutyAlert, key, value)
     expect(result).toBe("$.asset[*].details.public_facing_guess")
-    const evaluated = jsonpath.query(guarddutyAlert, result)
+    const evaluated = jsonpath.query(guarddutyAlert, result!)
     expect(evaluated[0]).toBe(value)
   })
 
@@ -433,7 +433,7 @@ describe("findPath", () => {
     const value = ["1337.1337.1337.1337"]
     const result = findPath(guarddutyAlert, key, value)
     expect(result).toBe("$.asset[*].details.AwsEc2Instance.IpV4Addresses")
-    const evaluated = jsonpath.query(guarddutyAlert, result)
+    const evaluated = jsonpath.query(guarddutyAlert, result!)
     expect(evaluated[0]).toEqual(value)
   })
 
@@ -442,7 +442,7 @@ describe("findPath", () => {
     const value = "us-west-2"
     const result = findPath(guarddutyAlert, key, value)
     expect(result).toBe("$.originLocation[*].value")
-    const evaluated = jsonpath.query(guarddutyAlert, result)
+    const evaluated = jsonpath.query(guarddutyAlert, result!)
     expect(evaluated.includes(value)).toBe(true)
   })
 
@@ -468,7 +468,7 @@ describe("findPath", () => {
     }
     const result = findPath(guarddutyAlert, key, value)
     expect(result).toBe("$.originLocation[*].geoIP")
-    const evaluated = jsonpath.query(guarddutyAlert, result)
+    const evaluated = jsonpath.query(guarddutyAlert, result!)
     expect(evaluated[0]).toEqual(value)
   })
 })
