@@ -133,7 +133,7 @@ describe("extractKeyValue", () => {
 
     expect(key).toBe("errorMessage")
     expect(value).toBe(
-      "User: arn:aws:sts::123456789012:assumed-role/test/someuser is not authorized to perform: ssm:SendCommand on resource: arn:aws:ec2:us-west-2:123456789012:instance/i-0123456789abcdef0 because no identity-based policy allows the ssm:SendCommand action"
+      "User: arn:aws:sts::123456789012:assumed-role/test/someuser is not authorized to perform: ssm:SendCommand on resource: arn:aws:ec2:us-west-2:123456789012:instance/i-0123456789abcdef0 because no identity-based policy allows the ssm:SendCommand action",
     )
   })
 

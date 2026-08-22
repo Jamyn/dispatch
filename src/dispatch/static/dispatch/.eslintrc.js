@@ -18,6 +18,22 @@ module.exports = {
   },
   overrides: [
     {
+      // eslint-plugin-vue scopes vue-eslint-parser to *.vue only, so .ts
+      // otherwise falls through to espree and fails to parse. eslint-recommended
+      // switches off base rules that misread type syntax -- no-undef reads
+      // `NodeJS.Timeout` as an undeclared global -- and switches on no-var /
+      // prefer-const / prefer-rest-params / prefer-spread.
+      files: ["*.ts"],
+      extends: ["plugin:@typescript-eslint/eslint-recommended"],
+      parser: "@typescript-eslint/parser",
+      rules: {
+        // eslint-recommended leaves this one on, and it counts a function-type
+        // parameter name (`(e: Event) => void`) as an unused variable.
+        "no-unused-vars": "off",
+        "@typescript-eslint/no-unused-vars": "error",
+      },
+    },
+    {
       files: ["test/*"],
       rules: {
         "no-undef": "off",
