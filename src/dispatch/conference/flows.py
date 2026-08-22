@@ -96,12 +96,9 @@ def normalize_participants(participants: list[str] | None) -> list[str]:
     Duplicates are reachable rather than hypothetical: the participant resolver
     appends one entry for a direct individual match and another for a service
     whose on-call resolves to the same person, and nothing between there and here
-    collapses them. Matched case-insensitively, matching how Zoom's and Teams'
+    collapses them. Matched case-insensitively, matching how all three plugins'
     `add_participant` decide whether someone is already on the roster -- leaving it
-    to the provider would make one Dispatch behaviour into three. Google Calendar
-    is the exception and is not a counter-example: its `add_participant` appends
-    unconditionally and its `remove_participant` compares exactly, so it is the
-    plugin that most needs a caller not to hand it duplicates.
+    to the provider would make one Dispatch behaviour into three.
 
     First spelling wins, order preserved: the roster is compared against what the
     provider echoes back, so it is worth being reproducible.

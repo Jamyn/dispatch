@@ -151,6 +151,18 @@ def get_event(client: Any, event_id: str):
     return make_call(client.events(), "get", calendarId="primary", eventId=event_id)
 
 
+def attendee_matches(attendee: dict, participant: str) -> bool:
+    """Whether an attendee is the given participant. Email is case-insensitive.
+
+    `casefold` matches how Zoom's `invitee_matches` and Teams' `matches` decide
+    the same question. It over-folds -- Zoom's `remove_participant` has the
+    detail, and removal is the side where that direction is unsafe -- but
+    add and remove must agree on who is present, so both use this one.
+    """
+    email = attendee.get("email")
+    return bool(email) and email.casefold() == participant.casefold()
+
+
 # `attendees` is optional on the Events resource, so an event that lists nobody
 # comes back with the key absent rather than as an empty list. Subscripting it
 # raised `KeyError: 'attendees'`, which the conference flow catches and writes
@@ -158,22 +170,36 @@ def get_event(client: Any, event_id: str):
 # been emptied stays empty until somebody is added, the failure latched and no
 # responder could be added again (issue #148).
 def remove_participant(client: Any, event_id: int, participant: str):
-    """Remove participant from calendar event."""
+    """Remove participant from calendar event.
+
+    An absent participant is left alone rather than treated as an error, so a
+    retried removal is a no-op and sends no update.
+    """
     event = get_event(client, event_id)
 
-    attendees = []
-    for a in event.get("attendees", []):
-        if a["email"] != participant:
-            attendees.append(a)
+    attendees = event.get("attendees", [])
+    remaining = [a for a in attendees if not attendee_matches(a, participant)]
+    if len(remaining) == len(attendees):
+        return
 
-    event["attendees"] = attendees
+    event["attendees"] = remaining
     return make_call(client.events(), "update", calendarId="primary", eventId=event_id, body=event)
 
 
 def add_participant(client: Any, event_id: int, participant: str):
-    """Add participant to calendar event."""
+    """Add participant to calendar event.
+
+    Someone already on the roster is not appended again: incident creation
+    seeds the bridge and then walks the very same responders through the add
+    flow, so an unconditional append lists each of them twice (issue #128).
+    """
     event = get_event(client, event_id)
-    event["attendees"] = [*event.get("attendees", []), {"email": participant}]
+
+    attendees = event.get("attendees", [])
+    if any(attendee_matches(a, participant) for a in attendees):
+        return
+
+    event["attendees"] = [*attendees, {"email": participant}]
     return make_call(client.events(), "update", calendarId="primary", eventId=event_id, body=event)
 
 
