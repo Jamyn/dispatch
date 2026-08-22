@@ -16,6 +16,6 @@
       "vuex": ["./node_modules/vuex/types/index.d.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.vue", "components.d.ts"],
+  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.vue", "components.d.ts", "*.js"],
   "exclude": ["node_modules", "dist", "coverage"]
 }

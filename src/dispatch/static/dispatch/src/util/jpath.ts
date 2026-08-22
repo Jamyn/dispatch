@@ -72,8 +72,8 @@ export function extractKeyValue(lineContent: string): { key: string | null; valu
     const parsed = JSON.parse(jsonString)
 
     // Extract the first key-value pair
-    const key = Object.keys(parsed)[0]
-    const value = parsed[key]
+    const key = Object.keys(parsed)[0] ?? null
+    const value = key === null ? null : parsed[key]
 
     // Return the extracted key and the value as a string
     return { key, value }
