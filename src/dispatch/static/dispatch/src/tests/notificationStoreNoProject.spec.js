@@ -1,5 +1,5 @@
 /**
- * The Notifications table's refetch must survive no project being selected (#259).
+ * The Notifications table's refetch must survive an empty project filter (#259).
  *
  * Unlike the other 32 settings tables, guarding `Table.vue`'s watcher is not
  * enough here: `notification/store.js`'s own `getAll` reads
@@ -7,11 +7,15 @@
  * and did so before returning `NotificationApi.getAll(params)` -- so the refetch
  * still died one frame later.
  *
+ * `notification/Table.vue` seeds `[{ name: undefined }]` unconditionally, so the
+ * filter is not `[]` on first load; it empties when the breadcrumb selector is
+ * cleared, which stores `[null]`. Both shapes are covered below.
+ *
  * Asserted at the API-client boundary, the same one `promptProjectFilter.spec.js`
  * uses for this kind of store.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/notification/api", () => ({
   default: { getAll: vi.fn(), get: vi.fn() },
@@ -56,6 +60,10 @@ describe("notification store getAll with no project selected", () => {
     vi.useFakeTimers()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it("still fetches the notification rows", async () => {
     await getAllWith(() => {})
 
@@ -67,6 +75,15 @@ describe("notification store getAll with no project selected", () => {
     // would be shown as if the user had selected it.
     await getAllWith(() => {})
 
+    expect(ProjectApi.getAll).not.toHaveBeenCalled()
+  })
+
+  it("still fetches the rows after the selector is cleared to [null]", async () => {
+    await getAllWith((options) => {
+      options.filters.project = [null]
+    })
+
+    expect(NotificationApi.getAll).toHaveBeenCalledOnce()
     expect(ProjectApi.getAll).not.toHaveBeenCalled()
   })
 

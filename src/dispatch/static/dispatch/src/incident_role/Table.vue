@@ -50,7 +50,7 @@ export default {
     this.$watch(
       (vm) => [vm.breadCrumbProject],
       () => {
-        this.$router.push({ query: { project: this.breadCrumbProject[0].name } })
+        this.$router.push({ query: { project: this.breadCrumbProject[0]?.name } })
       },
     )
   },

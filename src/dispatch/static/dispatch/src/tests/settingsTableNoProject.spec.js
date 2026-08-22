@@ -2,15 +2,20 @@
  * A settings table must still refetch when no project is selected (#259).
  *
  * Every settings `Table.vue` watches its filter controls and pushes the current
- * project into the URL before calling `getAll()`. `table.options.filters.project`
- * defaults to `[]` and nothing auto-selects a project, so indexing `[0].name`
- * unconditionally threw before `getAll()` ran and the search box went silently
- * dead.
+ * project into the URL before calling `getAll()`, indexing `[0].name`
+ * unconditionally. The throw lands on the line before `getAll()`, so the refetch
+ * never runs and the search box goes silently dead rather than reporting an error.
  *
- * `term/Table.vue` is the representative: all 33 tables carry the byte-identical
- * watcher, and this one has no extra work in `created()` to mount around. The
- * assertions are on the `getAll` action and on the resulting route, which are
- * the two things the throw took out.
+ * `filters.project` empties two ways, and both are pinned below:
+ *   - it starts `[]`, on the tables that guard the route-query seeding with
+ *     `if (this.$route.query.project)` -- `term` and `prompt`;
+ *   - it becomes `[null]` on any of them once the breadcrumb selector is cleared,
+ *     since `SettingsBreadcrumbs` emits `[value]` unconditionally.
+ * The other 31 tables seed `[{ name: undefined }]` instead, which never threw --
+ * the shared watcher is still guarded uniformly, because the `[null]` path is not.
+ *
+ * `term/Table.vue` is the representative: all 33 carry the byte-identical
+ * watcher, and this one has no extra work in `created()` to mount around.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -109,13 +114,28 @@ describe("settings table with no project selected", () => {
   })
 
   it("leaves the project out of the URL rather than throwing", async () => {
-    const { wrapper, router } = await mountTable()
+    const { wrapper, router, getAll } = await mountTable()
 
     wrapper.vm.q = "denial"
     await settle()
 
+    // Without the refetch assertion this passes on the bug too: a watcher that
+    // throws never reaches `$router.push`, so the URL is equally untouched.
+    expect(getAll).toHaveBeenCalledOnce()
     expect(router.currentRoute.value.query).not.toHaveProperty("project")
     expect(router.currentRoute.value.fullPath).toBe("/settings/terms")
+  })
+
+  it("refetches after the breadcrumb selector is cleared", async () => {
+    // SettingsBreadcrumbs emits `[value]`, so clearing the autocomplete stores
+    // `[null]` rather than `[]`. This is the path the other 31 tables reach.
+    const { wrapper, router, getAll } = await mountTable({ project: "acme" })
+
+    wrapper.vm.project = [null]
+    await settle()
+
+    expect(getAll).toHaveBeenCalledOnce()
+    expect(router.currentRoute.value.query).not.toHaveProperty("project")
   })
 
   it("refetches when sorting changes", async () => {
