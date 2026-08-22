@@ -606,3 +606,33 @@ def test_a_meeting_created_with_no_roster_really_has_none(client, plugin, cleanu
     meeting = client.get_meeting(conference["id"])
     assert _attendee_upns(meeting) == []
     assert conference["weblink"]
+
+
+def test_graph_reports_the_attendee_list_on_a_read(client, plugin, cleanup):
+    """Settles issue #130 against a real tenant. Needs no test identity.
+
+    The plugin refuses to write a roster Graph did not report, because
+    `update_attendees` replaces it wholesale. Graph's own app-token GET example
+    documents `"attendees": []` for a meeting with none, and that documented
+    shape is all the fix rests on -- this is what turns it into an observation.
+
+    Deliberately asserted on `reported_attendees`, the function that decides,
+    rather than on the raw body: an absent key and an empty list read the same
+    through `_attendee_upns` above, which is exactly the conflation #130 is
+    about. `describe_roster` names the shape when it diverges.
+    """
+    from dispatch.plugins.dispatch_microsoft_teams.conference.plugin import (
+        describe_roster,
+        reported_attendees,
+    )
+
+    conference = plugin.create("dispatch-live-test", title=_subject(), participants=[])
+    cleanup.append(conference["id"])
+
+    meeting = client.get_meeting(conference["id"])
+
+    assert reported_attendees(meeting) == [], (
+        f"Graph did not report an empty attendee list ({describe_roster(meeting)}); "
+        "the roster refusal in `current_attendees` will fire on every add. "
+        "Record this on issue #130."
+    )
