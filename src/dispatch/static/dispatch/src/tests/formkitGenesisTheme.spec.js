@@ -45,6 +45,8 @@ const Harness = defineComponent({
     <FormKit type="form" submit-label="Save">
       <FormKit type="text" name="title" label="Title" help="Some help text" validation="required" />
       <FormKit type="text" name="frozen" label="Frozen" disabled="true" />
+      <FormKit type="password" name="secret" label="Secret" />
+      <FormKit type="number" name="count" label="Count" />
       <FormKit type="date" name="when" label="When" />
       <FormKit type="checkbox" name="agree" label="Agree" />
       <FormKit type="select" name="pick" label="Pick" placeholder="Choose" :options="['x', 'y']" />
@@ -94,13 +96,16 @@ describe("the genesis stylesheet targets the markup FormKit renders", () => {
     expect(styles("[data-disabled]")).toBe(true)
   })
 
-  // Genesis has no [data-type=text] or [data-type=date] rule: text-like
-  // controls are styled through .formkit-input, asserted above, and
-  // [data-family=text] carries nothing but the two ::selection rules. Pinning
-  // the family attribute is what keeps those two reachable.
-  test.each([["text"], ["date"]])("the %s input is in the text family", (type) => {
-    expect(wrapper.find(`[data-type="${type}"]`).attributes("data-family")).toBe("text")
-  })
+  // Genesis has no per-type rule for any of these: text-like controls are styled
+  // through .formkit-input, asserted above, and [data-family=text] carries
+  // nothing but the two ::selection rules. Pinning the family attribute is what
+  // keeps those two reachable.
+  test.each([["text"], ["date"], ["password"], ["number"]])(
+    "the %s input is in the text family",
+    (type) => {
+      expect(wrapper.find(`[data-type="${type}"]`).attributes("data-family")).toBe("text")
+    },
+  )
 
   test("the ::selection rules keyed off the text family still exist", () => {
     expect(styles("[data-family=text]")).toBe(true)
