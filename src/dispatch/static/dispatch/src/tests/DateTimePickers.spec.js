@@ -67,8 +67,9 @@ describe("DateTimePicker renders UTC under a positive-offset host zone", () => {
   })
 
   test("a string with no zone designator is read as host-local first", () => {
-    // ExpirationInput's shortcut buttons emit exactly this shape. parseISO
-    // resolves it against the host zone, so 05:00+05:30 renders as 23:30 UTC.
+    // parseISO resolves a zoneless string against the host zone, so
+    // 05:00+05:30 renders as 23:30 UTC. No in-tree caller emits this shape
+    // any more; this guards the parse path in case one reappears.
     expect(
       mountWith(DateTimePicker, { modelValue: "2024-01-16T05:00:00.000" }).vm.selectedDatetime,
     ).toBe("2024-01-15T23:30")
