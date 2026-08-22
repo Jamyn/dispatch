@@ -29,11 +29,11 @@ type Key = keyof typeof KeyboardEvent.prototype
 export function useHotKey(
   keyCombination: Key[],
   callback: (event: KeyboardEvent) => void,
-  allowFocusSteal: boolean = false
+  allowFocusSteal: boolean = false,
 ) {
   // Define a ref to keep track of keys that are currently pressed
   // This is a record where the keys are Key types and the values are booleans
-  let keysPressed: Ref<Record<Key, boolean>> = ref({} as Record<Key, boolean>)
+  const keysPressed: Ref<Record<Key, boolean>> = ref({} as Record<Key, boolean>)
 
   const handleKeyDown = (event: KeyboardEvent) => {
     // Check if the user wants to ignore keys pressed when an element is focused

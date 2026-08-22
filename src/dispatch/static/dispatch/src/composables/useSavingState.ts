@@ -5,7 +5,6 @@ import { CaseState } from "@/store/case"
 
 interface UseSavingStateReturns {
   saving: ComputedRef<boolean>
-  // eslint-disable-next-line no-unused-vars
   setSaving: (value: boolean) => void
 }
 
