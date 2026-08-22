@@ -3,7 +3,7 @@
 import logging
 
 from dispatch.decorators import apply, counter, timer
-from dispatch.exceptions import ConferenceCreatedButUnusable
+from dispatch.exceptions import ConferenceCreatedButUnusable, ConferenceRosterUnreadable
 from dispatch.plugins.bases import ConferencePlugin
 from dispatch.plugins.dispatch_microsoft_teams import conference as teams_plugin
 
@@ -34,14 +34,114 @@ def build_challenge(meeting: dict) -> str:
     return f"{passcode} (meeting ID {meeting_id})" if meeting_id else passcode
 
 
-def current_attendees(meeting: dict) -> list[dict]:
-    """The meeting's attendees, for a meeting that may carry none.
+def reported_attendees(meeting) -> list[dict] | None:
+    """The meeting's attendee roster as Graph reported it, or None if it did not.
 
-    Graph sends an explicit null for both keys rather than omitting them, so
-    `.get(key, [])` returns the null instead of the default.
+    The parameter is untyped and the shape guards are total, so this is safe to
+    point at any parsed body. `MSTeamsClient._parse` already rejects a non-object
+    before `get_meeting` returns, so the outer `isinstance` never fires on this
+    plugin's own path -- it is what lets the live suite call this directly.
+
+    Graph documents `participants` as a property of the onlineMeeting a GET
+    returns, and the app-token response example on that reference -- the same
+    flow this plugin uses -- reports `"attendees": []` for a meeting with none,
+    so the key is present either way. Documented, not measured: no tenant has
+    been read against, and `test_teams_live.py` is what would settle it.
+
+    The tri-state is kept regardless, because the alternative is a *destructive*
+    guess: the list is only ever written wholesale, so a caller that reads
+    "nothing" and writes "one" silently discards whatever Graph is holding. A
+    list -- `[]` included -- is Graph answering. Anything else is Graph not
+    answering, and is reported as None so the write side refuses instead:
+
+    - `attendees` absent, or an explicit null;
+    - `participants` absent, or not an object;
+    - a roster holding an entry that is not an object, or one whose `upn` is
+      neither a string nor null. Neither can be rewritten faithfully, and a
+      non-string `upn` would otherwise reach `matches` and raise
+      `AttributeError`, which lands on the incident timeline reading like a
+      Dispatch bug rather than a provider one.
+
+    An entry with a null `upn` is *not* in that group: a phone or anonymous
+    attendee is a well-formed attendee Graph chose to send, and it round-trips
+    unchanged.
+
+    The claim this replaces -- "Graph sends an explicit null for both keys" --
+    was not evidence. It was written in `97380231` as a word-for-word twin of a
+    sentence asserting the same of Zoom, which has since been measured false
+    there. A pattern applied to two providers, and a reading of neither.
     """
-    participants = meeting.get("participants") or {}
-    return list(participants.get("attendees") or [])
+    participants = meeting.get("participants") if isinstance(meeting, dict) else None
+    if not isinstance(participants, dict):
+        return None
+
+    attendees = participants.get("attendees")
+    if not isinstance(attendees, list):
+        return None
+    if not all(
+        isinstance(a, dict) and isinstance(a.get("upn"), (str, type(None))) for a in attendees
+    ):
+        return None
+
+    return list(attendees)
+
+
+def describe_roster(meeting) -> str:
+    """Which shape Graph answered with, in a phrase safe to repeat anywhere.
+
+    `reported_attendees` collapses four distinct non-answers into None, which is
+    right for deciding whether to write and useless for saying why. This names
+    them, so the refusal that reaches the application log carries the fact an
+    operator needs. A count and a category only -- never an address, never an
+    identifier.
+    """
+    if not isinstance(meeting, dict) or not isinstance(meeting.get("participants"), dict):
+        return "the response carried no participants object"
+
+    participants = meeting["participants"]
+    if "attendees" not in participants:
+        return "participants were returned without an attendees key"
+
+    attendees = participants["attendees"]
+    if attendees is None:
+        return "attendees was an explicit null"
+    if not isinstance(attendees, list):
+        return f"attendees was a {type(attendees).__name__} rather than a list"
+
+    count = len(attendees)
+    plural = "y" if count == 1 else "ies"
+    if reported_attendees(meeting) is None:
+        return f"attendees held {count} entr{plural} this plugin cannot rewrite faithfully"
+    if not count:
+        return "attendees was an empty list"
+    return f"attendees held {count} entr{plural}"
+
+
+def current_attendees(meeting: dict) -> list[dict]:
+    """The meeting's attendees, or a refusal when Graph did not report them.
+
+    `update_attendees` replaces the list wholesale -- Graph's reference is
+    explicit that adjusting it "always requires the full list of attendees in
+    the request body" -- so every roster change is a rewrite of the whole list.
+    A rewrite built on a read that reported nothing discards whatever Graph is
+    holding, which is exactly how a roster seeded at create time (issue #110)
+    would vanish on the first responder to join (issue #130).
+
+    Refusing costs one entry on a list that gates nothing, and
+    `update_conference_participant` logs it and carries on. Guessing costs the
+    founding roster, silently.
+    """
+    attendees = reported_attendees(meeting)
+    if attendees is None:
+        raise ConferenceRosterUnreadable(
+            f"Microsoft Graph did not report this meeting's attendee list, so its roster "
+            f"was left alone ({describe_roster(meeting)}): the API replaces that list "
+            f"wholesale, and rebuilding it from a read that reported nothing would drop "
+            f"the attendees already on it. The list does not control who can join -- the "
+            f"meeting link works for whoever holds it either way."
+        )
+
+    return attendees
 
 
 def as_attendee(participant: str) -> dict:
@@ -180,7 +280,9 @@ class MicrosoftTeamsConferencePlugin(ConferencePlugin):
         grant access. Graph requires the complete attendee list on every update,
         so this reads the meeting first and resends the existing attendees
         untouched -- including the identity Graph resolved for them, which a
-        upn-only round trip would discard.
+        upn-only round trip would discard. A read that does not report the
+        roster raises `ConferenceRosterUnreadable` and writes nothing rather
+        than replacing it with this one participant (issue #130).
         """
         client = self._client()
         attendees = current_attendees(client.get_meeting(event_id))
@@ -200,7 +302,9 @@ class MicrosoftTeamsConferencePlugin(ConferencePlugin):
 
         This does not evict anyone or revoke the join link; it only updates the
         roster. Absent participants are left alone rather than treated as errors,
-        so a retried removal is a no-op.
+        so a retried removal is a no-op, and a read that does not report the
+        roster raises `ConferenceRosterUnreadable` rather than rewriting the
+        list from nothing (issue #130).
         """
         client = self._client()
         attendees = current_attendees(client.get_meeting(event_id))

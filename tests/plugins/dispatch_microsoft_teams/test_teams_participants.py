@@ -14,7 +14,7 @@ the danger is truncating the list rather than extending it.
 
 import pytest
 
-from dispatch.exceptions import DispatchPluginException
+from dispatch.exceptions import ConferenceRosterUnreadable, DispatchPluginException
 
 from tests.plugins.dispatch_microsoft_teams.graph_fake import (
     MEETING_ID,
@@ -80,7 +80,13 @@ def test_an_added_participant_is_only_ever_an_attendee(graph, teams_plugin):
 
 
 def test_add_participant_preserves_the_existing_attendees(graph, teams_plugin):
-    """The whole list is replaced on every PATCH; dropping one is silent."""
+    """The whole list is replaced on every PATCH; dropping one is silent.
+
+    Also the defect's own scenario on the path where Graph answers: ``create``
+    seeds the founding responders (issue #110) and the next one to join triggers
+    an add. Refusing when Graph does *not* answer (issue #130) exists to protect
+    this same outcome -- see the unreadable-shape section below.
+    """
     graph.get = (
         200,
         graph.meeting_with_attendees(attendee("first@example.com"), attendee("second@example.com")),
@@ -251,23 +257,14 @@ def test_removing_from_a_meeting_with_no_attendees_sends_no_patch(graph, teams_p
 # --- shapes Graph really returns --------------------------------------------
 
 
-def test_a_meeting_with_no_participants_key_can_still_be_added_to(graph, teams_plugin):
-    from tests.plugins.dispatch_microsoft_teams.graph_fake import MEETING_BODY
+def test_an_empty_attendee_list_is_trusted(graph, teams_plugin):
+    """``[]`` is Graph answering, and is the shape its own GET example reports.
 
-    graph.get = (200, MEETING_BODY, {})
-
-    teams_plugin.add_participant(MEETING_ID, "responder@example.com")
-
-    assert upns(graph.last_graph_request()) == ["responder@example.com"]
-
-
-def test_a_null_attendees_list_is_treated_as_empty(graph, teams_plugin):
-    """Graph sends an explicit null rather than omitting the key."""
-    graph.get = (
-        200,
-        {"id": MEETING_ID, "participants": {"organizer": {}, "attendees": None}},
-        {},
-    )
+    The distinction the rest of this section turns on: a meeting that really has
+    no attendees must still be addable to, or every incident whose bridge was
+    created without a roster could never gain one.
+    """
+    graph.get = (200, graph.meeting_with_attendees(), {})
 
     teams_plugin.add_participant(MEETING_ID, "responder@example.com")
 
@@ -284,6 +281,123 @@ def test_an_attendee_without_a_upn_is_preserved_rather_than_dropped(graph, teams
     attendees = graph.last_graph_request().json["participants"]["attendees"]
     assert anonymous in attendees
     assert len(attendees) == 2
+
+
+# --- shapes that are not an answer (issue #130) ------------------------------
+#
+# Graph replaces `participants.attendees` wholesale, so a roster rebuilt from a
+# read that reported nothing is a roster erased: the seeded founding responders
+# (issue #110) would be replaced by whoever joined next. These pin that a
+# non-answer is refused rather than read as "the meeting has no attendees".
+
+
+UNREADABLE = {
+    "no-participants-key": {"id": MEETING_ID},
+    "participants-null": {"id": MEETING_ID, "participants": None},
+    "participants-not-an-object": {"id": MEETING_ID, "participants": []},
+    "attendees-key-absent": {"id": MEETING_ID, "participants": {"organizer": {}}},
+    "attendees-null": {"id": MEETING_ID, "participants": {"organizer": {}, "attendees": None}},
+    # `list("abc")` is `["a", "b", "c"]`, so the old code turned this into three
+    # attendees and `matches` then raised AttributeError on `str.get`.
+    "attendees-a-string": {"id": MEETING_ID, "participants": {"attendees": "responder@x"}},
+    "attendees-a-number": {"id": MEETING_ID, "participants": {"attendees": 3}},
+    "an-entry-that-is-not-an-object": {"id": MEETING_ID, "participants": {"attendees": ["a@b.c"]}},
+    "an-entry-whose-upn-is-not-a-string": {
+        "id": MEETING_ID,
+        "participants": {"attendees": [{"upn": 42, "role": "attendee"}]},
+    },
+}
+
+
+@pytest.mark.parametrize("body", list(UNREADABLE.values()), ids=list(UNREADABLE))
+def test_a_roster_graph_did_not_report_is_refused_on_add(graph, teams_plugin, body):
+    graph.get = (200, body, {})
+
+    with pytest.raises(ConferenceRosterUnreadable):
+        teams_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+
+@pytest.mark.parametrize("body", list(UNREADABLE.values()), ids=list(UNREADABLE))
+def test_a_roster_graph_did_not_report_sends_no_patch_on_add(graph, teams_plugin, body):
+    """The whole point: the PATCH that would have erased the roster never goes."""
+    graph.get = (200, body, {})
+
+    with pytest.raises(ConferenceRosterUnreadable):
+        teams_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert [r.method for r in graph.graph_requests()] == ["GET"]
+
+
+@pytest.mark.parametrize("body", list(UNREADABLE.values()), ids=list(UNREADABLE))
+def test_a_roster_graph_did_not_report_is_refused_on_remove(graph, teams_plugin, body):
+    """Remove rewrites the same wholesale list, so it refuses on the same reads."""
+    graph.get = (200, body, {})
+
+    with pytest.raises(ConferenceRosterUnreadable):
+        teams_plugin.remove_participant(MEETING_ID, "responder@example.com")
+
+    assert [r.method for r in graph.graph_requests()] == ["GET"]
+
+
+def test_the_refusal_names_the_shape_graph_answered_with(graph, teams_plugin):
+    """Four different non-answers reach one exception; the message separates them.
+
+    In a deployment where this fires it is the only evidence of which one, and
+    #130 is open precisely because no tenant has been read against.
+    """
+    graph.get = (200, UNREADABLE["attendees-null"], {})
+
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        teams_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert "attendees was an explicit null" in str(excinfo.value)
+
+
+def test_the_refusal_names_no_address(graph, teams_plugin):
+    """It reaches the application log; the roster is the incident's responders."""
+    graph.get = (
+        200,
+        {"id": MEETING_ID, "participants": {"attendees": [{"upn": 42}, "listed@example.com"]}},
+        {},
+    )
+
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        teams_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    message = str(excinfo.value)
+    assert "responder@example.com" not in message
+    assert "listed@example.com" not in message
+    assert "2 entries" in message
+
+
+def test_the_refusal_says_the_roster_does_not_gate_joining(graph, teams_plugin):
+    """Read by whoever is running the incident; "could not be added" invites the
+    opposite reading. A Teams join link works for whoever holds it."""
+    graph.get = (200, UNREADABLE["attendees-null"], {})
+
+    with pytest.raises(ConferenceRosterUnreadable) as excinfo:
+        teams_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert "does not control who can join" in str(excinfo.value)
+
+
+def test_a_refusal_is_still_a_plugin_exception(graph, teams_plugin):
+    """``ConferenceRosterUnreadable`` subclasses ``DispatchPluginException``, so a
+    caller that has not opted into telling them apart keeps its old behaviour."""
+    graph.get = (200, UNREADABLE["attendees-null"], {})
+
+    with pytest.raises(DispatchPluginException):
+        teams_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+
+def test_a_provider_error_is_not_reported_as_an_unreadable_roster(graph, teams_plugin):
+    """A 403 is a failure and belongs on the timeline; a refusal does not."""
+    graph.get = (403, {"error": {"code": "Forbidden", "message": "No access policy."}}, {})
+
+    with pytest.raises(DispatchPluginException) as excinfo:
+        teams_plugin.add_participant(MEETING_ID, "responder@example.com")
+
+    assert not isinstance(excinfo.value, ConferenceRosterUnreadable)
 
 
 # --- failures ---------------------------------------------------------------
