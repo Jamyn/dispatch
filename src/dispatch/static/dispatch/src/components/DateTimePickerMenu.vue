@@ -107,11 +107,9 @@ export default {
       this.init()
     },
     timezone() {
-      this.selectedDatetime = formatInTimeZone(
-        parseISO(this.modelValue),
-        this.timezone,
-        "yyyy-MM-dd'T'HH:mm:ss.SSS",
-      )
+      // Same read as init(), which guards the null default and the Date branch
+      // of modelValue's [Date, String] type -- date-fns 4 throws on both.
+      this.init()
     },
   },
 }

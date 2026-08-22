@@ -90,3 +90,28 @@ describe("DateTimePickerMenu renders the instant in the selected zone", () => {
     )
   })
 })
+
+describe("DateTimePickerMenu survives a timezone change", () => {
+  // The timezone watcher re-reads modelValue, whose type is [Date, String] with
+  // a null default. date-fns 4 throws a TypeError on null and on a Date, so
+  // both shapes have to reach the watcher, not just the string that works.
+  test.each([
+    ["a null modelValue", null, null],
+    ["a Date modelValue", new Date("2024-01-15T10:30:00Z"), "2024-01-15T16:00:00.000"],
+  ])("%s", async (_label, modelValue, expected) => {
+    const wrapper = mountWith(DateTimePickerMenu, { modelValue, timezone: "UTC" })
+    await wrapper.setProps({ timezone: "Asia/Kolkata" })
+    expect(wrapper.vm.selectedDatetime).toBe(expected)
+  })
+
+  test("a string modelValue still re-renders in the new zone", async () => {
+    // Passes before the fix too. It guards the behaviour the watcher exists
+    // for, so a guard that simply stopped re-rendering would not pass silently.
+    const wrapper = mountWith(DateTimePickerMenu, {
+      modelValue: "2024-01-15T10:30:00Z",
+      timezone: "UTC",
+    })
+    await wrapper.setProps({ timezone: "Asia/Kolkata" })
+    expect(wrapper.vm.selectedDatetime).toBe("2024-01-15T16:00:00.000")
+  })
+})
