@@ -174,14 +174,37 @@ function convertToFormkit(json_schema) {
         value.format = formatObj.format
       }
     }
-    if (value.type == "string" || value.type == "password") {
+    // A pydantic SecretStr emits {"type": "string", "format": "password"}. JSON
+    // Schema has no "password" type, so `format` is the only signal that this
+    // field must not be rendered on screen.
+    if (value.type == "string") {
+      const secret = value.format == "password"
       obj = {
-        $formkit: "text",
+        $formkit: secret ? "password" : "text",
         name: key,
         label: value.title,
         help: value.description,
         validation: "required",
       }
+      // These hold provider credentials, not a login for this origin. Without
+      // this, type=password invites the browser to fill the operator's own
+      // Dispatch password in and to offer to save whatever they type.
+      if (secret) obj.autocomplete = "new-password"
+    } else if (value.type == "integer") {
+      // `number: "integer"` is what makes FormKit hand the API a number rather
+      // than the input element's string.
+      obj = {
+        $formkit: "number",
+        name: key,
+        label: value.title,
+        help: value.description,
+        number: "integer",
+        value: value.default,
+      }
+      const bounds = []
+      if (value.minimum !== undefined) bounds.push(`min:${value.minimum}`)
+      if (value.maximum !== undefined) bounds.push(`max:${value.maximum}`)
+      if (bounds.length) obj.validation = bounds.join("|")
     } else if (value.type == "boolean") {
       obj = {
         $cmp: "FormKit",
