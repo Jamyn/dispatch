@@ -75,6 +75,13 @@ updates:
       # its own 1.x line, so any bump re-selects an unsatisfiable peer. Lifting
       # this needs an apexcharts 3 -> 5/6 migration in its own PR.
       - dependency-name: "vue3-apexcharts"
+      # @openid/appauth 1.4.0 is ESM-only and its published ESM uses
+      # extensionless relative specifiers, which Node's resolver rejects, so
+      # vitest cannot load it even though the vite build bundles it fine. It
+      # also moved built/ to built/src/, breaking every deep import in
+      # src/auth/pkceAuthProvider.js. Delete once upstream republishes.
+      - dependency-name: "@openid/appauth"
+        versions: ["1.4.0"]
     groups:
       # date-fns-tz 3.2.0 peers date-fns `^3.0.0 || ^4.0.0`, so a major of
       # either one alone re-selects an unsatisfiable peer -- that is how #192
