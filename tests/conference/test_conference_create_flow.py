@@ -27,15 +27,18 @@ cannot make a plugin shipped elsewhere do the same.
 """
 
 import logging
+import traceback
 
 import pytest
 from pydantic import ValidationError
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.orm.attributes import set_committed_value
 
 from dispatch.conference.flows import create_conference
 from dispatch.conference.models import Conference
 from dispatch.exceptions import (
     ConferenceAlreadyGone,
+    DispatchException,
     ConferenceCreatedButUnusable,
     DispatchPluginException,
 )
@@ -780,3 +783,117 @@ def test_the_meeting_is_still_deleted_when_the_session_cannot_even_be_rolled_bac
 
     monkeypatch.undo()
     real_rollback()
+
+
+# --- two runs at once (issue #119) ------------------------------------------
+#
+# `incident_create_resources_flow` is operator re-runnable and guards on
+# `if not incident.conference`, and `background_task` gives every invocation its
+# own session -- the scheduler is a second process and the web tier hands sync
+# callables to a threadpool, so two runs really can overlap. Both then pass that
+# guard, both ask the provider for a meeting, and only one of the two rows is
+# ever reachable again through `uselist=False`.
+#
+# The guard `create` grew in #114 cannot see this: it reads `incident.conference`
+# from a session that loaded it as None before the other run committed, and a
+# loaded scalar relationship is not re-queried. So the database has to be the one
+# to refuse -- which is what these two tests are about, one at each level.
+#
+# Neither runs two transactions for real. The suite holds the whole run inside
+# one connection and one transaction so it can be rolled back, and two sessions
+# taking savepoints on that connection invalidate each other's. What is
+# reproduced instead is the losing run's exact observable state: a committed row
+# it cannot see, and a cached `None` where the guard looked.
+
+
+def test_the_database_refuses_a_second_conference_for_one_incident(session, incident):
+    """The guarantee itself, with no flow in the way.
+
+    A Python-level check cannot close a check-then-act window that spans two
+    processes, so this is the only place the invariant can actually live.
+    """
+    for resource_id in ("meeting-first", "meeting-second"):
+        session.add(
+            Conference(
+                incident_id=incident.id,
+                conference_id=resource_id,
+                resource_id=resource_id,
+                resource_type="test-conference-lifecycle",
+                weblink=f"https://example.com/{resource_id}",
+                conference_challenge="x",
+            )
+        )
+
+    with pytest.raises(IntegrityError, match="conference_incident_id_key"):
+        session.flush()
+
+    session.rollback()
+
+
+def test_a_run_that_loses_the_race_deletes_the_meeting_it_just_created(
+    session, incident, register_conference_plugin
+):
+    """The losing run must leave the winner's bridge alone and take back its own.
+
+    Without the constraint both rows land, `incident.conference` resolves to one
+    of them, and the other run's meeting is live with nothing pointing at it --
+    the same permanent provider orphan #114 exists to prevent, reached without a
+    single exception being raised anywhere.
+
+    With it, the loser's INSERT fails *inside* `create_conference`'s guarded
+    span, so the compensation #114 added does the rest.
+    """
+    plugin = register_conference_plugin(response=meeting(id="meeting-winner"))
+
+    # The run that got there first, committed and therefore durable past the
+    # rollback the loser is about to do.
+    winner = create_conference(incident=incident, participants=[], db_session=session)
+    assert winner is not None
+
+    # The loser's session: it read `incident.conference` at the flow's guard
+    # before that commit landed, and nothing has expired it since. Set as a
+    # *committed* value, because a dirty one would be flushed back.
+    set_committed_value(incident, "conference", None)
+    assert not incident.conference
+
+    plugin.response = meeting(id="meeting-loser", weblink=WEBLINK, challenge=CHALLENGE)
+
+    with pytest.raises(DispatchException):
+        create_conference(incident=incident, participants=[], db_session=session)
+
+    # Exactly one bridge, and it is the one that was already published.
+    rows = session.query(Conference).filter(Conference.incident_id == incident.id).all()
+    assert [row.resource_id for row in rows] == ["meeting-winner"]
+
+    # And exactly one meeting at the provider.
+    assert plugin.deleted == ["meeting-loser"]
+    assert plugin.live == {"meeting-winner"}
+
+
+def test_losing_the_race_does_not_put_the_meeting_passcode_in_the_log(
+    session, incident, register_conference_plugin, caplog
+):
+    """The loser aborts by raising, and `background_task` logs that with a traceback.
+
+    A raw ``IntegrityError`` stringifies with its bound parameters -- here the
+    weblink and the challenge, and Zoom puts the passcode in the weblink's
+    ``?pwd=``. Losing a race is routine, so it must not be a standing sink for
+    the passcode of the meeting Dispatch is in the middle of deleting anyway.
+    """
+    plugin = register_conference_plugin(response=meeting(id="meeting-winner"))
+    create_conference(incident=incident, participants=[], db_session=session)
+
+    set_committed_value(incident, "conference", None)
+    plugin.response = meeting(id="meeting-loser", weblink=WEBLINK, challenge=CHALLENGE)
+
+    # Deliberately not pinned to a type -- the sibling test above does that.
+    # Pinning it here would make this fail before it ever read the log.
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(Exception) as raised:  # noqa: B017
+            create_conference(incident=incident, participants=[], db_session=session)
+
+    # Neither the exception the flow re-raises nor anything it logged on the way.
+    rendered = f"{caplog.text}{raised.value}{traceback.format_exception(raised.value)}"
+    assert CHALLENGE not in rendered
+    assert "pwd=" not in rendered
+    assert "conference_challenge" not in rendered
