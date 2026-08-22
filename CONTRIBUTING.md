@@ -49,6 +49,10 @@ hook will fail for reasons unrelated to your change.
   (against Postgres, on Python 3.14), eslint, and vitest on every PR, and
   builds the docs site when `docs/` changes. Playwright e2e is local-only —
   run it before opening a PR that touches user-facing flows.
+- The e2e TypeScript is transpiled by Playwright, which never type-checks it.
+  `npm run typecheck:e2e` from the repository root does; run it after touching
+  anything under `tests/static/e2e/` or `playwright.config.ts`. It is not a CI
+  gate, matching the e2e suite it covers.
 - Don't regenerate `src/dispatch/static/dispatch/components.d.ts` as part of
   an unrelated change; a production frontend build rewrites it as a side
   effect.

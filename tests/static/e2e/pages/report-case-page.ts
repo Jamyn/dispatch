@@ -93,9 +93,8 @@ export class ReportCasePage {
     description: string,
     project: string = "default",
     type: string,
-    priority: string = "Low",
-    tags: string[]
+    priority: string = "Low"
   ) {
-    await this.reportCase(title, description, project, type, priority, tags)
+    await this.reportCase(title, description, project, type, priority)
   }
 }
