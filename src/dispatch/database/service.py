@@ -568,6 +568,19 @@ def search(*, query_str: str, query: Query, model: str, sort=False):
     return query.params(term=query_str)
 
 
+def apply_deterministic_sort(query, model_cls):
+    """Appends the primary key to ORDER BY so LIMIT/OFFSET pages are stable.
+
+    Rows tied under the requested sort -- or every row, when no sort is sent --
+    have no defined order, so Postgres may hand the same row to two pages and
+    drop another. The key is unique, so it only breaks ties.
+    """
+    mapper = orm.class_mapper(model_cls)
+    return query.order_by(
+        *[getattr(model_cls, mapper.get_property_by_column(c).key) for c in mapper.primary_key]
+    )
+
+
 def create_sort_spec(model, sort_by, descending):
     """Creates sort_spec."""
     sort_spec = []
@@ -754,6 +767,8 @@ def search_filter_sort_paginate(
             sort_spec = create_sort_spec(model, sort_by, descending)
             query = apply_sort(query, sort_spec)
 
+        query = apply_deterministic_sort(query, model_cls)
+
     except (FieldNotFound, BadFilterFormat) as e:
         log.error(f"Error building or applying filters: {str(e)}")
         raise e
@@ -786,6 +801,11 @@ def search_filter_sort_paginate(
             # Apply DISTINCT to the main query as well to avoid duplicate results
             # Remove ORDER BY clause since it can conflict with DISTINCT when ordering by joined table columns
             query = query.distinct().order_by(None)
+
+            # order_by(None) dropped the deterministic key along with the rest,
+            # so put it back -- the primary key is in the select list, so it
+            # cannot conflict with DISTINCT the way a joined column can.
+            query = apply_deterministic_sort(query, model_cls)
 
             # Apply pagination to the distinct query
             offset = (page - 1) * items_per_page if page > 1 else 0

@@ -924,3 +924,114 @@ def test_an_unparseable_search_leaves_the_session_usable(session, incidents, adm
 
     # the request is not over: whatever runs next must still be able to query
     assert session.query(Incident).count() >= 0, "the session was left in an aborted transaction"
+
+
+def page_through_every_row(session, current_user, model, items_per_page, **kwargs):
+    """Collects every id the caller would see paging from the first page to the last."""
+    seen = []
+    page = 1
+    while True:
+        result = search_filter_sort_paginate(
+            db_session=session,
+            model=model,
+            page=page,
+            items_per_page=items_per_page,
+            current_user=current_user,
+            role=UserRoles.admin,
+            **kwargs,
+        )
+        if not result["items"]:
+            return seen
+        seen.extend(item.id for item in result["items"])
+        page += 1
+        # a pager that stops advancing would otherwise hang the suite
+        assert page < 100, "paging never reached the end"
+
+
+def test_paging_a_model_needing_distinct_shows_every_row_exactly_once(session, admin_user, project):
+    """Given enough rows, when paging a DISTINCT model, then no row repeats or vanishes.
+
+    Tag goes down the models_needing_distinct branch, which drops ORDER BY
+    entirely. Postgres is then free to hand LIMIT/OFFSET a different row order
+    per page -- with a hash aggregate it does, and rows land on two pages while
+    others are never returned at all.
+    """
+    from tests.factories import TagFactory, TagTypeFactory
+
+    tag_type = TagTypeFactory(project=project)
+    tags = [TagFactory(project=project, tag_type=tag_type) for _ in range(200)]
+    session.commit()
+
+    seen = page_through_every_row(session, admin_user, "Tag", items_per_page=20)
+
+    assert len(seen) == len(set(seen)), "a row came back on more than one page"
+    assert set(seen) == {tag.id for tag in tags}, "paging never returned every row"
+
+
+def paginated_order_by(session, current_user, **kwargs):
+    """The trailing ORDER BY of the statement that carries LIMIT/OFFSET.
+
+    Relationship loaders fire their own offset queries afterwards, so only the
+    first one is the paginated query itself.
+    """
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", record)
+    try:
+        search_filter_sort_paginate(
+            db_session=session,
+            page=1,
+            items_per_page=5,
+            current_user=current_user,
+            role=UserRoles.admin,
+            **kwargs,
+        )
+    finally:
+        event.remove(Engine, "before_cursor_execute", record)
+
+    paginated = next(s for s in statements if "OFFSET" in s)
+    # the outermost ORDER BY, with any LIMIT/OFFSET that trails it removed
+    _, found, order_by = paginated.rpartition("ORDER BY")
+    return order_by.partition("LIMIT")[0].strip() if found else ""
+
+
+def test_every_paginated_query_ends_with_the_primary_key(session, admin_user, project):
+    """Given any query shape, when it is paginated, then ORDER BY ends with the key.
+
+    Only a unique trailing key makes LIMIT/OFFSET a partition of the result
+    set. Asserted on the SQL because the reorder it prevents depends on the
+    plan Postgres happens to pick, which a test cannot force for every shape.
+    """
+    from tests.factories import IncidentFactory, TagFactory, TagTypeFactory
+
+    tag = TagFactory(project=project, tag_type=TagTypeFactory(project=project))
+    IncidentFactory(project=project, tags=[tag])
+    session.commit()
+
+    # the key is aliased differently per shape, so match the table it belongs to
+    shapes = {
+        "no sort at all": ("incident", {"model": "Incident"}),
+        "a sort the client sent": (
+            "incident",
+            {"model": "Incident", "sort_by": ["title"], "descending": [False]},
+        ),
+        "the intersected tag_all filter": (
+            "incident",
+            {"model": "Incident", "filter_spec": json.dumps(tag_all_spec(tag))},
+        ),
+        "the models_needing_distinct branch": ("tag", {"model": "Tag"}),
+    }
+
+    for shape, (table, kwargs) in shapes.items():
+        order_by = paginated_order_by(session, admin_user, **kwargs)
+        assert order_by, f"{shape}: paginated without any ORDER BY"
+        last_key = order_by.split(",")[-1].strip()
+        assert last_key.endswith((f"{table}.id", f"{table}_id")), (
+            f"{shape}: ORDER BY does not end with {table}'s primary key -- {order_by}"
+        )
