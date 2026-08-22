@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+from sqlalchemy.exc import IntegrityError
+
 from dispatch.exceptions import DispatchException
 
 from .models import Conference, ConferenceCreate
@@ -53,6 +55,10 @@ def create(
     exception raised anywhere. Raising instead puts the caller inside
     `create_conference`'s guarded span, where the meeting it just created is
     compensated away and the existing bridge survives untouched.
+
+    That check cannot see a row a concurrent run committed after this session
+    loaded `incident.conference` as None, so `conference.incident_id` is unique
+    and the commit below is the guard that actually holds (issue #119).
     """
     conference = Conference(**conference_in.dict())
     if incident is not None:
@@ -64,5 +70,16 @@ def create(
         incident.conference = conference
         db_session.add(incident)
     db_session.add(conference)
-    db_session.commit()
+    try:
+        db_session.commit()
+    except IntegrityError:
+        # Reported as a domain error with the exception chain broken, never the
+        # driver's own: it stringifies with its bound parameters, which here are
+        # the weblink and the meeting passcode, and `background_task` logs
+        # whatever reaches it with a full traceback.
+        db_session.rollback()
+        raise DispatchException(
+            f"Incident {incident.id if incident is not None else '(none)'} conference could "
+            "not be persisted. A concurrent run may already have created its bridge."
+        ) from None
     return conference
