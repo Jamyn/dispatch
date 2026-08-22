@@ -34,7 +34,7 @@
     "@tanstack/vue-query": "^5.101.4",
     "@tiptap/extension-placeholder": "^2.1.13",
     "@tiptap/pm": "^2.1.12",
-    "@tiptap/starter-kit": "^2.1.12",
+    "@tiptap/starter-kit": "^3.30.2",
     "@tiptap/vue-3": "^2.1.12",
     "@vue-flow/background": "^1.2.0",
     "@vue-flow/controls": "^1.1.0",
