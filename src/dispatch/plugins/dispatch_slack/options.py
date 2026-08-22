@@ -135,9 +135,7 @@ def handle_tag_search_action(
             ack()
             return
 
-        # A TagType-model clause auto-joins tag_type through project, not
-        # through tag.tag_type_id, leaving every tag in the project eligible
-        # (#165).
+        # Filtering the foreign key directly needs no tag_type join.
         filter_spec["and"].append(
             {"model": "Tag", "op": "==", "field": "tag_type_id", "value": tag_type.id}
         )

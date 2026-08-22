@@ -481,7 +481,10 @@ def apply_filter_specific_joins(model: Base, filter_spec: dict, query: orm.query
         (Signal, "TagType"): (Signal.tags, True),
         (SignalInstance, "Entity"): (SignalInstance.entities, True),
         (SignalInstance, "EntityType"): (SignalInstance.entities, True),
-        # (Tag, "TagType"): (TagType, False),  # Disabled: filtering by tag_type_id directly
+        # The relationship, not the model: tag_type carries a project_id of its
+        # own, so a bare model here joins it through project and the type half
+        # of a filter narrows nothing (#260).
+        (Tag, "TagType"): (Tag.tag_type, False),
         (Tag, "Project"): (Project, False),
         (IndividualContact, "Project"): (Project, False),
     }
