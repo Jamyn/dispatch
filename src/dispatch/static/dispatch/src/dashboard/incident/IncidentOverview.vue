@@ -127,6 +127,8 @@ import { groupBy, sumBy } from "lodash"
 import parseISO from "date-fns/parseISO"
 import differenceInHours from "date-fns/differenceInHours"
 
+import { parseISOOrInvalid } from "@/util/date"
+
 import { toNumberString, toUSD } from "@/filters"
 
 import IncidentCommandersLocationBarChartCard from "@/dashboard/incident/IncidentCommandersLocationBarChartCard.vue"
@@ -227,21 +229,21 @@ export default {
 
     incidentsByYear() {
       return groupBy(this.items, function (item) {
-        return parseISO(item.reported_at).getYear()
+        return parseISOOrInvalid(item.reported_at).getYear()
       })
     },
     incidentsByMonth() {
       // add year info if necessary
       if (Object.keys(this.incidentsByYear).length > 1) {
         return groupBy(this.items, function (item) {
-          return parseISO(item.reported_at).toLocaleString("default", {
+          return parseISOOrInvalid(item.reported_at).toLocaleString("default", {
             month: "short",
             year: "numeric",
           })
         })
       } else {
         return groupBy(this.items, function (item) {
-          return parseISO(item.reported_at).toLocaleString("default", {
+          return parseISOOrInvalid(item.reported_at).toLocaleString("default", {
             month: "short",
           })
         })
@@ -249,7 +251,7 @@ export default {
     },
     incidentsByQuarter() {
       return groupBy(this.items, function (item) {
-        return "Q" + Math.floor(parseISO(item.reported_at).getMonth() + 3) / 3
+        return "Q" + Math.floor(parseISOOrInvalid(item.reported_at).getMonth() + 3) / 3
       })
     },
     groupedItems() {
@@ -270,7 +272,7 @@ export default {
         if (item.stable_at) {
           endTime = item.stable_at
         }
-        return differenceInHours(parseISO(endTime), parseISO(item.reported_at))
+        return differenceInHours(parseISO(endTime), parseISOOrInvalid(item.reported_at))
       })
     },
     defaultUserProjects: {

@@ -24,7 +24,7 @@
 <script>
 import { mapFields } from "vuex-map-fields"
 import { groupBy } from "lodash"
-import { parseISO } from "date-fns"
+import { parseISOOrInvalid } from "@/util/date"
 
 import IncidentPriorityBarChartCard from "@/dashboard/incident/IncidentPriorityBarChartCard.vue"
 import IncidentTypeBarChartCard from "@/dashboard/incident/IncidentTypeBarChartCard.vue"
@@ -43,7 +43,7 @@ export default {
     ...mapFields("source", ["selected.incidents", "selected.loading"]),
     incidentsByMonth() {
       return groupBy(this.incidents, function (item) {
-        return parseISO(item.reported_at).toLocaleString("default", { month: "short" })
+        return parseISOOrInvalid(item.reported_at).toLocaleString("default", { month: "short" })
       })
     },
     groupedItems() {

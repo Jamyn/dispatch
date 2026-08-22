@@ -59,6 +59,7 @@ import { groupBy, sumBy, uniq, map } from "lodash"
 import { mapFields } from "vuex-map-fields"
 import parseISO from "date-fns/parseISO"
 import differenceInHours from "date-fns/differenceInHours"
+import { parseISOOrInvalid } from "@/util/date"
 
 import { toNumberString } from "@/filters"
 
@@ -138,7 +139,7 @@ export default {
 
     tasksByMonth() {
       return groupBy(this.items, function (item) {
-        return parseISO(item.created_at).toLocaleString("default", { month: "short" })
+        return parseISOOrInvalid(item.created_at).toLocaleString("default", { month: "short" })
       })
     },
     groupedItems() {
@@ -165,7 +166,7 @@ export default {
         if (item.resolved_at) {
           endTime = item.resolved_at
         }
-        return differenceInHours(parseISO(endTime), parseISO(item.created_at))
+        return differenceInHours(parseISO(endTime), parseISOOrInvalid(item.created_at))
       })
     },
     defaultUserProjects: {
