@@ -7,6 +7,7 @@ process.env.TZ = "UTC"
 
 import { mount } from "@vue/test-utils"
 import { expect, test, describe, beforeAll, beforeEach, afterEach } from "vitest"
+import { nextTick } from "vue"
 import { createVuetify } from "vuetify"
 import * as components from "vuetify/components"
 import * as directives from "vuetify/directives"
@@ -73,6 +74,58 @@ describe("DateTimePicker renders UTC under a positive-offset host zone", () => {
     expect(
       mountWith(DateTimePicker, { modelValue: "2024-01-16T05:00:00.000" }).vm.selectedDatetime,
     ).toBe("2024-01-15T23:30")
+  })
+})
+
+describe("DateTimePicker emits what the user types", () => {
+  // The field is the component's only emit path: nothing else invokes okHandler
+  // or clearHandler, and its sole consumer binds v-model rather than the slot.
+  const field = (wrapper) => wrapper.find('input[type="datetime-local"]')
+
+  test("a typed datetime reaches the parent as a UTC instant", async () => {
+    const wrapper = mountWith(DateTimePicker, { modelValue: null })
+    await field(wrapper).setValue("2024-02-01T09:15")
+    expect(wrapper.emitted("update:modelValue")).toEqual([["2024-02-01T09:15:00.000Z"]])
+  })
+
+  test("editing an existing value replaces it", async () => {
+    const wrapper = mountWith(DateTimePicker, { modelValue: "2024-01-15T10:30:00Z" })
+    await field(wrapper).setValue("2024-01-15T18:45")
+    expect(wrapper.emitted("update:modelValue")).toEqual([["2024-01-15T18:45:00.000Z"]])
+  })
+
+  test("emptying the field clears the parent", async () => {
+    const wrapper = mountWith(DateTimePicker, { modelValue: "2024-01-15T10:30:00Z" })
+    await field(wrapper).setValue("")
+    expect(wrapper.emitted("update:modelValue")).toEqual([[null]])
+  })
+
+  test("mounting with a value emits nothing", async () => {
+    // init() writes selectedDatetime itself. Emitting from a watcher on it would
+    // rewrite the parent's value on mount -- ExpirationInput's shortcuts store a
+    // zoneless string, which would silently normalise to a Z-suffixed one.
+    const wrapper = mountWith(DateTimePicker, { modelValue: "2024-01-16T05:00:00.000" })
+    // A watcher on selectedDatetime flushes on nextTick, so a synchronous
+    // assertion here would pass against the very design this rules out.
+    await nextTick()
+    expect(wrapper.emitted("update:modelValue")).toBeUndefined()
+  })
+
+  test("a year the converter cannot parse is dropped, not thrown", () => {
+    // Chrome's year segment reaches 275760; fromZonedTime returns Invalid Date
+    // past four digits. happy-dom's input sanitiser rejects those values before
+    // the DOM does, so the handler has to be driven directly here.
+    const wrapper = mountWith(DateTimePicker, { modelValue: null })
+    wrapper.vm.selectedDatetime = "275760-09-13T00:00"
+    expect(() => wrapper.vm.okHandler()).not.toThrow()
+    expect(wrapper.emitted("update:modelValue")).toBeUndefined()
+  })
+
+  test("a parent-driven change emits nothing", async () => {
+    const wrapper = mountWith(DateTimePicker, { modelValue: "2024-01-15T10:30:00Z" })
+    await wrapper.setProps({ modelValue: "2024-01-15T18:45:00Z" })
+    expect(wrapper.vm.selectedDatetime).toBe("2024-01-15T18:45")
+    expect(wrapper.emitted("update:modelValue")).toBeUndefined()
   })
 })
 

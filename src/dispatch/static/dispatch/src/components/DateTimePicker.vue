@@ -2,7 +2,11 @@
   <v-card>
     <!-- TODO: use vuetify picker components -->
     <v-card-text>
-      <v-text-field v-model="selectedDatetime" type="datetime-local" />
+      <v-text-field
+        :model-value="selectedDatetime"
+        type="datetime-local"
+        @update:model-value="onFieldUpdate"
+      />
     </v-card-text>
   </v-card>
 </template>
@@ -63,11 +67,27 @@ export default {
       // inert on a pattern without one. formatInTimeZone converts unconditionally.
       this.selectedDatetime = formatInTimeZone(initDateTime, "UTC", "yyyy-MM-dd'T'HH:mm")
     },
+    // The field is the only thing that can emit here, so it has to. A partially
+    // typed datetime-local value sanitizes to "", so the parent sees a complete
+    // instant or null, never a fragment; init()'s own writes never echo back.
+    onFieldUpdate(value) {
+      this.selectedDatetime = value
+      if (value) {
+        this.okHandler()
+      } else {
+        this.clearHandler()
+      }
+    },
     okHandler() {
       this.resetPicker()
       // The field holds a UTC wall clock; parseISO would read it as host-local.
-      let isoString = fromZonedTime(this.selectedDatetime, "UTC").toISOString()
-      this.$emit("update:modelValue", isoString)
+      let instant = fromZonedTime(this.selectedDatetime, "UTC")
+      // The native widget accepts years fromZonedTime cannot parse (>4 digits),
+      // and toISOString throws a RangeError on the Invalid Date it returns.
+      if (Number.isNaN(instant.getTime())) {
+        return
+      }
+      this.$emit("update:modelValue", instant.toISOString())
     },
     clearHandler() {
       this.resetPicker()
