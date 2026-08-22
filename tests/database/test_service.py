@@ -951,10 +951,10 @@ def page_through_every_row(session, current_user, model, items_per_page, **kwarg
 def test_paging_a_model_needing_distinct_shows_every_row_exactly_once(session, admin_user, project):
     """Given enough rows, when paging a DISTINCT model, then no row repeats or vanishes.
 
-    Tag goes down the models_needing_distinct branch, which drops ORDER BY
-    entirely. Postgres is then free to hand LIMIT/OFFSET a different row order
-    per page -- with a hash aggregate it does, and rows land on two pages while
-    others are never returned at all.
+    Tag goes down the models_needing_distinct branch, which sends no sort of
+    its own here. Postgres is then free to hand LIMIT/OFFSET a different row
+    order per page -- with a hash aggregate it does, and rows land on two pages
+    while others are never returned at all.
     """
     from tests.factories import TagFactory, TagTypeFactory
 
@@ -1026,6 +1026,14 @@ def test_every_paginated_query_ends_with_the_primary_key(session, admin_user, pr
             {"model": "Incident", "filter_spec": json.dumps(tag_all_spec(tag))},
         ),
         "the models_needing_distinct branch": ("tag", {"model": "Tag"}),
+        "a client sort on the models_needing_distinct branch": (
+            "tag",
+            {"model": "Tag", "sort_by": ["name"], "descending": [False]},
+        ),
+        "a dropped sort on the models_needing_distinct branch": (
+            "tag",
+            {"model": "Tag", "sort_by": ["tag_type.name"], "descending": [False]},
+        ),
     }
 
     for shape, (table, kwargs) in shapes.items():
@@ -1035,3 +1043,98 @@ def test_every_paginated_query_ends_with_the_primary_key(session, admin_user, pr
         assert last_key.endswith((f"{table}.id", f"{table}_id")), (
             f"{shape}: ORDER BY does not end with {table}'s primary key -- {order_by}"
         )
+
+
+def tags_in_project(project):
+    """Restricts a Tag search to one project, so unrelated fixture rows cannot reorder it."""
+    return json.dumps(
+        {"and": [{"or": [{"model": "Project", "field": "id", "op": "==", "value": project.id}]}]}
+    )
+
+
+@pytest.mark.parametrize("descending", [False, True])
+def test_a_distinct_model_honours_a_sort_on_its_own_column(
+    session, admin_user, project, descending
+):
+    """Given a sort on the model's own column, when the DISTINCT branch runs,
+    then the rows come back in that order.
+
+    Tag is the only model on that branch, and it dropped every ORDER BY before
+    paginating -- so clicking a sortable column header on the Tags table did
+    nothing.
+    """
+    from tests.factories import TagFactory, TagTypeFactory
+
+    tag_type = TagTypeFactory(project=project)
+    for name in ("zulu", "alpha", "mike"):
+        TagFactory(name=name, project=project, tag_type=tag_type)
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Tag",
+        filter_spec=tags_in_project(project),
+        sort_by=["name"],
+        descending=[descending],
+        current_user=admin_user,
+        role=UserRoles.admin,
+        items_per_page=50,
+    )
+
+    expected = ["zulu", "mike", "alpha"] if descending else ["alpha", "mike", "zulu"]
+    assert [tag.name for tag in result["items"]] == expected
+
+
+def test_a_distinct_model_sorted_by_a_joined_column_still_returns_its_rows(
+    session, admin_user, project
+):
+    """Given a sort on a joined column, when the DISTINCT branch runs, then the
+    rows still come back.
+
+    A joined table's column is not in the SELECT DISTINCT list, so keeping it
+    makes Postgres reject the statement -- and this branch runs it outside the
+    ProgrammingError handler, so the request 500s rather than degrading.
+    """
+    from tests.factories import TagFactory, TagTypeFactory
+
+    for type_name in ("zeta", "beta"):
+        TagFactory(project=project, tag_type=TagTypeFactory(name=type_name, project=project))
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Tag",
+        filter_spec=tags_in_project(project),
+        sort_by=["tag_type.name"],
+        descending=[False],
+        current_user=admin_user,
+        role=UserRoles.admin,
+        items_per_page=50,
+    )
+
+    assert result["total"] == 2, "sorting by a joined column returned no page"
+
+
+def test_a_distinct_model_searched_without_a_sort_still_returns_its_matches(
+    session, admin_user, project
+):
+    """Given a free-text search and no sort, when the DISTINCT branch runs, then
+    the matches come back.
+
+    With no sort_by, `search` orders by ts_rank_cd -- an expression rather than
+    a column of the select list, so it fails the same way a joined column does.
+    """
+    from tests.factories import TagFactory, TagTypeFactory
+
+    marker = f"needle{uuid.uuid4().hex[:8]}"
+    TagFactory(name=marker, project=project, tag_type=TagTypeFactory(project=project))
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Tag",
+        query_str=marker,
+        current_user=admin_user,
+        role=UserRoles.admin,
+        items_per_page=50,
+    )
+
+    assert [tag.name for tag in result["items"]] == [marker]
+    assert result["total"] == 1
