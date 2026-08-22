@@ -148,4 +148,20 @@ describe("extractKeyValue", () => {
       asnum: [2906],
     })
   })
+
+  // The two paths that can yield no key. Object.keys({})[0] is undefined, not
+  // null, so without the `?? null` the declared `key: string | null` lies.
+  it("should return a null key when the line yields an empty object", () => {
+    const { key, value } = extractKeyValue("")
+
+    expect(key).toBe(null)
+    expect(value).toBe(null)
+  })
+
+  it("should return a null key when the line is not parseable", () => {
+    const { key, value } = extractKeyValue('"unterminated')
+
+    expect(key).toBe(null)
+    expect(value).toBe(null)
+  })
 })

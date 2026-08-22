@@ -1,7 +1,12 @@
 import { computed, ComputedRef } from "vue"
 import { useStore } from "vuex"
-import { Store } from "vuex"
-import { CaseState } from "@/store/case"
+
+// The slice this composable actually reads. `@/store/case` never existed, and
+// useStore takes the state type, not a Store wrapped around it -- together
+// those made the old annotation unresolvable and its state access unchecked.
+interface SavingState {
+  case_management: { selected: { saving: boolean } }
+}
 
 interface UseSavingStateReturns {
   saving: ComputedRef<boolean>
@@ -9,7 +14,7 @@ interface UseSavingStateReturns {
 }
 
 export function useSavingState(): UseSavingStateReturns {
-  const store = useStore<Store<{ case: CaseState }>>()
+  const store = useStore<SavingState>()
 
   const saving = computed(() => store.state.case_management.selected.saving)
 

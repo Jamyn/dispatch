@@ -32,6 +32,11 @@ jobs:
           cache-dependency-path: src/dispatch/static/dispatch/package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run lint
+      # Covers the .ts sources. The 24 SFCs using `<script lang="ts">` are not
+      # checked: vue-tsc runs fine on the pinned compiler, but they carry 97
+      # pre-existing errors, so gating them needs its own remediation pass.
+      # The Playwright specs under tests/static/e2e are likewise uncovered.
+      - run: npm run typecheck
       - run: npx vitest run --dom --coverage
       # The production vite build. Neither lint nor vitest resolves the
       # `exports` maps that a bundler enforces, so a dependency bump can pass
