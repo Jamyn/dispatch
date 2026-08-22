@@ -475,9 +475,17 @@ def subject_middleware(context: BoltContext, next: Callable):
 
 
 def configuration_middleware(context: BoltContext, next: Callable):
-    if context.get("config"):
-        return next()
+    """Falls back to the default organization's configuration; normally unused.
 
+    `app.build_app` seeds `context["config"]` with the configuration the
+    request's signature was verified against, so the lookup below only runs for
+    a context that was never seeded -- it resolves the *default* organization's
+    default project, which is not necessarily the request's own.
+
+    The session is opened ahead of that early return because chains such as
+    `[subject_middleware, configuration_middleware]` have no `db_middleware`
+    and their listeners take `db_session` from this context.
+    """
     if not context.get("db_session"):
         slug = get_default_org_slug()
         db_session = refetch_db_session(slug)
@@ -485,6 +493,9 @@ def configuration_middleware(context: BoltContext, next: Callable):
     else:
         # handle_message_events() flow can contain a db_session in context
         db_session = context["db_session"]
+
+    if context.get("config"):
+        return next()
 
     project_id = project_service.get_default(db_session=db_session).id
 

@@ -105,11 +105,14 @@ def test_the_session_falls_back_to_the_default_organization(
     assert context["subject"].organization_slug == "default"
 
 
-def test_a_configuration_already_resolved_is_not_looked_up_again(session):
+def test_a_configuration_already_resolved_is_not_looked_up_again(
+    session, opened_slugs, single_default_organization
+):
     """Given the request already carries a configuration, when configuring, then it is kept.
 
     Re-resolving would replace a tenant's configuration with the default
-    project's, and it runs on every request.
+    project's, and it runs on every request. The session is still opened --
+    chains with no `db_middleware` take `db_session` from here (#163).
     """
     config = SlackConversationConfiguration(
         api_bot_token="xoxb-already-resolved-not-real",
@@ -124,6 +127,8 @@ def test_a_configuration_already_resolved_is_not_looked_up_again(session):
 
     assert called == [1]
     assert context["config"] is config
+    assert opened_slugs == ["default"]
+    assert context["db_session"] is not None
 
 
 def test_the_active_conversation_plugin_supplies_the_configuration(session, default_project):
