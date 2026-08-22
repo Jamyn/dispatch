@@ -42,7 +42,7 @@
     "@vue-flow/minimap": "^1.5.4",
     "@vueuse/core": "^10.5.0",
     "@vueuse/integrations": "^10.6.1",
-    "apexcharts": "^3.44.0",
+    "apexcharts": "^6.10.0",
     "axios": "^1.19.0",
     "d3-force": "^3.0.0",
     "date-fns": "^4.4.0",
