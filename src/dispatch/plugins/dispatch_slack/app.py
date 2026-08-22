@@ -14,8 +14,9 @@ because the `configure` functions import the registry from there.
 import hashlib
 import json
 import threading
+from typing import Callable
 
-from slack_bolt import App
+from slack_bolt import App, BoltContext
 from slack_bolt.listener.listener_completion_handler import CustomListenerCompletionHandler
 
 from dispatch.plugin.models import PluginInstance
@@ -95,6 +96,19 @@ def build_app(configuration: SlackConversationConfiguration) -> App:
         request_verification_enabled=False,
         token_verification_enabled=False,
     )
+
+    # The configuration this App was verified against, put on the request
+    # before any listener middleware runs; `middleware.configuration_middleware`
+    # would otherwise re-derive one from the *default* organization's default
+    # project and hand organization B a full configuration -- bot token and
+    # signing secret included -- belonging to organization A. Global middleware
+    # runs after `handler.to_bolt_request`, so a caller cannot pre-empt this
+    # with `addition_context_properties["config"]`.
+    @app.use
+    def seed_configuration(context: BoltContext, next: Callable) -> None:
+        context["config"] = configuration
+        next()
+
     listeners.apply(app)
     # Only these depend on the configuration; they name their commands after
     # it. Running them once per App rather than once per request is also what
