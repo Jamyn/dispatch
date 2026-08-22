@@ -8,7 +8,7 @@ from typing import Final
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sentry_asgi import SentryMiddleware
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import inspect
@@ -262,7 +262,7 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
 
 
 # we add a middleware class for logging exceptions to Sentry
-api.add_middleware(SentryMiddleware)
+api.add_middleware(SentryAsgiMiddleware)
 
 # we add a middleware class for capturing metrics using Dispatch's metrics provider
 api.add_middleware(MetricsMiddleware)

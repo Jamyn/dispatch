@@ -80,7 +80,6 @@ dependencies = [
     "pytz",
     "requests",
     "schedule",
-    "sentry-asgi",
     "sentry-sdk==2.68.0",
     "sh",
     "slack-bolt",

@@ -39,7 +39,10 @@ def configure_extensions():
             environment=ENV,
             auto_enabling_integrations=False,
         )
-        with sentry_sdk.configure_scope() as scope:
-            log.debug(f"Using the following tags... ENV_TAGS: {ENV_TAGS}")
-            for k, v in ENV_TAGS.items():
-                scope.set_tag(k, v)
+        # The isolation scope is the one the removed configure_scope() wrote
+        # to, and the one per-request scopes are forked from, so tags set once
+        # here reach every event.
+        scope = sentry_sdk.get_isolation_scope()
+        log.debug(f"Using the following tags... ENV_TAGS: {ENV_TAGS}")
+        for k, v in ENV_TAGS.items():
+            scope.set_tag(k, v)
