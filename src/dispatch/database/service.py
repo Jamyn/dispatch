@@ -10,9 +10,10 @@ from pydantic import StringConstraints
 from pydantic import Json
 from six import string_types
 from sortedcontainers import SortedSet
-from sqlalchemy import Table, and_, desc, func, not_, or_, orm, exists
+from sqlalchemy import Column, Table, and_, desc, func, not_, or_, orm, exists
 from sqlalchemy.exc import InvalidRequestError, ProgrammingError
 from sqlalchemy.orm import mapperlib, Query as SQLAlchemyQuery
+from sqlalchemy.sql.elements import UnaryExpression
 from sqlalchemy_filters import apply_pagination, apply_sort
 from sqlalchemy_filters.exceptions import BadFilterFormat, FieldNotFound
 from sqlalchemy_filters.models import Field, BadQuery, BadSpec
@@ -581,6 +582,25 @@ def apply_deterministic_sort(query, model_cls):
     )
 
 
+def sort_survives_distinct(query, model_cls):
+    """Whether the query's ORDER BY can be kept once SELECT DISTINCT is applied.
+
+    Postgres requires every ORDER BY expression of a SELECT DISTINCT to appear
+    in the select list, which here is the model's own columns. A plain sort on
+    one of those is safe; a joined table's column or a computed expression is
+    not, and keeping it makes Postgres reject the statement. A `deferred()`
+    column would break that equivalence -- no model has one today, but check
+    before adding one to models_needing_distinct.
+    """
+    for clause in query._order_by_clauses:
+        element = clause
+        while isinstance(element, UnaryExpression):
+            element = element.element
+        if not isinstance(element, Column) or element.table is not model_cls.__table__:
+            return False
+    return True
+
+
 def create_sort_spec(model, sort_by, descending):
     """Creates sort_spec."""
     sort_spec = []
@@ -798,14 +818,14 @@ def search_filter_sort_paginate(
             count_query = query.with_entities(model_cls.id).distinct().order_by(None)
             total_count = count_query.count()
 
-            # Apply DISTINCT to the main query as well to avoid duplicate results
-            # Remove ORDER BY clause since it can conflict with DISTINCT when ordering by joined table columns
-            query = query.distinct().order_by(None)
-
-            # order_by(None) dropped the deterministic key along with the rest,
-            # so put it back -- the primary key is in the select list, so it
-            # cannot conflict with DISTINCT the way a joined column can.
-            query = apply_deterministic_sort(query, model_cls)
+            # Apply DISTINCT to the main query as well to avoid duplicate results.
+            # An ORDER BY the select list does not cover makes Postgres reject the
+            # statement, and this branch runs it outside the handler below, so it
+            # surfaces as a 500 -- drop that sort for the primary key instead.
+            keep_sort = sort_survives_distinct(query, model_cls)
+            query = query.distinct()
+            if not keep_sort:
+                query = apply_deterministic_sort(query.order_by(None), model_cls)
 
             # Apply pagination to the distinct query
             offset = (page - 1) * items_per_page if page > 1 else 0
