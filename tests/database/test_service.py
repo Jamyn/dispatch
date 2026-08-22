@@ -1138,3 +1138,82 @@ def test_a_distinct_model_searched_without_a_sort_still_returns_its_matches(
 
     assert [tag.name for tag in result["items"]] == [marker]
     assert result["total"] == 1
+
+
+def tags_of_type_in_project(project, type_name):
+    """The filter the tag autocomplete sends for a `type/name` query."""
+    return json.dumps(
+        {
+            "and": [
+                {"or": [{"model": "Project", "field": "id", "op": "==", "value": project.id}]},
+                {"or": [{"model": "TagType", "field": "name", "op": "==", "value": type_name}]},
+            ]
+        }
+    )
+
+
+def test_a_tag_type_clause_narrows_a_tag_search_to_that_type(session, admin_user, project):
+    """Given a TagType clause on a Tag search, when it runs, then only that
+    type's tags come back.
+
+    tag_type carries a project_id of its own, so auto-join reached it through
+    project rather than through tag.tag_type_id -- leaving every tag in the
+    project eligible whenever the named type existed at all (#260).
+    """
+    from tests.factories import TagFactory, TagTypeFactory
+
+    wanted_type = TagTypeFactory(name="incident-type", project=project)
+    other_type = TagTypeFactory(name="service", project=project)
+    wanted = TagFactory(name="alpha-one", project=project, tag_type=wanted_type)
+    TagFactory(name="alpha-two", project=project, tag_type=other_type)
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Tag",
+        query_str="alpha",
+        filter_spec=tags_of_type_in_project(project, "incident-type"),
+        sort_by=["tag_type.name"],
+        descending=[False],
+        current_user=admin_user,
+        role=UserRoles.admin,
+        items_per_page=50,
+    )
+
+    assert [tag.id for tag in result["items"]] == [wanted.id]
+    assert result["total"] == 1
+
+
+def test_a_tag_type_id_clause_still_returns_each_matching_tag_once(session, admin_user, project):
+    """Given the id-form clause the tag store sends, then each tag comes back once.
+
+    `TagType.id` is rewritten to tag.tag_type_id before it reaches SQL, so this
+    clause was already correct; it shares the join the type-name clause now
+    uses, and a join that multiplies rows would inflate the total here.
+    """
+    from tests.factories import TagFactory, TagTypeFactory
+
+    wanted_type = TagTypeFactory(project=project)
+    TagTypeFactory(project=project)
+    wanted = [TagFactory(project=project, tag_type=wanted_type) for _ in range(3)]
+    TagFactory(project=project, tag_type=TagTypeFactory(project=project))
+
+    filter_spec = json.dumps(
+        {
+            "and": [
+                {"or": [{"model": "Project", "field": "id", "op": "==", "value": project.id}]},
+                {"or": [{"model": "TagType", "field": "id", "op": "==", "value": wanted_type.id}]},
+            ]
+        }
+    )
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Tag",
+        filter_spec=filter_spec,
+        current_user=admin_user,
+        role=UserRoles.admin,
+        items_per_page=50,
+    )
+
+    assert sorted(tag.id for tag in result["items"]) == sorted(tag.id for tag in wanted)
+    assert result["total"] == len(wanted)
