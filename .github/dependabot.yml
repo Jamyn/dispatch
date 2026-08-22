@@ -76,6 +76,17 @@ updates:
       # this needs an apexcharts 3 -> 5/6 migration in its own PR.
       - dependency-name: "vue3-apexcharts"
     groups:
+      # date-fns-tz 3.2.0 peers date-fns `^3.0.0 || ^4.0.0`, so a major of
+      # either one alone re-selects an unsatisfiable peer -- that is how #192
+      # failed. @date-io/date-fns, the third package in #249's triangle, was
+      # removed in 5fe26179, so it needs no pattern here. No update-types, so
+      # majors group too; listed before frontend-minor-and-patch because a
+      # dependency joins the first group it matches, and that one would
+      # otherwise capture their minor updates and split the pair again.
+      date-fns:
+        patterns:
+          - "date-fns"
+          - "date-fns-tz"
       frontend-minor-and-patch:
         update-types: ["minor", "patch"]
 
