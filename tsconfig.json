@@ -1,0 +1,24 @@
+// The `dispatch-e2e` package: playwright.config.ts and the Playwright tree.
+// Playwright finds this by walking up from each test file, but honours only
+// allowJs/baseUrl/paths/references/extends -- setting any of those changes how
+// the suite resolves modules at runtime, not just how tsc checks it.
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    // page.evaluate callbacks are browser code and need DOM to resolve
+    // `document`. The cost is that DOM globals also type-check in the Node-side
+    // driver code around them, where they are undefined at runtime.
+    "lib": ["ES2022", "DOM"],
+    "module": "nodenext",
+    // Pinned so the frontend's `vite/client` never leaks in. @playwright/test
+    // is imported explicitly wherever it is used, so it needs no ambient entry;
+    // `node` does, for `process` and `node:crypto`.
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true
+  },
+  // The frontend package has its own tsconfig; this must never reach into it.
+  "include": ["playwright.config.ts", "tests/static/e2e/**/*.ts"]
+}

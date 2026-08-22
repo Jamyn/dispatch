@@ -5,8 +5,6 @@ export class IncidentsPage {
   readonly page: Page
   readonly route: string
   readonly Row: Locator
-  readonly FirstRow: Locator
-  readonly OtherRow: Locator
   readonly NextPage: Locator
   readonly EditKebab: Locator
   readonly EditMenu: Locator

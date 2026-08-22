@@ -35,7 +35,9 @@ jobs:
       # Covers the .ts sources. The 24 SFCs using `<script lang="ts">` are not
       # checked: vue-tsc runs fine on the pinned compiler, but they carry 97
       # pre-existing errors, so gating them needs its own remediation pass.
-      # The Playwright specs under tests/static/e2e are likewise uncovered.
+      # The Playwright tree is covered by the tsconfig at the repository root, run
+      # from there as `npm run typecheck:e2e` -- not from this job, whose working
+      # directory is the frontend package. Ungated on purpose: so is the e2e suite.
       - run: npm run typecheck
       - run: npx vitest run --dom --coverage
       # The production vite build. Neither lint nor vitest resolves the
