@@ -84,15 +84,13 @@ module.exports = {
               }
             }
 
-            if (
-              !(
-                vvImportNodes.length ||
-                vvRuleImportNodes.length ||
-                observerNode ||
-                validationProviderNodes.length ||
-                rulesToImport.size
-              )
-            )
+            if (!(
+              vvImportNodes.length ||
+              vvRuleImportNodes.length ||
+              observerNode ||
+              validationProviderNodes.length ||
+              rulesToImport.size
+            ))
               return
 
             return context.report({
@@ -104,7 +102,7 @@ module.exports = {
                 // remove vee-validate imports
                 vvImportNodes.forEach((node) => {
                   fixes.push(fixer.remove(node))
-                  context.getDeclaredVariables(node).forEach((variable) => {
+                  context.sourceCode.getDeclaredVariables(node).forEach((variable) => {
                     variable.references.forEach((reference) => {
                       fixes.push(
                         fixer.removeRange([
@@ -114,7 +112,7 @@ module.exports = {
                           }) - 1,
                           context.sourceCode.getIndexFromLoc(reference.identifier.parent.loc.end) +
                             1,
-                        ])
+                        ]),
                       )
                     })
                   })
@@ -177,7 +175,7 @@ module.exports = {
                   }
                   if (formNode) {
                     const formAttrs = formNode.startTag.attributes.map((attr) =>
-                      context.sourceCode.getText(attr)
+                      context.sourceCode.getText(attr),
                     )
                     if (formAttrs.length) {
                       newStartTag += " " + formAttrs.join(" ")
@@ -194,8 +192,8 @@ module.exports = {
                     fixes.push(
                       fixer.replaceTextRange(
                         [observerNode.startTag.range[0], formNode.startTag.range[1]],
-                        newStartTag
-                      )
+                        newStartTag,
+                      ),
                     )
                   } else {
                     fixes.push(fixer.replaceText(observerNode.startTag, newStartTag))
@@ -217,8 +215,8 @@ module.exports = {
                     fixes.push(
                       fixer.replaceTextRange(
                         [formNode.endTag.range[0], observerNode.endTag.range[1]],
-                        "</v-form>"
-                      )
+                        "</v-form>",
+                      ),
                     )
                   } else {
                     fixes.push(fixer.replaceText(observerNode.endTag, "</v-form>"))
@@ -234,7 +232,7 @@ module.exports = {
                           context.sourceCode.getIndexFromLoc({
                             line: node.loc.start.line + 1,
                             column: 0,
-                          }) - 1
+                          }) - 1,
                         ),
                         text: " // TODO: find vuetify equivalent",
                       })
@@ -253,8 +251,8 @@ module.exports = {
                             formSubmitHandlerNode.value.range[0],
                             formSubmitHandlerNode.value.body.range[0],
                           ],
-                          `(${paramName}) `
-                        )
+                          `(${paramName}) `,
+                        ),
                       )
                     } else {
                       paramName = formSubmitHandlerNode.value.params[0].name
@@ -265,8 +263,8 @@ module.exports = {
                     fixes.push(
                       fixer.insertTextBefore(
                         formSubmitHandlerNode.value.body.body[0],
-                        `if (!(await ${paramName}).valid) return\n\n${indent}`
-                      )
+                        `if (!(await ${paramName}).valid) return\n\n${indent}`,
+                      ),
                     )
                   }
                 }
@@ -276,13 +274,13 @@ module.exports = {
 
                   if (node.variables.length) {
                     const b4 = template.getTokenBefore(
-                      node.variables[0].references[0].id.parent.parent
+                      node.variables[0].references[0].id.parent.parent,
                     )
                     fixes.push(
                       fixer.removeRange([
                         b4.range[1],
                         node.variables[0].references[0].id.parent.parent.range[1],
-                      ])
+                      ]),
                     )
                   } else {
                     node.children.forEach((child) => {
@@ -296,13 +294,13 @@ module.exports = {
                             if (child.variables.length) {
                               child.variables.forEach((variable) => {
                                 const b4 = template.getTokenBefore(
-                                  variable.references[0].id.parent.parent
+                                  variable.references[0].id.parent.parent,
                                 )
                                 fixes.push(
                                   fixer.removeRange([
                                     b4.range[1],
                                     variable.references[0].id.parent.parent.range[1],
-                                  ])
+                                  ]),
                                 )
                               })
                             } else {
@@ -330,8 +328,8 @@ module.exports = {
                         indent +
                           (vid.directive
                             ? `:name=${context.sourceCode.getText(vid.value)}`
-                            : `name="${vid.value.value}"`)
-                      )
+                            : `name="${vid.value.value}"`),
+                      ),
                     )
                   }
                   if (rules) {
@@ -350,7 +348,7 @@ module.exports = {
                         throw new Error("Unsupported dynamic rules")
                       }
                       const test = context.sourceCode.getText(
-                        rules.value.expression.expressions[0].test
+                        rules.value.expression.expressions[0].test,
                       )
                       const rulesValue = rules.value.expression.expressions[0].consequent.value
                       rulesArray = rulesValue.split("|")
@@ -363,7 +361,7 @@ module.exports = {
                       rulesString = `:rules="[${rulesArray.map((v) => `rules.${v}`).join(", ")}]"`
                     }
                     fixes.push(
-                      fixer.insertTextAfter(child.startTag.attributes.at(-1), indent + rulesString)
+                      fixer.insertTextAfter(child.startTag.attributes.at(-1), indent + rulesString),
                     )
                     rulesArray.forEach((rule) => rulesToImport.add(rule))
                   }
@@ -372,7 +370,7 @@ module.exports = {
                     fixer.removeRange([
                       child.startTag.selfClosing ? child.startTag.range[1] : child.endTag.range[1],
                       node.endTag.range[1],
-                    ])
+                    ]),
                   )
                 })
 
@@ -380,7 +378,7 @@ module.exports = {
                   fixes.push(
                     fixer.insertTextBefore(
                       context.sourceCode.ast.body[0],
-                      "import { " + [...rulesToImport].join(", ") + " } from '@/util/form'\n"
+                      "import { " + [...rulesToImport].join(", ") + " } from '@/util/form'\n",
                     ),
                     fixer.insertTextAfterRange(
                       [vueObjectNode.range[0] + 1, vueObjectNode.range[0] + 1],
@@ -389,8 +387,8 @@ module.exports = {
     return {
       rules: { ${[...rulesToImport].join(", ")} }
     }
-  },`
-                    )
+  },`,
+                    ),
                   )
                 }
 
@@ -421,7 +419,7 @@ module.exports = {
               )
             ) {
               throw new Error(
-                `validation-provider has unsupported children at ${node.loc.start.line}:${node.loc.start.column}`
+                `validation-provider has unsupported children at ${node.loc.start.line}:${node.loc.start.column}`,
               )
             }
             const vid = node.startTag.attributes.find((attr) => {
@@ -535,7 +533,7 @@ module.exports = {
         },
         {
           'MemberExpression[object.type="MemberExpression"][object.property.name="$refs"][property.name="observer"]'(
-            node
+            node,
           ) {
             observerRefNodes.push(node)
           },
@@ -552,11 +550,11 @@ module.exports = {
             hasSetup = true
           },
           'ExportDefaultDeclaration > ObjectExpression > Property[key.name="methods"] > ObjectExpression > Property'(
-            node
+            node,
           ) {
             methodNodes.push(node)
           },
-        }
+        },
       )
     },
   },
@@ -590,7 +588,7 @@ module.exports = {
               }
             } else if (
               ["v-list-item-title", "v-list-item-subtitle", "v-list-item-content"].includes(
-                child.name
+                child.name,
               )
             ) {
               if (reachedContent && !inContent) {
@@ -649,13 +647,13 @@ module.exports = {
                 if (prepend.length) {
                   yield fixer.insertTextAfter(
                     node.startTag,
-                    `<template #prepend>${stringifyChildren(prepend)}</template>`
+                    `<template #prepend>${stringifyChildren(prepend)}</template>`,
                   )
                 }
                 if (append.length) {
                   yield fixer.insertTextBefore(
                     node.endTag,
-                    `<template #append>${stringifyChildren(append)}</template>`
+                    `<template #append>${stringifyChildren(append)}</template>`,
                   )
                 }
               },
