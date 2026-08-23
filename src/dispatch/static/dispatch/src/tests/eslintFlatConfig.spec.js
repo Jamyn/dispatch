@@ -21,6 +21,31 @@ describe("the flat config wires every rule source", () => {
     expect(rules).toContain("local-rules/icon-button-variant")
   })
 
+  it("applies local rules to a <script lang='ts'> SFC too", async () => {
+    // The local rules only visit template nodes, and they reach them through
+    // parserServices. Handing the script block to @typescript-eslint/parser
+    // must not cost the template its services, or the rules go quiet on the
+    // 24 SFCs that use lang="ts" while `npm run lint` stays green.
+    const rules = await ruleIds(
+      sfc(
+        `  <v-btn icon>x</v-btn>`,
+        `<script lang="ts">\nexport const f = (x: string): string => x\n</script>`,
+      ),
+      "src/__FlatProbe.vue",
+    )
+    expect(rules).toContain("local-rules/icon-button-variant")
+  })
+
+  it("enables only the one local rule the config names", async () => {
+    // eslint-local-rules.js defines three rules; two are commented out in
+    // eslint.config.js on purpose. eslint-plugin-local-rules 3 ships a
+    // `configs.all` that turns on every rule it discovers, so adopting it
+    // would switch those two back on without touching the rules block.
+    const config = await new ESLint().calculateConfigForFile("src/App.vue")
+    const enabled = Object.keys(config.rules).filter((id) => id.startsWith("local-rules/"))
+    expect(enabled).toEqual(["local-rules/icon-button-variant"])
+  })
+
   it("applies eslint-plugin-vue", async () => {
     const rules = await ruleIds(sfc(`  <div v-for="i in 3">{{ i }}</div>`), "src/__FlatProbe.vue")
     expect(rules).toContain("vue/require-v-for-key")
