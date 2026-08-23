@@ -63,6 +63,17 @@ jobs:
           done
           exit "$failed"
 
+      # `npm ci` above compares the manifest to the lockfile, never the dev
+      # flags, so a targeted edit that drops them passes every check here --
+      # that is how cross-env #309 went green on this job while leaking 38
+      # build-tooling packages into `npm ci --omit=dev`. The frontend is the
+      # only lockfile worth gating: docs/ resolves 1419 of 1420 packages into
+      # production and the root has 8, so neither has meaningful dev flags to
+      # lose. Runs here rather than only in vitest because it needs no
+      # node_modules, so it fails in seconds under a name that says lockfile.
+      - name: Check the frontend lockfile's dev flags
+        run: node src/dispatch/static/dispatch/scripts/check-lock-dev-flags.mjs
+
   # Separate job so the npm and Python gates report as separately named checks.
   python-lock-sync:
     runs-on: ubuntu-latest
