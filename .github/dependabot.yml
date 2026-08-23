@@ -94,6 +94,17 @@ updates:
         patterns:
           - "date-fns"
           - "date-fns-tz"
+      # sass-embedded's fallback platform packages depend on sass at an exact
+      # version, so bumping sass alone nests a second copy of it under each --
+      # that is what #324 did. sass-embedded also skips releases sass publishes
+      # (there is no sass-embedded 1.103.0), which is how the pair split despite
+      # both being minor updates. Listed before frontend-minor-and-patch because
+      # a dependency joins the first group it matches, and that one would
+      # otherwise capture them and split the pair again.
+      sass:
+        patterns:
+          - "sass"
+          - "sass-embedded"
       frontend-minor-and-patch:
         update-types: ["minor", "patch"]
 
