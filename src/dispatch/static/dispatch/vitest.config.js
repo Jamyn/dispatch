@@ -18,7 +18,10 @@ export default mergeConfig(
         // `include` is what makes never-imported components count. Without it
         // v8 reports only files a test loaded, which for ten spec files would
         // read as high coverage of a tiny fraction of the app.
-        include: ["src/**"],
+        // scripts/ is here because lockfile-sync runs it as a gate: left out,
+        // its lines land in the diff with no report and codecov reads the
+        // whole file as untested.
+        include: ["src/**", "scripts/**"],
         // The specs themselves, like the Python suite's own files, are not the
         // thing being measured.
         exclude: ["src/tests/**"],

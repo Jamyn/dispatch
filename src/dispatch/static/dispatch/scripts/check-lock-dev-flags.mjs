@@ -81,32 +81,32 @@ export const auditLockfile = (lock) => {
 
 const SAMPLE = 10
 
-// Exit non-zero with the regeneration command rather than a bare diff: this
-// runs in lockfile-sync, where the reader has no test output to interpret.
-const main = (argv) => {
+// Returns an exit code and takes its console, so the contract CI depends on --
+// non-zero on a bad lockfile -- is testable without spawning a process.
+export const main = (argv, out = console) => {
   const lockPath = argv[2] ?? FRONTEND_LOCKFILE
   const { unflagged, misflagged } = auditLockfile(readLockfile(lockPath))
-  const dir = dirname(lockPath)
 
   const report = (paths, problem) => {
     if (!paths.length) return false
-    console.error(`${lockPath}: ${paths.length} package(s) ${problem}.`)
-    for (const path of paths.slice(0, SAMPLE)) console.error(`  ${path}`)
-    if (paths.length > SAMPLE) console.error(`  ... and ${paths.length - SAMPLE} more`)
+    out.error(`${lockPath}: ${paths.length} package(s) ${problem}.`)
+    for (const path of paths.slice(0, SAMPLE)) out.error(`  ${path}`)
+    if (paths.length > SAMPLE) out.error(`  ... and ${paths.length - SAMPLE} more`)
     return true
   }
 
-  const bad =
-    report(unflagged, "production cannot reach are missing their dev flag") ||
-    report(misflagged, "production depends on are marked dev")
+  // Both reported, not short-circuited: a lockfile can carry either fault and
+  // fixing only the one that printed would send you round the loop twice.
+  const dropped = report(unflagged, "production cannot reach are missing their dev flag")
+  const leaked = report(misflagged, "production depends on are marked dev")
 
-  if (bad) {
-    console.error(`\nRegenerate the lockfile so npm recomputes the flags:`)
-    console.error(`  (cd ${dir} && npm install --package-lock-only)`)
+  if (dropped || leaked) {
+    out.error(`\nRegenerate the lockfile so npm recomputes the flags:`)
+    out.error(`  (cd ${dirname(lockPath)} && npm install --package-lock-only)`)
     return 1
   }
 
-  console.log(`${lockPath}: dev flags consistent`)
+  out.log(`${lockPath}: dev flags consistent`)
   return 0
 }
 
