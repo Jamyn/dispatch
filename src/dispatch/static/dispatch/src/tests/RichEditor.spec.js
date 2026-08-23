@@ -135,6 +135,24 @@ describe("RichEditor authoring surface", () => {
     wrapper.unmount()
   })
 
+  // Every other fixture here ends in a paragraph, which is exactly the shape
+  // TrailingNode leaves alone -- so it needs block endings of its own.
+  it.each([
+    "<ul><li><p>a</p></li></ul>",
+    "<h1>t</h1>",
+    "<blockquote><p>q</p></blockquote>",
+    "<pre><code>x</code></pre>",
+  ])("does not append a trailing paragraph to %s", async (html) => {
+    const wrapper = build({ modelValue: "<p>seed</p>" })
+    await flush(wrapper)
+
+    await wrapper.setProps({ modelValue: html })
+    await flush(wrapper)
+
+    expect(wrapper.vm.$.setupState.editor.getHTML()).toBe(html)
+    wrapper.unmount()
+  })
+
   it("still supports the marks the v2 editor had", async () => {
     const wrapper = build({
       modelValue: "<p><strong>b</strong><em>i</em><s>s</s><code>c</code></p>",

@@ -29,12 +29,21 @@ const packageOf = (specifier) => specifier.split("/").slice(0, 2).join("/")
 
 // Anchored on the import specifier so that prose mentioning a tiptap package
 // -- including the comments in this file -- is not mistaken for a dependency.
+// grep exits 1 on no matches, which would error the test rather than fail it.
+const grepImports = () => {
+  try {
+    return execFileSync(
+      "grep",
+      ["-rhoE", "--exclude-dir=tests", 'from "@tiptap/[^"]+"', resolve(FRONTEND, "src")],
+      { encoding: "utf8" },
+    )
+  } catch {
+    return ""
+  }
+}
+
 const imported = new Set(
-  execFileSync(
-    "grep",
-    ["-rhoE", "--exclude-dir=tests", 'from "@tiptap/[^"]+"', resolve(FRONTEND, "src")],
-    { encoding: "utf8" },
-  )
+  grepImports()
     .split("\n")
     .filter(Boolean)
     .map((line) => packageOf(line.slice('from "'.length, -1))),

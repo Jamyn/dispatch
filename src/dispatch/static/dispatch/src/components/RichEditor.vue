@@ -83,14 +83,17 @@ watch(
 onMounted(() => {
   editor.value = new Editor({
     extensions: [
-      // StarterKit v3 adds Link (with autolink) and Underline to the v2 set.
-      // This editor has no toolbar and its HTML is replayed into Slack and
-      // email, so both stay off until enabling them is a product decision
-      // rather than a side effect of a dependency bump.
+      // StarterKit v3 adds Link (with autolink), Underline and TrailingNode to
+      // the v2 set. This editor has no toolbar and its HTML is replayed into
+      // Slack and email, so they stay off until enabling them is a product
+      // decision rather than a side effect of a dependency bump. TrailingNode
+      // matters most: it appends an empty paragraph to any document not
+      // already ending in one, and that rewrite reaches the saved note.
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4, 5, 6] },
         link: false,
         underline: false,
+        trailingNode: false,
       }),
       Placeholder.configure({
         // Use a placeholder:
