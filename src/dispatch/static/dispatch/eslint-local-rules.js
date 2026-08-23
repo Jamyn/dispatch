@@ -102,7 +102,7 @@ module.exports = {
                 // remove vee-validate imports
                 vvImportNodes.forEach((node) => {
                   fixes.push(fixer.remove(node))
-                  context.getDeclaredVariables(node).forEach((variable) => {
+                  context.sourceCode.getDeclaredVariables(node).forEach((variable) => {
                     variable.references.forEach((reference) => {
                       fixes.push(
                         fixer.removeRange([
