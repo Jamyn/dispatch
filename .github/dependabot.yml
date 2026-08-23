@@ -105,6 +105,15 @@ updates:
         patterns:
           - "sass"
           - "sass-embedded"
+      # Every @tiptap package shares @tiptap/core and @tiptap/pm, so bumping one
+      # nests a second major of both under it -- #308 did exactly that, and it
+      # went green because npm ci is satisfied by the nested copy. #311 bumped
+      # the other half and could not resolve at all. Listed before
+      # frontend-minor-and-patch because a dependency joins the first group it
+      # matches, and that one would otherwise split the set again.
+      tiptap:
+        patterns:
+          - "@tiptap/*"
       frontend-minor-and-patch:
         update-types: ["minor", "patch"]
 

@@ -6,7 +6,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from "vue"
-import Placeholder from "@tiptap/extension-placeholder"
+import { Placeholder } from "@tiptap/extensions"
 import { Editor, EditorContent } from "@tiptap/vue-3"
 import StarterKit from "@tiptap/starter-kit"
 
@@ -58,7 +58,7 @@ watch(
       return
     }
 
-    editor.value?.chain().setContent(`${value}`, false).run()
+    editor.value?.chain().setContent(`${value}`, { emitUpdate: false }).run()
   },
 )
 
@@ -76,14 +76,25 @@ watch(
       return
     }
 
-    editor.value?.chain().setContent(`${value}`, false).run()
+    editor.value?.chain().setContent(`${value}`, { emitUpdate: false }).run()
   },
 )
 
 onMounted(() => {
   editor.value = new Editor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3, 4, 5, 6] } }),
+      // StarterKit v3 adds Link (with autolink), Underline and TrailingNode to
+      // the v2 set. This editor has no toolbar and its HTML is replayed into
+      // Slack and email, so they stay off until enabling them is a product
+      // decision rather than a side effect of a dependency bump. TrailingNode
+      // matters most: it appends an empty paragraph to any document not
+      // already ending in one, and that rewrite reaches the saved note.
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3, 4, 5, 6] },
+        link: false,
+        underline: false,
+        trailingNode: false,
+      }),
       Placeholder.configure({
         // Use a placeholder:
         placeholder: props.placeholder,
