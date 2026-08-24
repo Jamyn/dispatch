@@ -71,9 +71,16 @@ updates:
       include: "scope"
     labels: ["maintenance"]
     ignore:
-      # apexcharts is held at ^3.44.0; vue3-apexcharts' peer floor moves within
-      # its own 1.x line, so any bump re-selects an unsatisfiable peer. Lifting
-      # this needs an apexcharts 3 -> 5/6 migration in its own PR.
+      # apexcharts relicensed away from MIT: 4.7.0 is the last release whose
+      # LICENSE is the MIT text, 5.0.0 ships the revenue-gated ApexCharts
+      # License while still declaring "MIT" in package.json, and 5.1.0+ drop
+      # the MIT claim entirely. Dispatch is Apache-2.0 and redistributes the
+      # built frontend in the wheel and image, so a bump past 4.7.0 imposes a
+      # paid-license obligation on downstream operators. Migration off
+      # apexcharts is tracked separately; do not lift this to "fix" a bump.
+      - dependency-name: "apexcharts"
+      # vue3-apexcharts' peer floor moves within its own 1.x line and newer
+      # releases require apexcharts >=5.10.0, which is not MIT.
       - dependency-name: "vue3-apexcharts"
       # @openid/appauth 1.4.0 is ESM-only and its published ESM uses
       # extensionless relative specifiers, which Node's resolver rejects, so
