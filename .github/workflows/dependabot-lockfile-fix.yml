@@ -1,0 +1,83 @@
+name: Dependabot lockfile fix
+
+# Dependabot regenerates package-lock.json through its own updater rather than
+# `npm install --package-lock-only`, and that path does not reproduce npm's dev
+# classification: every frontend PR it opens drops `"dev": true` from the
+# optional @esbuild/* platform packages (111 lines on #339). The dev-flag gate
+# in lockfile-sync.yml then fails, so every Dependabot frontend PR is blocked
+# on an artefact of how the lockfile was written rather than on the bump.
+#
+# This regenerates the lockfile the way the gate expects and commits the result
+# back to the PR branch. Only the flags move -- `npm ci` agreed with
+# package.json before and after, so this cannot change which versions resolve.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "src/dispatch/static/dispatch/package.json"
+      - "src/dispatch/static/dispatch/package-lock.json"
+
+# Deliberately NOT a required check: it is a repair step, not a gate, and a
+# path-filtered required check never reports on PRs outside its filter.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  fix-dev-flags:
+    # Dependabot-triggered `pull_request` runs get a read-only GITHUB_TOKEN, so
+    # a workflow on that event cannot push the fix. `pull_request_target` is
+    # GitHub's documented way out: it runs in the base repo's context with the
+    # permissions above. That context is also why nothing below may execute
+    # code from the PR -- see --ignore-scripts on the regenerate step.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      !github.event.pull_request.head.repo.fork
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The PR head, not the merge commit: the lockfile being repaired is
+          # the one on the branch, and expectedHeadOid below must match it.
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Regenerate the frontend lockfile
+        working-directory: src/dispatch/static/dispatch
+        # --ignore-scripts is load-bearing under pull_request_target: it stops
+        # the PR's dependency set (and the repo's own preinstall hook) from
+        # running code in a job that holds a write token. Same flag the gate in
+        # lockfile-sync.yml uses, so both see the same tree.
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Commit the result if anything changed
+        env:
+          # A PAT or GitHub App token here makes the push re-trigger the PR's
+          # checks. With the default GITHUB_TOKEN the commit still lands and is
+          # signed, but GitHub suppresses the resulting workflow runs, so the
+          # stale red checks need a manual nudge to clear.
+          GH_TOKEN: ${{ secrets.LOCKFILE_FIX_TOKEN || secrets.GITHUB_TOKEN }}
+          LOCKFILE: src/dispatch/static/dispatch/package-lock.json
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- "$LOCKFILE"; then
+            echo "lockfile already consistent; nothing to do"
+            exit 0
+          fi
+          echo "::notice::regenerated $LOCKFILE; committing the dev-flag repair"
+          # createCommitOnBranch rather than `git push`: commits made through
+          # the API are signed by GitHub, and main's ruleset requires signatures
+          # that a plain `git commit` in Actions cannot produce.
+          python3 .github/scripts/build_commit_mutation.py > "$RUNNER_TEMP/body.json"
+          gh api graphql --input "$RUNNER_TEMP/body.json"
