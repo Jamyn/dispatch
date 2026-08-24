@@ -38,6 +38,9 @@ dependencies = [
     # 5.0.0 split Confluence into separate Cloud (REST v2) and Server (REST v1)
     # classes with different method signatures. The major ceiling keeps the next
     # such split from reaching production through a routine bump.
+    # The floor is 5.0.3, not 5.0.0: earlier 5.0.x prefixes `_links.next` (which
+    # already carries the context path) with `_links.base` (which carries it
+    # too), so a paged Cloud child listing 404s and delete_page strands pages.
     "atlassian-python-api>=5.0.3,<6",
     "attrs>=26.1.0",
     "bcrypt",
