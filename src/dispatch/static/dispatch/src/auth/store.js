@@ -1,4 +1,4 @@
-import jwt_decode from "jwt-decode"
+import { jwtDecode } from "jwt-decode"
 import router from "@/router/index"
 import { differenceInMilliseconds, fromUnixTime, subMinutes } from "date-fns"
 import { getField, updateField } from "vuex-map-fields"
@@ -231,7 +231,7 @@ const mutations = {
   SET_USER_LOGIN(state, token) {
     state.currentUser = {
       ...state.currentUser,
-      ...jwt_decode(token),
+      ...jwtDecode(token),
       token: token,
       loggedIn: true,
     }
