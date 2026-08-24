@@ -24,13 +24,13 @@
       </v-list-item>
     </template>
     <template #chip="{ item, props }">
-      <v-chip v-bind="props"> {{ item.raw.entity_type.name }} / {{ item.raw.value }} </v-chip>
+      <v-chip v-bind="props"> {{ item.entity_type.name }} / {{ item.value }} </v-chip>
     </template>
     <template #item="data">
       <v-list-item v-bind="data.props" :title="null">
-        <v-list-item-title> {{ data.item.raw.value }} </v-list-item-title>
-        <v-list-item-subtitle :title="data.item.raw.entity_type.name">
-          {{ data.item.raw.entity_type.name }}
+        <v-list-item-title> {{ data.item.value }} </v-list-item-title>
+        <v-list-item-subtitle :title="data.item.entity_type.name">
+          {{ data.item.entity_type.name }}
         </v-list-item-subtitle>
       </v-list-item>
     </template>

@@ -2,7 +2,7 @@
   <v-card variant="outlined">
     <v-card-text class="pa-0">
       <v-container>
-        <v-row dense>
+        <v-row density="compact">
           <v-col cols="4" class="d-flex align-center justify-center">
             <v-icon size="76">
               {{ icon }}

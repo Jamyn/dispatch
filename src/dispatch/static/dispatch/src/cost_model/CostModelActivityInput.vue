@@ -15,7 +15,7 @@
       </v-tooltip>
     </v-row>
     <span v-for="(activity, activity_idx) in activities" :key="activity_idx">
-      <v-row align="center" dense>
+      <v-row align="center" density="compact">
         <v-col cols="12" sm="4">
           <v-tooltip location="bottom">
             <template #activator="{ props }">

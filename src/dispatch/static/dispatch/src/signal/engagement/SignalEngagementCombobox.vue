@@ -15,7 +15,7 @@
                 pill
                 @click:close="remove(item)"
               >
-                {{ item ? item.title : "Unknown" }}
+                {{ item ? item.name : "Unknown" }}
               </v-chip>
             </template>
             <v-card>

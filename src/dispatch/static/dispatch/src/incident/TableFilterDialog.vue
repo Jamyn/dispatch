@@ -88,7 +88,7 @@
         </v-list>
         <v-card-actions>
           <v-spacer />
-          <v-btn color="info" :disabled="!isValid.value" variant="text" @click="applyFilters()">
+          <v-btn color="info" :disabled="!isValid" variant="text" @click="applyFilters()">
             Apply Filters
           </v-btn>
         </v-card-actions>

@@ -24,10 +24,10 @@
     <template #item="data">
       <v-list-item v-bind="data.props" :title="null">
         <v-list-item-title>
-          {{ data.item.raw.plugin.title }}
+          {{ data.item.plugin.title }}
         </v-list-item-title>
-        <v-list-item-subtitle :title="data.item.raw.plugin.description">
-          {{ data.item.raw.plugin.description }}
+        <v-list-item-subtitle :title="data.item.plugin.description">
+          {{ data.item.plugin.description }}
         </v-list-item-subtitle>
       </v-list-item>
     </template>

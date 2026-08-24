@@ -37,6 +37,18 @@ export default defineConfig({
       },
     },
   ],
+  // Vuetify 4 stacks overlays through a shared useStack singleton. If Vite
+  // pre-bundles only some of these, dev gets two instances and menus/selects
+  // opened inside a dialog render behind it. Production builds are unaffected.
+  optimizeDeps: {
+    include: [
+      "vuetify/components/VOverlay",
+      "vuetify/components/VDialog",
+      "vuetify/components/VMenu",
+      "vuetify/components/VSelect",
+      "vuetify/components/VTooltip",
+    ],
+  },
   css: {
     preprocessorOptions: {
       scss: {

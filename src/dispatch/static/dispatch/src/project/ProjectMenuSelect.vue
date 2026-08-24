@@ -10,7 +10,7 @@
     :loading="loading"
     density="compact"
   >
-    <template #item="{ item: { raw: item }, props }">
+    <template #item="{ item, props }">
       <v-list-item v-bind="props">
         <v-list-item-subtitle :title="item.description">
           {{ item.description }}

@@ -1,6 +1,6 @@
 <template>
   <v-container>
-    <v-row dense>
+    <v-row density="compact">
       <v-col cols="12">
         <v-card>
           <v-list-item lines="two">

@@ -22,7 +22,7 @@
                 color="red en-1"
                 variant="text"
                 :loading="loading"
-                :disabled="!isValid.value"
+                :disabled="!isValid"
                 @click="saveBulk({ assignee: assignee[0] })"
               >
                 Handoff

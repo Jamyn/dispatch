@@ -35,7 +35,7 @@
           variant="elevated"
           color="info"
           :loading="loading"
-          :disabled="!isValid.value"
+          :disabled="!isValid"
         >
           Register
           <template #loader>

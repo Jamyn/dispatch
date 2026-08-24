@@ -89,7 +89,7 @@
                     color="info"
                     @click="saveEngagement()"
                     :loading="loading"
-                    :disabled="!isValid.value"
+                    :disabled="!isValid"
                   >
                     Save
                   </v-btn>

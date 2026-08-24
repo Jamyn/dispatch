@@ -126,7 +126,7 @@
                     color="info"
                     @click="saveEntityType()"
                     :loading="loading"
-                    :disabled="!isValid.value"
+                    :disabled="!isValid"
                   >
                     Save
                   </v-btn>

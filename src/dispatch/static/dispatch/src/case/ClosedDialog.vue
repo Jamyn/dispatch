@@ -22,7 +22,7 @@
                   <v-list-item v-bind="props">
                     <template #title>
                       <div class="d-flex align-center justify-space-between">
-                        {{ item.title }}
+                        {{ item }}
                         <v-tooltip location="right">
                           <template #activator="{ props: tooltipProps }">
                             <v-icon
@@ -32,9 +32,7 @@
                               class="ml-2"
                             />
                           </template>
-                          <span>{{
-                            $store.state.case_management.resolutionTooltips[item.title]
-                          }}</span>
+                          <span>{{ $store.state.case_management.resolutionTooltips[item] }}</span>
                         </v-tooltip>
                       </div>
                     </template>

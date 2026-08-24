@@ -16,7 +16,7 @@
               variant="text"
               color="info"
               :loading="loading"
-              :disabled="!isValid.value"
+              :disabled="!isValid"
               @click="save()"
             >
               <v-icon>mdi-content-save</v-icon>

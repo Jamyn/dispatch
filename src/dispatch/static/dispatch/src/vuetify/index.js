@@ -1,5 +1,6 @@
 import "@mdi/font/css/materialdesignicons.css"
 import "vuetify/styles"
+import "@/styles/vuetify-md2-compat.css"
 import { createVuetify } from "vuetify"
 import * as components from "vuetify/components"
 import * as directives from "vuetify/directives"
@@ -61,6 +62,9 @@ export function vuetifyPlugin(app) {
     },
     directives,
     theme: {
+      // v4 defaults to 'system'; Dispatch picks the theme itself from the
+      // dark_theme localStorage key in AppToolbar.
+      defaultTheme: "light",
       themes: {
         light: {
           colors: {

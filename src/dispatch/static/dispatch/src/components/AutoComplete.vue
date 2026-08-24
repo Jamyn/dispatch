@@ -19,9 +19,9 @@
         </v-list-item-title>
       </v-list-item>
     </template>
-    <template #item="{ props, item }">
+    <template #item="{ props, item, internalItem }">
       <slot name="item" :props="props" :item="item">
-        <v-list-item v-bind="props" :title="item.title" :subtitle="item.raw[subtitle]" />
+        <v-list-item v-bind="props" :title="internalItem.title" :subtitle="item[subtitle]" />
       </slot>
     </template>
     <template #append-item v-if="items.length < total.value">
