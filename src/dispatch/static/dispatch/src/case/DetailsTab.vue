@@ -51,7 +51,7 @@
                   <v-list-item v-bind="props">
                     <template #title>
                       <div class="d-flex align-center justify-space-between">
-                        {{ item.title }}
+                        {{ item }}
                         <v-tooltip location="right">
                           <template #activator="{ props: tooltipProps }">
                             <v-icon
@@ -61,9 +61,7 @@
                               class="ml-2"
                             />
                           </template>
-                          <span>{{
-                            $store.state.case_management.resolutionTooltips[item.title]
-                          }}</span>
+                          <span>{{ $store.state.case_management.resolutionTooltips[item] }}</span>
                         </v-tooltip>
                       </div>
                     </template>
@@ -129,11 +127,11 @@
             <div class="d-flex align-center" style="width: 100%">
               <v-list-item
                 v-bind="props"
-                :disabled="item.raw.value === 'Escalated'"
+                :disabled="item.value === 'Escalated'"
                 style="flex-grow: 1"
               />
               <v-tooltip
-                v-if="item.raw.value === 'Escalated'"
+                v-if="item.value === 'Escalated'"
                 text="Escalation is only supported on the case page or in Slack with the `/dispatch-escalate-case` command."
               >
                 <template #activator="{ props: tooltipProps }">

@@ -25,7 +25,7 @@
                 color="red en-1"
                 variant="text"
                 :loading="loading"
-                :disabled="!isValid.value"
+                :disabled="!isValid"
                 @click="saveBulk({ commander: commander[0] })"
               >
                 Handoff

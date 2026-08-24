@@ -251,8 +251,9 @@ export default {
       this.$router.push({ name: "ResultList", query: { q: query } })
     },
     toggleDarkTheme() {
-      this.$vuetify.theme.global.name = this.$vuetify.theme.global.current.dark ? "light" : "dark"
-      localStorage.setItem("dark_theme", this.$vuetify.theme.global.current.dark.toString())
+      const dark = !this.$vuetify.theme.current.dark
+      this.$vuetify.theme.change(dark ? "dark" : "light")
+      localStorage.setItem("dark_theme", dark.toString())
       this.dark_theme = !this.dark_theme
     },
     navigateToEventReport() {
@@ -286,12 +287,10 @@ export default {
     if (theme) {
       if (theme === "true") {
         this.dark_theme = true
-        if (this.$vuetify.theme.global) this.$vuetify.theme.global.name = "dark"
-        this.$vuetify.theme.dark = true
+        this.$vuetify.theme.change("dark")
       } else {
         this.dark_theme = false
-        if (this.$vuetify.theme.global) this.$vuetify.theme.global.name = "light"
-        this.$vuetify.theme.dark = false
+        this.$vuetify.theme.change("light")
       }
     }
 

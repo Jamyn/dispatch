@@ -135,12 +135,7 @@
                 <v-card-actions>
                   <v-spacer />
                   <v-btn @click="closeCreateEditDialog()" variant="text"> Cancel </v-btn>
-                  <v-btn
-                    color="info"
-                    @click="saveFilter()"
-                    :loading="loading"
-                    :disabled="!isValid.value"
-                  >
+                  <v-btn color="info" @click="saveFilter()" :loading="loading" :disabled="!isValid">
                     Save
                   </v-btn>
                 </v-card-actions>

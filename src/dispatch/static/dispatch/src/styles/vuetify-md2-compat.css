@@ -1,0 +1,147 @@
+/* Vuetify 4 replaced the Material Design 2 type scale and VBtn's uppercase
+   default with MD3. Dispatch's layout is built on the MD2 metrics, so restore
+   the variants it uses; adopting MD3 `text-*` classes is a separate change.
+   Layer names must match the ones vuetify.css declares, or these lose. */
+
+@layer vuetify-utilities.typography {
+  .text-h5 {
+    font-size: 1.5rem;
+    font-weight: 400;
+    line-height: 1.333;
+    letter-spacing: normal;
+    font-family: "Roboto", sans-serif;
+    text-transform: none;
+  }
+
+  .text-h6 {
+    font-size: 1.25rem;
+    font-weight: 500;
+    line-height: 1.6;
+    letter-spacing: 0.0125em;
+    font-family: "Roboto", sans-serif;
+    text-transform: none;
+  }
+
+  .text-subtitle-1 {
+    font-size: 1rem;
+    font-weight: normal;
+    line-height: 1.75;
+    letter-spacing: 0.009375em;
+    font-family: "Roboto", sans-serif;
+    text-transform: none;
+  }
+
+  .text-subtitle-2 {
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.6;
+    letter-spacing: 0.0071428571em;
+    font-family: "Roboto", sans-serif;
+    text-transform: none;
+  }
+
+  .text-body-1 {
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    letter-spacing: 0.03125em;
+    font-family: "Roboto", sans-serif;
+    text-transform: none;
+  }
+
+  .text-body-2 {
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.425;
+    letter-spacing: 0.0178571429em;
+    font-family: "Roboto", sans-serif;
+    text-transform: none;
+  }
+
+  .text-caption {
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.667;
+    letter-spacing: 0.0333333333em;
+    font-family: "Roboto", sans-serif;
+    text-transform: none;
+  }
+}
+
+/* Same layer and specificity v3 used, so Vuetify's own more specific
+   `text-transform: none` rules (date picker, bottom nav) still win. */
+@layer vuetify-components {
+  .v-btn {
+    text-transform: uppercase;
+  }
+}
+
+/* v4 also dropped the global reset. Dispatch renders user markdown through
+   vue3-markdown-it and v-html with no prose styles of its own, so the tag set
+   that needs it is open-ended -- this is upstream's full restoration snippet.
+   vuetify-core.reset is the lowest layer, so component styles still win. */
+@layer vuetify-core.reset {
+  * {
+    padding: 0;
+    margin: 0;
+  }
+
+  a:active,
+  a:hover {
+    outline-width: 0;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: monospace;
+  }
+
+  pre {
+    font-size: 1em;
+  }
+
+  small {
+    font-size: 80%;
+  }
+
+  sub,
+  sup {
+    font-size: 75%;
+    line-height: 0;
+    position: relative;
+    vertical-align: baseline;
+  }
+
+  sub {
+    bottom: -0.25em;
+  }
+
+  sup {
+    top: -0.5em;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    background-color: transparent;
+    border-style: none;
+  }
+
+  select {
+    -moz-appearance: none;
+    -webkit-appearance: none;
+  }
+
+  legend {
+    display: table;
+    max-width: 100%;
+    white-space: normal;
+  }
+}

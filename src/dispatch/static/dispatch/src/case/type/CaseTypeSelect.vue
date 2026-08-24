@@ -15,13 +15,13 @@
     clearable
   >
     <template #item="data">
-      <v-list-subheader dense class="custom-subheader" v-if="data.item.raw.category">
-        {{ data.item.raw.category }}
+      <v-list-subheader dense class="custom-subheader" v-if="data.item.category">
+        {{ data.item.category }}
       </v-list-subheader>
-      <v-list-item v-bind="data.props" :title="null" v-if="!data.item.raw.category">
-        <v-list-item-title>{{ data.item.raw.name }}</v-list-item-title>
-        <v-list-item-subtitle class="truncate-text" :title="data.item.raw.description">
-          {{ data.item.raw.description }}
+      <v-list-item v-bind="data.props" :title="null" v-if="!data.item.category">
+        <v-list-item-title>{{ data.item.name }}</v-list-item-title>
+        <v-list-item-subtitle class="truncate-text" :title="data.item.description">
+          {{ data.item.description }}
         </v-list-item-subtitle>
       </v-list-item>
     </template>

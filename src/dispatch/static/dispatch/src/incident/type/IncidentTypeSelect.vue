@@ -12,13 +12,13 @@
     <template #item="{ props, item }">
       <v-list-item v-bind="props" :title="null">
         <v-list-item-title v-if="!project">
-          {{ item.raw.project.display_name }}/{{ item.raw.name }}
+          {{ item.project.display_name }}/{{ item.name }}
         </v-list-item-title>
         <v-list-item-title v-else>
-          {{ item.raw.name }}
+          {{ item.name }}
         </v-list-item-title>
-        <v-list-item-subtitle :title="item.raw.description">
-          {{ item.raw.description }}
+        <v-list-item-subtitle :title="item.description">
+          {{ item.description }}
         </v-list-item-subtitle>
       </v-list-item>
     </template>

@@ -70,7 +70,7 @@
             variant="text"
             @click="save()"
             :loading="loading"
-            :disabled="!isValid.value"
+            :disabled="!isValid"
           >
             Update
           </v-btn>
@@ -80,7 +80,7 @@
             variant="text"
             @click="save()"
             :loading="loading"
-            :disabled="!isValid.value"
+            :disabled="!isValid"
           >
             Create
           </v-btn>

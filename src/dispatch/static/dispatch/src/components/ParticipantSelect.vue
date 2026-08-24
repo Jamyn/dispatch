@@ -23,7 +23,7 @@
       </v-list-item>
     </template>
     <template #item="{ props, item }">
-      <v-list-item v-bind="props" :subtitle="item.raw.individual.email" />
+      <v-list-item v-bind="props" :subtitle="item.individual.email" />
     </template>
     <template #append-item v-if="items.length < total.value">
       <v-list-item @click="loadMore()">
@@ -33,9 +33,9 @@
     <template #chip="data">
       <v-chip v-bind="data.props" pill>
         <template #prepend>
-          <v-avatar color="teal" start> {{ initials(data.item.raw.individual.name) }} </v-avatar>
+          <v-avatar color="teal" start> {{ initials(data.item.individual.name) }} </v-avatar>
         </template>
-        {{ data.item.raw.individual.name }}
+        {{ data.item.individual.name }}
       </v-chip>
     </template>
   </v-autocomplete>

@@ -36,7 +36,7 @@
           color="info"
           variant="elevated"
           :loading="loading"
-          :disabled="!isValid.value"
+          :disabled="!isValid"
         >
           Login
           <template #loader>

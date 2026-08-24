@@ -8,7 +8,7 @@
           <v-list-item-subtitle>Service</v-list-item-subtitle>
 
           <template #append>
-            <v-btn icon variant="text" color="info" :disabled="!isValid.value" @click="save()">
+            <v-btn icon variant="text" color="info" :disabled="!isValid" @click="save()">
               <v-icon>mdi-content-save</v-icon>
             </v-btn>
             <v-btn icon variant="text" color="secondary" @click="closeCreateEdit()">

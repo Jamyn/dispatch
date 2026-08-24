@@ -17,7 +17,7 @@
         </v-card-text>
         <v-card-text>
           <v-spacer />
-          <v-row align="center" dense>
+          <v-row align="center" density="compact">
             <v-col cols="12" sm="4">
               <v-tooltip location="bottom">
                 <template #activator="{ props }">

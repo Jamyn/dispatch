@@ -1,8 +1,8 @@
 <template>
-  <v-container class="fill-height" fluid>
+  <v-container class="fill-height d-flex align-center flex-wrap" fluid>
     <v-row align="center" justify="center">
       <v-col cols="12" sm="8" md="6" lg="4">
-        <v-card class="elevation-12">
+        <v-card class="elevation-5">
           <v-card-title class="text-center text-h5 py-4">
             Multi-Factor Authentication
           </v-card-title>

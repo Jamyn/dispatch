@@ -83,7 +83,7 @@
                     color="info"
                     @click="saveWorkflow()"
                     :loading="loading"
-                    :disabled="!isValid.value"
+                    :disabled="!isValid"
                   >
                     Save
                   </v-btn>

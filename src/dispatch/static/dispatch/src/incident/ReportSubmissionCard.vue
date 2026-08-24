@@ -127,7 +127,7 @@
             block
             variant="flat"
             :loading="loading"
-            :disabled="!isValid.value"
+            :disabled="!isValid"
             type="submit"
           >
             Submit

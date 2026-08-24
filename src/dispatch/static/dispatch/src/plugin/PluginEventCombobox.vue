@@ -15,10 +15,10 @@
     <template #item="data">
       <v-list-item v-bind="data.props" :title="null">
         <v-list-item-title>
-          {{ data.item.raw.name }}
+          {{ data.item.name }}
         </v-list-item-title>
-        <v-list-item-subtitle :title="data.item.raw.slug">
-          {{ data.item.raw.slug }}
+        <v-list-item-subtitle :title="data.item.slug">
+          {{ data.item.slug }}
         </v-list-item-subtitle>
       </v-list-item>
     </template>

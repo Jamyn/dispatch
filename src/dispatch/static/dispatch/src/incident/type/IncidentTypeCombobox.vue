@@ -28,21 +28,21 @@
     <template #chip="{ item, props }">
       <v-chip v-bind="props">
         <span>
-          <span v-if="item.raw.project">{{ item.raw.project.display_name }}/</span>
+          <span v-if="item.project">{{ item.project.display_name }}/</span>
         </span>
-        {{ item.raw.name }}
+        {{ item.name }}
       </v-chip>
     </template>
     <template #item="{ props, item }">
       <v-list-item v-bind="props" :title="null">
         <v-list-item-title>
           <span>
-            <span v-if="item.raw.project">{{ item.raw.project.display_name }}/</span>
+            <span v-if="item.project">{{ item.project.display_name }}/</span>
           </span>
-          {{ item.raw.name }}
+          {{ item.name }}
         </v-list-item-title>
-        <v-list-item-subtitle :title="item.raw.description">
-          {{ item.raw.description }}
+        <v-list-item-subtitle :title="item.description">
+          {{ item.description }}
         </v-list-item-subtitle>
       </v-list-item>
     </template>

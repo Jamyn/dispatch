@@ -62,7 +62,7 @@
           <v-spacer />
           <v-btn variant="text" @click="closeNewTaskDialog()"> Cancel </v-btn>
           <v-btn
-            :disabled="!isValid.value"
+            :disabled="!isValid"
             color="green en-1"
             variant="text"
             @click="updateExistingTask()"

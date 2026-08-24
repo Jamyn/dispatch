@@ -27,14 +27,14 @@
       </v-list-item>
     </template>
     <template #item="{ props, item }">
-      <v-list-item v-bind="props" :subtitle="item.raw.email" />
+      <v-list-item v-bind="props" :subtitle="item.email" />
     </template>
     <template #chip="data">
       <v-chip v-bind="data.props" pill>
         <template #prepend>
-          <v-avatar color="teal" start> {{ initials(data.item.raw.name) }} </v-avatar>
+          <v-avatar color="teal" start> {{ initials(data.item.name) }} </v-avatar>
         </template>
-        {{ data.item.raw.name }}
+        {{ data.item.name }}
       </v-chip>
     </template>
   </v-autocomplete>

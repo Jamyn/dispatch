@@ -27,8 +27,8 @@
     </template>
     <template #item="{ props, item }">
       <v-list-item v-bind="props">
-        <v-list-item-subtitle :title="item.raw.description">
-          {{ item.raw.description }}
+        <v-list-item-subtitle :title="item.description">
+          {{ item.description }}
         </v-list-item-subtitle>
       </v-list-item>
     </template>
