@@ -62,7 +62,7 @@
     "sortablejs": "^1.15.7",
     "swrv": "^1.2.0",
     "vue": "^3.5.41",
-    "vue-router": "^4.2.5",
+    "vue-router": "^5.2.0",
     "vue3-apexcharts": "~1.7.0",
     "vue3-markdown-it": "^1.0.10",
     "vuetify": "^3.4.3",
