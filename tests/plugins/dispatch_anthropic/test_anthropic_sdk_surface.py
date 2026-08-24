@@ -57,3 +57,15 @@ def test_the_error_hierarchy_the_plugin_catches_is_the_root_one():
 
     for cls in (APIStatusError, APIConnectionError, AuthenticationError, RateLimitError):
         assert issubclass(cls, AnthropicError), cls.__name__
+
+
+def test_the_sdk_builds_on_httpx2():
+    """The fixtures mount their fake at the SDK's transport, so they have to
+    hand it a client of the right kind -- and anthropic 1.x rejects an ``httpx``
+    client from the constructor outright. Pinning the HTTP layer here reports a
+    future swap as the dependency change it is, rather than as a TypeError in
+    every fixture that builds a client."""
+    import httpx2
+    from anthropic import DefaultHttpxClient
+
+    assert issubclass(DefaultHttpxClient, httpx2.Client)

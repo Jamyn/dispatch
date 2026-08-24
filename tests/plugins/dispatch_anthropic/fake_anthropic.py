@@ -1,12 +1,16 @@
 """An in-memory Anthropic API, for driving the real plugin against (issue #79).
 
-The fake is installed at the httpx transport, below the anthropic SDK, so the
+The fake is installed at the httpx2 transport, below the anthropic SDK, so the
 plugin's own client construction and the SDK's own request building, structured
 output schema generation and response parsing all run for real against it.
 Replacing ``client.messages`` with a mock instead would assert only that the
 plugin called something -- and issue #75, the defect this plugin exists not to
 repeat, is precisely a case where every mocked assertion passed while no real
 request could ever be built.
+
+httpx2, not httpx: anthropic 1.x builds its requests on httpx2 and rejects an
+httpx client from its constructor outright, so a fake mounted on httpx would not
+even construct.
 
 Only the plugin's ``Anthropic`` name is patched, and only to hand the real
 client a transport. Everything the plugin passes to that constructor -- the API
@@ -16,7 +20,7 @@ fixture can assert on.
 
 import json
 
-import httpx
+import httpx2
 from anthropic import Anthropic  # noqa: F401  (re-exported for the fixtures)
 
 # Obviously fake, and never a real-looking credential.
@@ -68,7 +72,7 @@ class FakeAnthropicAPI:
     def respond_with_blocks(self, blocks: list[dict], stop_reason: str = "end_turn"):
         """An arbitrary content-block list -- several text blocks, a thinking
         block, a tool_use block, or none at all."""
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             200, json=self._message(request, blocks, stop_reason=stop_reason)
         )
 
@@ -81,7 +85,7 @@ class FakeAnthropicAPI:
         """The model declined. Anthropic sends stop_reason ``refusal`` plus a
         ``stop_details`` object naming the policy category; ``content`` is
         empty, and ``messages.parse`` reports ``parsed_output`` as None."""
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             200,
             json=self._message(
                 request,
@@ -109,7 +113,7 @@ class FakeAnthropicAPI:
         body quotes the submitted API key back inside it -- see
         ``respond_with_key_echo``, which is the shape that matters.
         """
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             status,
             json={"type": "error", "error": {"type": error_type, "message": message}},
             headers={"request-id": "req_test_0001"},
@@ -128,7 +132,7 @@ class FakeAnthropicAPI:
     def respond_with_non_envelope(self, status: int = 502):
         """A body that is not Anthropic's error envelope at all -- what a proxy
         or gateway in front of the API returns. `APIStatusError.type` is None."""
-        self._handler = lambda request: httpx.Response(
+        self._handler = lambda request: httpx2.Response(
             status, text="<html><body>502 Bad Gateway</body></html>"
         )
 
@@ -138,7 +142,7 @@ class FakeAnthropicAPI:
         `APIStatusError`, so it has no status, type or request id."""
 
         def raise_connect_error(request):
-            raise httpx.ConnectError("connection refused", request=request)
+            raise httpx2.ConnectError("connection refused", request=request)
 
         self._handler = raise_connect_error
 
@@ -180,7 +184,7 @@ class FakeAnthropicAPI:
             "usage": {"input_tokens": 1, "output_tokens": 1},
         }
 
-    def __call__(self, request: httpx.Request) -> httpx.Response:
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.requests.append(
             {
                 "url": str(request.url),

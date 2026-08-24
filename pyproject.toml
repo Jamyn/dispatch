@@ -34,7 +34,7 @@ dependencies = [
     "aiofiles",
     "aiohttp",
     "alembic",
-    "anthropic==0.125.0",
+    "anthropic==1.0.0",
     # 5.0.0 split Confluence into separate Cloud (REST v2) and Server (REST v1)
     # classes with different method signatures. The major ceiling keeps the next
     # such split from reaching production through a routine bump.

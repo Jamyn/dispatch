@@ -10,7 +10,7 @@ mocked assertion passed while no real request could ever be built.
 httpx2, not httpx: openai 3.x builds its requests on httpx2 and only accepts an
 httpx client through a legacy escape hatch the SDK documents as temporary. A
 fake mounted on that hatch would exercise a stack production no longer uses.
-The anthropic fake stays on httpx, which is what that SDK still ships against.
+The anthropic fake is on httpx2 too, since anthropic 1.x.
 
 Only the plugin's ``OpenAI`` name is patched, and only to hand the real client a
 transport. Everything the plugin passes to that constructor -- the API key above
