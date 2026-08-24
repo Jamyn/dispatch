@@ -59,7 +59,12 @@ const getters = {
 var oldStablePriority = undefined
 
 function commitStablePriority(commit, value) {
-  ProjectApi.getAll({ q: state.table.options.filters.project[0].name }).then((response) => {
+  // With no project selected there is nothing to write to, so this is a no-op.
+  // An undefined `q` matches every project and would save the setting onto
+  // whichever one sorts first.
+  const projectName = state.table.options.filters.project[0]?.name
+  if (!projectName) return
+  ProjectApi.getAll({ q: projectName }).then((response) => {
     const project = response.data.items[0]
     if (project) {
       project.stable_priority_id = value

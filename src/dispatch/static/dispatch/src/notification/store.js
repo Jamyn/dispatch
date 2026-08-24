@@ -105,7 +105,12 @@ const actions = {
     commit("SET_SELECTED", notification)
   },
   updateDailyReports({ commit }, value) {
-    ProjectApi.getAll({ q: state.table.options.filters.project[0].name }).then((response) => {
+    // With no project selected there is nothing to write to, so these three
+    // actions are a no-op. An undefined `q` matches every project and would
+    // save the setting onto whichever one sorts first.
+    const projectName = state.table.options.filters.project[0]?.name
+    if (!projectName) return
+    ProjectApi.getAll({ q: projectName }).then((response) => {
       const project = response.data.items[0]
       if (project) {
         project.send_daily_reports = value
@@ -123,7 +128,9 @@ const actions = {
     })
   },
   updateWeeklyReports({ commit }, value) {
-    ProjectApi.getAll({ q: state.table.options.filters.project[0].name }).then((response) => {
+    const projectName = state.table.options.filters.project[0]?.name
+    if (!projectName) return
+    ProjectApi.getAll({ q: projectName }).then((response) => {
       const project = response.data.items[0]
       if (project) {
         project.send_weekly_reports = value
@@ -141,7 +148,9 @@ const actions = {
     })
   },
   updateWeeklyReportNotificationId({ commit }, value) {
-    ProjectApi.getAll({ q: state.table.options.filters.project[0].name }).then((response) => {
+    const projectName = state.table.options.filters.project[0]?.name
+    if (!projectName) return
+    ProjectApi.getAll({ q: projectName }).then((response) => {
       const project = response.data.items[0]
       if (project) {
         project.weekly_report_notification_id = value
