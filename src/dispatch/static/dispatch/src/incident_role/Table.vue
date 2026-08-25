@@ -44,9 +44,25 @@ export default {
     SettingsBreadcrumbs,
   },
 
+  data() {
+    return {
+      // Must be declared here, not assigned in created(): Vue 3 parks an
+      // undeclared assignment on the instance ctx, where it renders but is
+      // never reactive, so the watcher below would never fire.
+      breadCrumbProject: [],
+    }
+  },
+
+  computed: {
+    // PolicyRoleBuilder takes a single project and dereferences `.name`, so
+    // keep the `{ name }` shape even when nothing is selected.
+    project() {
+      return { name: this.breadCrumbProject[0]?.name }
+    },
+  },
+
   created() {
     this.breadCrumbProject = [{ name: this.$route.query.project }]
-    this.project = { name: this.$route.query.project }
     this.$watch(
       (vm) => [vm.breadCrumbProject],
       () => {
