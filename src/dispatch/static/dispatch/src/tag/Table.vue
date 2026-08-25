@@ -91,7 +91,10 @@ export default {
       headers: [
         { title: "Name", value: "name", sortable: true },
         { title: "Description", value: "description", sortable: false },
-        { title: "Type", value: "tag_type.name", sortable: true },
+        // Not sortable: Tag is on search_filter_sort_paginate's
+        // models_needing_distinct branch, which keeps an ORDER BY only over Tag's
+        // own columns -- so a tag_type.name sort stays dropped even after #304.
+        { title: "Type", value: "tag_type.name", sortable: false },
         { title: "Source", value: "source", sortable: true },
         { title: "URI", value: "uri", sortable: false },
         { title: "External ID", value: "external_id", sortable: false },
