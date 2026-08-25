@@ -285,13 +285,13 @@ blockkit==2.1.3 \
     --hash=sha256:d92c30296770de6a8a4f0ac30fa6f6c78881c45a22d808bdb33767cfa0ea7bb9 \
     --hash=sha256:f71de30029afdce3e7cd3d869519c7207788e419267898acd6445d471b112215
     # via dispatch (pyproject.toml)
-boto3==1.43.76 \
-    --hash=sha256:249f55274aef9fa3b9de6afb6f5b2effbbb15c5263d97c13e7b691f479a62c04 \
-    --hash=sha256:fa4dc85f735bb67d8f82e42ac50af7e1d2c039aeacf40c878067c9046464b6ad
+boto3==1.43.78 \
+    --hash=sha256:2fa59116e298171ef59e7600a8be6c01177faef8af4b9a4314b7a57a04009ada \
+    --hash=sha256:893f06a171469618e17de78dc927aca6e74fcf45a70d2c5918e9ac9919e96cc9
     # via dispatch (pyproject.toml)
-botocore==1.43.76 \
-    --hash=sha256:1f19bc9f388db571ca2385ea9fb8b58f4e01d4ff20fa225cff698ea123feb6f7 \
-    --hash=sha256:2b0325a0b4523ccb83b84a7acf7c3eade9f9e6be51a6769a01014df343744f5d
+botocore==1.43.78 \
+    --hash=sha256:ddd020493235e264b3bd12606f239a3d3b2dd7cfb1d25a0691061183c290c228 \
+    --hash=sha256:e8238d22c1e1342025d75d2e33d154a375e7caad0fc67f77d77faa2d82668b94
     # via
     #   boto3
     #   s3transfer
