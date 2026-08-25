@@ -95,7 +95,7 @@
     "resize-observer-polyfill": "^1.5.1",
     "sass": "^1.103.1",
     "sass-embedded": "^1.103.1",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "unplugin-vue-components": "^0.22.12",
     "vite": "^8.2.1",
     "vite-plugin-monaco-editor": "^1.1.0",
