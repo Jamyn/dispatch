@@ -1217,3 +1217,95 @@ def test_a_tag_type_id_clause_still_returns_each_matching_tag_once(session, admi
 
     assert sorted(tag.id for tag in result["items"]) == sorted(tag.id for tag in wanted)
     assert result["total"] == len(wanted)
+
+
+def executed_statements(session, current_user, **kwargs):
+    """Every statement `search_filter_sort_paginate` runs, with the tenant
+    schema prefix stripped so table names can be matched literally."""
+    import re
+
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+
+    statements = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(re.sub(r"\bdispatch_organization_\w+\.", "", statement))
+
+    event.listen(Engine, "before_cursor_execute", record)
+    try:
+        search_filter_sort_paginate(
+            db_session=session,
+            current_user=current_user,
+            role=UserRoles.admin,
+            **kwargs,
+        )
+    finally:
+        event.remove(Engine, "before_cursor_execute", record)
+
+    return statements
+
+
+def test_a_sort_by_tag_type_joins_it_through_the_tag_not_the_project(session, admin_user, project):
+    """Given a Tag search sorted by tag_type.name, then tag_type is joined on
+    tag.tag_type_id.
+
+    apply_sort runs its own auto-join, which reads the ON clause off whatever
+    is already joined -- with project joined by the filter it reached tag_type
+    through project.project_id instead, multiplying each tag by the number of
+    types in its project. Asserted on the SQL: DISTINCT hides the extra rows
+    from the result, so nothing about the returned page shows the difference.
+    """
+    from tests.factories import TagFactory, TagTypeFactory
+
+    TagFactory(project=project, tag_type=TagTypeFactory(project=project))
+    session.commit()
+
+    statements = executed_statements(
+        session,
+        admin_user,
+        model="Tag",
+        filter_spec=tags_in_project(project),
+        sort_by=["tag_type.name"],
+        descending=[False],
+        items_per_page=5,
+    )
+
+    joins = [s for s in statements if "JOIN tag_type" in s]
+    assert joins, "no statement joined tag_type at all"
+    for statement in joins:
+        assert "JOIN tag_type ON tag_type.id = tag.tag_type_id" in statement, (
+            f"tag_type joined by the wrong path: {statement}"
+        )
+
+
+def test_sorting_tags_by_type_does_not_inflate_the_unpaginated_total(session, admin_user, project):
+    """Given an unpaginated Tag search sorted by tag_type.name, then the total
+    counts each tag once.
+
+    itemsPerPage of -1 skips the DISTINCT branch, so the count runs over the
+    join as it stands -- a tag_type joined through project multiplied every tag
+    by the number of types in the project. The items themselves are uniqued by
+    identity on the way out, so only the total shows it.
+    """
+    from tests.factories import TagFactory, TagTypeFactory
+
+    tag_type = TagTypeFactory(project=project)
+    for _ in range(3):
+        TagTypeFactory(project=project)
+    tags = [TagFactory(project=project, tag_type=tag_type) for _ in range(2)]
+    session.commit()
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Tag",
+        filter_spec=tags_in_project(project),
+        sort_by=["tag_type.name"],
+        descending=[False],
+        current_user=admin_user,
+        role=UserRoles.admin,
+        items_per_page=-1,
+    )
+
+    assert result["total"] == len(tags)
+    assert sorted(tag.id for tag in result["items"]) == sorted(tag.id for tag in tags)

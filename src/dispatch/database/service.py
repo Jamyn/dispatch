@@ -453,8 +453,20 @@ def apply_filters(query, filter_spec, model_cls=None, do_auto_join=True):
     return query
 
 
-def apply_filter_specific_joins(model: Base, filter_spec: dict, query: orm.query):
-    """Applies any model specific implicitly joins."""
+def joins_at_most_one_row(joined_model) -> bool:
+    """Whether joining `joined_model` can match at most one row per source row.
+
+    Only a scalar relationship qualifies; a collection multiplies rows and a
+    bare model class is an implicit path rather than a relationship at all.
+    """
+    prop = getattr(joined_model, "property", None)
+    return isinstance(prop, orm.RelationshipProperty) and not prop.uselist
+
+
+def apply_filter_specific_joins(
+    model: Base, filter_spec: dict, query: orm.query, sort_spec: list[dict] | None = None
+):
+    """Applies any model specific implicit joins for the filter and sort specs."""
     # this is required because by default sqlalchemy-filter's auto-join
     # knows nothing about how to join many-many relationships.
     model_map = {
@@ -488,7 +500,7 @@ def apply_filter_specific_joins(model: Base, filter_spec: dict, query: orm.query
         (Tag, "Project"): (Project, False),
         (IndividualContact, "Project"): (Project, False),
     }
-    filters = build_filters(filter_spec)
+    filters = build_filters(filter_spec) if filter_spec else []
 
     # Replace mapping if looking for commander
     if "Commander" in str(filter_spec):
@@ -496,9 +508,19 @@ def apply_filter_specific_joins(model: Base, filter_spec: dict, query: orm.query
     if "Assignee" in str(filter_spec):
         model_map.update({(Case, "IndividualContact"): (Case.assignee, True)})
 
+    # apply_sort runs its own auto-join, which infers each ON clause from
+    # whatever is already joined and so can reach the target by a path that is
+    # not the relationship (#304). Hand it the mapped join instead -- but only
+    # where that cannot change which rows come back, since a sort must not.
+    sort_models = [
+        spec["model"]
+        for spec in sort_spec or []
+        if joins_at_most_one_row(model_map.get((model, spec.get("model")), (None, None))[0])
+    ]
+
     filter_models = get_named_models(filters)
     joined_models = []
-    for filter_model in filter_models:
+    for filter_model in filter_models + sort_models:
         if model_map.get((model, filter_model)):
             joined_model, is_outer = model_map[(model, filter_model)]
             try:
@@ -761,7 +783,15 @@ def search_filter_sort_paginate(
             # but most come from API as seraialized JSON
             if isinstance(filter_spec, str):
                 filter_spec = json.loads(filter_spec)
-            query = apply_filter_specific_joins(model_cls, filter_spec, query)
+
+        # built before the joins so a sort on a joined column gets the same
+        # relationship join a filter on that model would
+        sort_spec = create_sort_spec(model, sort_by, descending) if sort_by else []
+
+        if filter_spec or sort_spec:
+            query = apply_filter_specific_joins(model_cls, filter_spec, query, sort_spec)
+
+        if filter_spec:
             # if the filter_spec has the TagAll filter, we need to split the query up
             # and intersect all of the results
             if has_not_case_type(filter_spec):
@@ -786,8 +816,7 @@ def search_filter_sort_paginate(
         for filter in tag_all_filters:
             query = query.intersect(filter)
 
-        if sort_by:
-            sort_spec = create_sort_spec(model, sort_by, descending)
+        if sort_spec:
             query = apply_sort(query, sort_spec)
 
         query = apply_deterministic_sort(query, model_cls)
