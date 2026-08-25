@@ -1309,3 +1309,70 @@ def test_sorting_tags_by_type_does_not_inflate_the_unpaginated_total(session, ad
 
     assert result["total"] == len(tags)
     assert sorted(tag.id for tag in result["items"]) == sorted(tag.id for tag in tags)
+
+
+# --- Two relationship joins on one source model -----------------------------
+# apply_filter_specific_joins keyed its dedup on the relationship's `.parent`,
+# which is the *source* mapper -- so every relationship of one model collapsed
+# to a single key and all but the first join was skipped (#305).
+
+
+def two_model_spec(first, second):
+    """A spec naming two models, the shape the UI sends for two filter chips."""
+    return json.dumps({"and": [{"or": [first]}, {"or": [second]}]})
+
+
+def test_filtering_on_two_relationships_of_one_model(session, admin_user, project):
+    """Given a filter naming two related models, when it runs, then both apply.
+
+    Tag and Term reach Incident by separate relationships. Keyed on the source
+    mapper the two are indistinguishable, so the second join never happens and
+    the query dies resolving that model.
+    """
+    from tests.factories import IncidentFactory, TagFactory, TermFactory
+
+    tag = TagFactory(project=project)
+    term = TermFactory(project=project)
+    both = IncidentFactory(project=project, tags=[tag])
+    both.terms.append(term)
+    tag_only = IncidentFactory(project=project, tags=[tag])
+    session.commit()
+
+    result = search_filter_sort_paginate(
+        db_session=session,
+        model="Incident",
+        filter_spec=two_model_spec(
+            {"model": "Tag", "field": "name", "op": "==", "value": tag.name},
+            {"model": "Term", "field": "text", "op": "==", "value": term.text},
+        ),
+        current_user=admin_user,
+        role=UserRoles.admin,
+    )
+
+    names = [incident.name for incident in result["items"]]
+    assert both.name in names, "the incident carrying both the tag and the term did not match"
+    assert tag_only.name not in names, "an incident carrying only the tag matched"
+
+
+def test_a_second_relationship_join_is_applied(session, admin_user, project):
+    """Given two relationship-backed models in one spec, when the joins are
+    applied, then the query carries both targets.
+
+    Asserted on the joins rather than on rows: Case reaches IndividualContact
+    through Participant, and sqlalchemy-filters cannot infer that last hop once
+    the tag join is also present. That is a separate defect (#370) -- this one
+    is that the participant join was dropped before it could be tried.
+    """
+    from dispatch.database.service import apply_filter_specific_joins, get_query_models
+
+    spec = json.loads(
+        two_model_spec(
+            {"model": "Tag", "field": "name", "op": "==", "value": "x"},
+            {"model": "IndividualContact", "field": "email", "op": "==", "value": "a@example.com"},
+        )
+    )
+
+    query = apply_filter_specific_joins(Case, spec, session.query(Case))
+
+    joined = set(get_query_models(query))
+    assert {"Tag", "Participant"} <= joined, f"a mapped join was skipped -- joined {joined}"
