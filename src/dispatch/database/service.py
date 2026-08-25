@@ -463,6 +463,19 @@ def joins_at_most_one_row(joined_model) -> bool:
     return isinstance(prop, orm.RelationshipProperty) and not prop.uselist
 
 
+def join_target(joined_model):
+    """The entity a model-map entry joins to.
+
+    A relationship attribute's `.parent` is the *source* mapper, so keying dedup
+    on it collapses every relationship of one model into one entry and drops all
+    but the first join (#305).
+    """
+    prop = getattr(joined_model, "property", None)
+    if isinstance(prop, orm.RelationshipProperty):
+        return prop.mapper
+    return orm.class_mapper(joined_model)
+
+
 def apply_filter_specific_joins(
     model: Base, filter_spec: dict, query: orm.query, sort_spec: list[dict] | None = None
 ):
@@ -524,11 +537,12 @@ def apply_filter_specific_joins(
         if model_map.get((model, filter_model)):
             joined_model, is_outer = model_map[(model, filter_model)]
             try:
-                # Use the model or table itself for tracking joins
-                model_or_table = getattr(joined_model, "parent", joined_model)
-                if model_or_table not in joined_models:
+                # Track by what the join lands on, so two relationships of the
+                # same source model are not mistaken for one another.
+                target = join_target(joined_model)
+                if target not in joined_models:
                     query = query.join(joined_model, isouter=is_outer)
-                    joined_models.append(model_or_table)
+                    joined_models.append(target)
             except Exception as e:
                 log.exception(e)
 
