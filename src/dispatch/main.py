@@ -8,7 +8,7 @@ from typing import Final
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
+from sentry_sdk.integrations.asgi import SentryAsgiMiddleware, _RootPathInPath
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import inspect
@@ -261,8 +261,11 @@ class ExceptionMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# we add a middleware class for logging exceptions to Sentry
-api.add_middleware(SentryAsgiMiddleware)
+# we add a middleware class for logging exceptions to Sentry.
+# Starlette >= 0.33 leaves the mount prefix in scope["path"] as well as
+# scope["root_path"], so the default EXCLUDED mode reports /api/v1/api/v1/... .
+# EITHER is what sentry-sdk's own Starlette integration picks for this version.
+api.add_middleware(SentryAsgiMiddleware, root_path_in_path=_RootPathInPath.EITHER)
 
 # we add a middleware class for capturing metrics using Dispatch's metrics provider
 api.add_middleware(MetricsMiddleware)

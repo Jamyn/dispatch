@@ -15,7 +15,7 @@ from sentry_sdk.integrations.asgi import SentryAsgiMiddleware
 from sentry_sdk.transport import Transport
 
 import dispatch.extensions
-from dispatch.main import api
+from dispatch.main import api, app
 
 
 class SentryProbeError(Exception):
@@ -134,3 +134,30 @@ def test_reporting_path_raises_no_sentry_deprecation_warning(session, sentry_pro
         and "sentry" in f"{w.message} {w.filename}".lower()
     ]
     assert not offenders, offenders
+
+
+def test_captured_exception_url_does_not_repeat_the_mount_prefix(
+    session, sentry_probe, probe_route
+):
+    """Requests reach the API through app.mount("/api/v1"), not the api app directly.
+
+    Starlette >= 0.33 leaves the mount prefix in both scope["path"] and
+    scope["root_path"], so a middleware that concatenates them reports
+    /api/v1/api/v1/... and Sentry's URL grouping splits on it (#298).
+    """
+    sentry_probe.configure()
+
+    response = TestClient(app).get(f"/api/v1{probe_route}")
+    assert response.status_code == 500
+
+    events = [
+        e
+        for e in sentry_probe.events
+        if any(
+            v.get("type") == "SentryProbeError" for v in e.get("exception", {}).get("values", [])
+        )
+    ]
+    assert events, sentry_probe.events
+
+    url = events[0]["request"]["url"]
+    assert url == f"http://testserver/api/v1{probe_route}", url
