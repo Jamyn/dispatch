@@ -218,21 +218,26 @@ function convertToFormkit(json_schema) {
           help: value.description,
         },
       }
-    } else if (value.allOf) {
-      const ref = value.allOf[0].$ref
-      // will be something like "#/definitions/HostingType"
-      const ref_name = ref.split("/").pop()
-      const ref_obj = json_schema.definitions[ref_name]["enum"]
-      obj = {
-        $formkit: "select",
-        name: key,
-        label: value.title,
-        help: value.description,
-        options: ref_obj.map((item) => {
-          return { label: item, value: item }
-        }),
-        default: value.default,
-        validation: "required",
+    } else if (value.$ref) {
+      // A referenced enum arrives as a bare `$ref` into `$defs`. A ref that
+      // resolves to nothing leaves `obj` empty rather than throwing, which
+      // would propagate out of SET_SELECTED and take the whole form down.
+      const ref_name = value.$ref.split("/").pop()
+      const members = json_schema.$defs?.[ref_name]?.enum
+      if (members) {
+        obj = {
+          $formkit: "select",
+          name: key,
+          label: value.title,
+          help: value.description,
+          options: members.map((item) => {
+            return { label: item, value: item }
+          }),
+          // `value`, not `default`: FormKit has no `default` prop, so a
+          // `default` key would leave the select showing its first option.
+          value: value.default,
+          validation: "required",
+        }
       }
     }
     formkit_schema.push(obj)

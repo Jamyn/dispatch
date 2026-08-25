@@ -112,6 +112,26 @@ const GOOGLE_DEFAULT_DURATION_MINUTES = {
   type: "integer",
 }
 
+/**
+ * A referenced enum. Pydantic v2 emits a bare `$ref` on the property and puts
+ * the members under `$defs`, not `allOf`/`definitions` (#293).
+ */
+const CONFLUENCE_HOSTING_TYPE = {
+  $ref: "#/$defs/HostingType",
+  default: "cloud",
+  description: "Defines the type of deployment.",
+  title: "Hosting Type",
+}
+
+const CONFLUENCE_DEFS = {
+  HostingType: {
+    description: "Type of Atlassian Confluence deployment.",
+    enum: ["cloud", "server"],
+    title: "HostingType",
+    type: "string",
+  },
+}
+
 const CONFLUENCE_OPEN_ON_CLOSE = {
   default: false,
   description:
@@ -206,6 +226,33 @@ describe("integer fields are rendered", () => {
   })
 })
 
+describe("a referenced enum is rendered as a select", () => {
+  it("resolves the $ref through $defs into options, seeded with the schema default", () => {
+    const obj = convert({ hosting_type: CONFLUENCE_HOSTING_TYPE }, { $defs: CONFLUENCE_DEFS })[0]
+    expect(obj).toMatchObject({
+      $formkit: "select",
+      name: "hosting_type",
+      label: "Hosting Type",
+      help: "Defines the type of deployment.",
+      options: [
+        { label: "cloud", value: "cloud" },
+        { label: "server", value: "server" },
+      ],
+      value: "cloud",
+    })
+  })
+
+  it("survives a $ref that resolves to nothing without dropping later fields", () => {
+    const schema = convert({
+      hosting_type: CONFLUENCE_HOSTING_TYPE,
+      open_on_close: CONFLUENCE_OPEN_ON_CLOSE,
+    })
+    expect(schema).toHaveLength(2)
+    expect(schema[0]).toEqual({})
+    expect(schema[1]).toMatchObject({ $cmp: "FormKit", props: { name: "open_on_close" } })
+  })
+})
+
 it("leaves boolean fields alone", () => {
   expect(convertOne(CONFLUENCE_OPEN_ON_CLOSE)).toMatchObject({
     $cmp: "FormKit",
@@ -297,5 +344,61 @@ describe("the slack-contact schema, mounted through FormKitSchema", () => {
     }
     expect(wrapper.find('input[name="socket_mode_app_token"]').attributes("type")).toBe("password")
     expect(wrapper.find('input[name="profile_team_field_id"]').attributes("type")).toBe("text")
+  })
+})
+
+describe("the confluence schema, mounted through FormKitSchema", () => {
+  const mountConfluence = () =>
+    mount(Harness, {
+      props: {
+        schema: convert(
+          { hosting_type: CONFLUENCE_HOSTING_TYPE, api_url: CONFLUENCE_API_URL },
+          { $defs: CONFLUENCE_DEFS },
+        ),
+      },
+      global: { plugins: [[formkitPlugin, defaultConfig]] },
+    })
+
+  it("renders a select offering every enum member, defaulted to cloud", () => {
+    const select = mountConfluence().find('select[name="hosting_type"]')
+    expect(select.exists()).toBe(true)
+    expect(select.findAll("option").map((o) => o.element.value)).toEqual(["cloud", "server"])
+    expect(select.element.value).toBe("cloud")
+  })
+
+  // Confluence's default is also the first option, so that test alone cannot
+  // tell a seeded select from an unseeded one. This one can.
+  it("seeds the select from a default that is not the first member", () => {
+    const wrapper = mount(Harness, {
+      props: {
+        schema: convert(
+          { hosting_type: { ...CONFLUENCE_HOSTING_TYPE, default: "server" } },
+          { $defs: CONFLUENCE_DEFS },
+        ),
+      },
+      global: { plugins: [[formkitPlugin, defaultConfig]] },
+    })
+    expect(wrapper.find('select[name="hosting_type"]').element.value).toBe("server")
+  })
+
+  // A saved instance's stored value must win over the schema default, or
+  // editing any other field would silently reset hosting_type to cloud.
+  it("lets a saved instance's value override the schema default", () => {
+    const wrapper = mount(Harness, {
+      props: {
+        schema: convert({ hosting_type: CONFLUENCE_HOSTING_TYPE }, { $defs: CONFLUENCE_DEFS }),
+        initial: { hosting_type: "server" },
+      },
+      global: { plugins: [[formkitPlugin, defaultConfig]] },
+    })
+    expect(wrapper.find('select[name="hosting_type"]').element.value).toBe("server")
+    expect(wrapper.vm.configuration.hosting_type).toBe("server")
+  })
+
+  it("puts the operator's choice into the form model", async () => {
+    const wrapper = mountConfluence()
+    await wrapper.find('select[name="hosting_type"]').setValue("server")
+    await vi.waitUntil(() => wrapper.vm.configuration.hosting_type === "server")
+    expect(wrapper.vm.configuration.hosting_type).toBe("server")
   })
 })

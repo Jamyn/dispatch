@@ -22,6 +22,14 @@ export function formatToUTC(value) {
   }
 }
 
+// Names the zone in the string itself, for values rendered somewhere no
+// surrounding label says which zone they are in.
+export function formatToUTCWithZone(value) {
+  if (value) {
+    return `${formatToUTC(value)} UTC`
+  }
+}
+
 function formatTimeZone(time) {
   return `${time.format("z")}: ${time.format(time_format)}`
 }

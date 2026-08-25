@@ -22,7 +22,7 @@
         <template #activator="{ props }">
           <span v-bind="props">{{ formatRelativeDate(value) }}</span>
         </template>
-        <span>{{ formatDate(value) }}</span>
+        <span>{{ formatToUTCWithZone(value) }}</span>
       </v-tooltip>
     </template>
     <template #item.status="{ item }">
@@ -36,7 +36,7 @@
 <script>
 import { mapFields } from "vuex-map-fields"
 import { mapActions } from "vuex"
-import { formatRelativeDate, formatDate } from "@/filters"
+import { formatRelativeDate, formatToUTCWithZone } from "@/filters"
 
 import SignalPopover from "@/signal/SignalPopover.vue"
 import MultiSignalPopover from "@/signal/MultiSignalPopover.vue"
@@ -63,7 +63,7 @@ export default {
   },
 
   setup() {
-    return { formatRelativeDate, formatDate }
+    return { formatRelativeDate, formatToUTCWithZone }
   },
 
   computed: {
