@@ -49,6 +49,22 @@ const SLACK_SOCKET_MODE_APP_TOKEN = {
   title: "Socket Mode App Token",
 }
 
+/** `Optional[str]`: an `anyOf` whose only renderable member carries no format. */
+const SLACK_PROFILE_TEAM_FIELD_ID = {
+  anyOf: [{ type: "string" }, { type: "null" }],
+  description: "Defines the field in the slack profile where Dispatch should fetch a users team.",
+  title: "Profile Team Field Id",
+}
+
+/** The same, with an explicit `default: null` from `Field(None, ...)`. */
+const SLACK_PROFILE_DEPARTMENT_FIELD_ID = {
+  anyOf: [{ type: "string" }, { type: "null" }],
+  default: null,
+  description:
+    "Defines the field in the slack profile where Dispatch should fetch the users department.",
+  title: "Profile Department Field Id",
+}
+
 const ZOOM_CLIENT_ID = {
   description: "Client ID of the Server-to-Server OAuth app.",
   title: "Client ID",
@@ -151,6 +167,44 @@ describe("secrets never convert to a cleartext input", () => {
     expect(convertOne(SLACK_SOCKET_MODE_APP_TOKEN).autocomplete).toBe("new-password")
     // A non-secret string must not pick the attribute up.
     expect(convertOne(ZOOM_CLIENT_ID)).not.toHaveProperty("autocomplete")
+  })
+})
+
+describe("an Optional[str] carrying no format is rendered", () => {
+  test.each([
+    ["required, no default", SLACK_PROFILE_TEAM_FIELD_ID],
+    ["optional, default null", SLACK_PROFILE_DEPARTMENT_FIELD_ID],
+  ])("%s becomes a labelled text input rather than an empty object", (_label, property) => {
+    expect(convertOne(property)).toMatchObject({
+      $formkit: "text",
+      name: "field",
+      label: property.title,
+      help: property.description,
+    })
+  })
+
+  it("does not pick up the secret handling meant for Optional[SecretStr]", () => {
+    const obj = convertOne(SLACK_PROFILE_TEAM_FIELD_ID)
+    expect(obj).not.toHaveProperty("autocomplete")
+    expect(obj.$formkit).not.toBe("password")
+  })
+
+  it("takes the type from the non-null member whichever order it appears in", () => {
+    const nullFirst = { anyOf: [{ type: "null" }, { type: "string" }], title: "Null First" }
+    expect(convertOne(nullFirst).$formkit).toBe("text")
+  })
+
+  // pydantic emits Union[str, SecretStr] with the *plain* member first, so
+  // taking the first non-null member would put a credential in a text input.
+  it("prefers a format-carrying member over an earlier one without a format", () => {
+    const union = {
+      anyOf: [{ type: "string" }, { format: "password", type: "string", writeOnly: true }],
+      title: "Ambiguous Secret",
+    }
+    expect(convertOne(union)).toMatchObject({
+      $formkit: "password",
+      autocomplete: "new-password",
+    })
   })
 })
 
@@ -263,6 +317,33 @@ describe("the generated schema, mounted through FormKitSchema", () => {
     await input.trigger("blur")
     await vi.waitUntil(() => wrapper.find(".formkit-message").exists(), { timeout: 5000 })
     expect(wrapper.find(".formkit-message").text()).toContain("1440")
+  })
+})
+
+describe("the slack-contact schema, mounted through FormKitSchema", () => {
+  /** The `anyOf` half of what `SlackContactConfiguration.model_json_schema()` emits. */
+  const properties = {
+    socket_mode_app_token: SLACK_SOCKET_MODE_APP_TOKEN,
+    profile_department_field_id: SLACK_PROFILE_DEPARTMENT_FIELD_ID,
+    profile_team_field_id: SLACK_PROFILE_TEAM_FIELD_ID,
+  }
+
+  it("emits an input for every property, none of them an empty object", () => {
+    const schema = convert(properties)
+    expect(schema).toHaveLength(3)
+    expect(schema.map((obj) => obj.name)).toEqual(Object.keys(properties))
+  })
+
+  it("renders all three fields, masking only the token", () => {
+    const wrapper = mount(Harness, {
+      props: { schema: convert(properties) },
+      global: { plugins: [[formkitPlugin, defaultConfig]] },
+    })
+    for (const key of Object.keys(properties)) {
+      expect(wrapper.find(`input[name="${key}"]`).exists()).toBe(true)
+    }
+    expect(wrapper.find('input[name="socket_mode_app_token"]').attributes("type")).toBe("password")
+    expect(wrapper.find('input[name="profile_team_field_id"]').attributes("type")).toBe("text")
   })
 })
 

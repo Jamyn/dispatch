@@ -166,12 +166,15 @@ function convertToFormkit(json_schema) {
   for (const [key, value] of Object.entries(json_schema.properties)) {
     var obj = {}
 
-    // Check for anyOf and look for the object with the format parameter
+    // Pydantic emits Optional[X] as anyOf: [X, {"type": "null"}]. The null
+    // member carries nothing renderable, so both type and format have to come
+    // from the other member -- which need not carry a format at all.
     if (value.anyOf) {
-      const formatObj = value.anyOf.find((v) => v.format)
-      if (formatObj) {
-        value.type = formatObj.type
-        value.format = formatObj.format
+      const members = value.anyOf.filter((v) => v.type !== "null")
+      const member = members.find((v) => v.format) || members[0]
+      if (member) {
+        value.type = member.type
+        if (member.format) value.format = member.format
       }
     }
     // A pydantic SecretStr emits {"type": "string", "format": "password"}. JSON
