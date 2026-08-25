@@ -2,7 +2,7 @@
   <v-menu v-model="menu" :close-on-content-click="false">
     <template #activator="{ props }">
       <v-text-field
-        v-model="expiration"
+        :model-value="displayExpiration"
         :label="label"
         v-bind="props"
         clearable
@@ -47,6 +47,7 @@ import addHours from "date-fns/addHours"
 import addDays from "date-fns/addDays"
 
 import DateTimePicker from "@/components/DateTimePicker.vue"
+import { formatToUTCWithZone } from "@/filters"
 
 let now = function () {
   return new Date()
@@ -100,6 +101,13 @@ export default {
   },
 
   computed: {
+    // The field is readonly, so what it shows is presentation only -- the model
+    // value stays the emitted instant. UTC because the backend compares this
+    // column in UTC and the picker below renders UTC; TableInstanceSnoozes
+    // renders the same string back.
+    displayExpiration() {
+      return formatToUTCWithZone(this.modelValue)
+    },
     expiration: {
       get() {
         return cloneDeep(this.modelValue)
