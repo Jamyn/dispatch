@@ -34,14 +34,14 @@ dependencies = [
     "aiofiles",
     "aiohttp",
     "alembic",
-    "anthropic==1.0.0",
+    "anthropic==1.2.0",
     # 5.0.0 split Confluence into separate Cloud (REST v2) and Server (REST v1)
     # classes with different method signatures. The major ceiling keeps the next
     # such split from reaching production through a routine bump.
     # The floor is 5.0.3, not 5.0.0: earlier 5.0.x prefixes `_links.next` (which
     # already carries the context path) with `_links.base` (which carries it
     # too), so a paged Cloud child listing 404s and delete_page strands pages.
-    "atlassian-python-api>=5.0.3,<6",
+    "atlassian-python-api>=5.0.4,<6",
     "attrs>=26.1.0",
     "bcrypt",
     "blockkit==2.1.3",
@@ -49,7 +49,7 @@ dependencies = [
     "cachetools",
     "chardet",
     "click",
-    "cryptography==50.0.0",
+    "cryptography==50.0.1",
     "duo-client",
     "email-validator",
     "emails",
@@ -67,13 +67,13 @@ dependencies = [
     "msal",
     "numpy",
     "oauth2client",
-    "openai==3.3.1",
+    "openai==3.6.0",
     "pandas",
     "pdpyras",
     "protobuf==7.36.0",
     "psycopg2-binary",
     "pyarrow",
-    "pydantic==2.13.4",
+    "pydantic==2.13.5",
     "pydantic-extra-types==2.11.1",
     "pyparsing",
     "python-dateutil",
@@ -83,7 +83,7 @@ dependencies = [
     "pytz",
     "requests",
     "schedule",
-    "sentry-sdk==2.68.0",
+    "sentry-sdk==2.68.1",
     "sh",
     "slack-bolt",
     "slack_sdk",
@@ -92,7 +92,7 @@ dependencies = [
     # declared it reached the lock only as a transitive of the (test-only)
     # schemathesis tree, so removing that tree broke the runtime image.
     "sortedcontainers",
-    "spacy==3.8.13",
+    "spacy==3.8.16",
     "sqlalchemy-filters",
     "sqlalchemy-utils",
     "sqlalchemy==2.0.52",
